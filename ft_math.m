@@ -1,4 +1,4 @@
-function data = ft_math(cfg, varargin)
+function [data] = ft_math(cfg, varargin)
 
 % FT_MATH performs mathematical operations on FieldTrip data structures,
 % such as addition, subtraction, division, etc.
@@ -18,9 +18,11 @@ function data = ft_math(cfg, varargin)
 % Rather than specifying the operation as a string that is evaluated, you can also
 % specify it as a single operation. The advantage is that it is computed faster.
 %    cfg.operation = string, can be 'add', 'subtract', 'divide', 'multiply', 'log10', 'abs'
+%                     'sqrt', 'square'
 % If you specify only a single input data structure and the operation is 'add',
 % 'subtract', 'divide' or 'multiply', the configuration should also contain:
 %   cfg.scalar    = scalar value to be used in the operation
+%   cfg.matrix    = matrix with identical size as the data, it will be element-wise be applied
 %
 % The operation 'add' is implemented as follows
 %   y = x1 + x2 + ....
@@ -56,15 +58,7 @@ function data = ft_math(cfg, varargin)
 %
 % See also FT_DATATYPE
 
-% Undocumented options:
-%   cfg.matrix = rather than using a scalar, a matrix can be specified. In
-%                this case, the dimensionality of cfg.matrix should be equal
-%                to the dimensionality of data.(cfg.parameter). If used in
-%                combination with cfg.operation, the operation should
-%                involve element-wise combination of the data and the
-%                matrix.
-
-% Copyright (C) 2012-2015, Robert Oostenveld
+% Copyright (C) 2012-2019, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -93,13 +87,12 @@ ft_revision = '$Id$';
 ft_nargin   = nargin;
 ft_nargout  = nargout;
 
-% do teh general setup of the function
+% do the general setup of the function
 ft_defaults
 ft_preamble init
 ft_preamble debug
 ft_preamble loadvar varargin
 ft_preamble provenance varargin
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -119,14 +112,17 @@ cfg = ft_checkconfig(cfg, 'renamedval', {'funparameter', 'avg.pow', 'pow'});
 cfg = ft_checkconfig(cfg, 'renamedval', {'funparameter', 'avg.coh', 'coh'});
 cfg = ft_checkconfig(cfg, 'renamedval', {'funparameter', 'avg.mom', 'mom'});
 
+% set the defaults
+cfg.feedback = ft_getopt(cfg, 'feedback', 'text');
+
 if ~iscell(cfg.parameter)
   cfg.parameter = {cfg.parameter};
 end
 
 if ft_datatype(varargin{1}, 'raw+comp')
-    if length(varargin)>1
-        error('ft_math does not support more than one input argument if the input data is of type "raw" or "comp"')
-    end
+  if length(varargin)>1
+    ft_error('ft_math does not support more than one input argument if the input data is of type "raw" or "comp"')
+  end
 end
 
 % this function only works for the upcoming (not yet standard) source representation without sub-structures
@@ -148,7 +144,7 @@ end
 
 for p=1:length(cfg.parameter)
   if ~issubfield(varargin{1}, cfg.parameter{p})
-    error('the requested parameter is not present in the data');
+    ft_error('the requested parameter is not present in the data');
   end
 end
 
@@ -164,7 +160,7 @@ cfg.parameter = tmpcfg.parameter;
 for p = 1:length(cfg.parameter)
   dimordtmp{p} = getdimord(varargin{1}, cfg.parameter{p});
   if p>1 && ~strcmp(dimordtmp{1}, dimordtmp{p})
-    error('the dimord of multiple parameters must be the same');
+    ft_error('the dimord of multiple parameters must be the same');
   end
 end
 clear dimordtmp
@@ -174,7 +170,7 @@ clear dimordtmp
 % fields in the output
 fn  = fieldnames(varargin{1});
 dimordfields = fn(~cellfun(@isempty, strfind(fn, 'dimord')))';
-if numel(dimordfields)==1 && strcmp(dimordfields{1},'dimord'),
+if numel(dimordfields)==1 && strcmp(dimordfields{1},'dimord')
     % this is OK and counts for most data structures
 else
     % this is in the case of one or more xxxdimord fields, in which case
@@ -186,10 +182,10 @@ else
     end
     dimordfields = dimordfields(ok);
 end
-data = keepfields(varargin{1}, [dimordfields {'label', 'labelcmb', 'freq', 'time', 'pos', 'dim', 'transform'}]);
+data = keepfields(varargin{1}, [dimordfields {'pos', 'tri', 'dim', 'transform', 'unit', 'coordsys', 'label', 'labelcmb', 'freq', 'time', 'trialinfo', 'sampleinfo', 'fsample'}]);
 
 for p = 1:length(cfg.parameter)
-  fprintf('selecting %s from the first input argument\n', cfg.parameter{p});
+  ft_info('selecting %s from the first input argument\n', cfg.parameter{p});
   % create the local variables x1, x2, ...
   for i=1:length(varargin)
     assign_var(sprintf('x%i', i), getsubfield(varargin{i}, cfg.parameter{p}));
@@ -200,20 +196,20 @@ for p = 1:length(cfg.parameter)
   m = ft_getopt(cfg, 'matrix');
 
   % check the dimensionality of m against the input data
-  if ~isempty(m),
+  if ~isempty(m)
     for i=1:length(varargin)
       ok = isequal(size(getsubfield(varargin{i}, cfg.parameter{p})),size(m));
       if ~ok, break; end
     end
-    if ~ok,
-      error('the dimensions of cfg.matrix do not allow for element-wise operations');
+    if ~ok
+      ft_error('the dimensions of cfg.matrix do not allow for element-wise operations');
     end
   end
 
   % only one of these can be defined at the moment (i.e. not allowing for
   % operations such as (x1+m)^s for now
-  if ~isempty(m) && ~isempty(s),
-    error('you can either specify a cfg.matrix or a cfg.scalar, not both');
+  if ~isempty(m) && ~isempty(s)
+    ft_error('you can either specify a cfg.matrix or a cfg.scalar, not both');
   end
 
   % touch it to keep track of it in the output cfg
@@ -221,17 +217,17 @@ for p = 1:length(cfg.parameter)
   if ~isempty(m), cfg.matrix; end
 
   % replace s with m, so that the code below is more transparent
-  if ~isempty(m),
+  if ~isempty(m)
     s = m; clear m;
   end
 
   if length(varargin)==1
     switch cfg.operation
       case 'add'
-        if isscalar(s),
-          fprintf('adding %f to the %s\n', s, cfg.parameter{p});
+        if isscalar(s)
+          ft_info('adding %f to the %s\n', s, cfg.parameter{p});
         else
-          fprintf('adding the contents of cfg.matrix to the %s\n', cfg.parameter{p});
+          ft_info('adding the contents of cfg.matrix to the %s\n', cfg.parameter{p});
         end
         if iscell(x1)
           y = cellplus(x1, s);
@@ -240,10 +236,10 @@ for p = 1:length(cfg.parameter)
         end
 
       case 'subtract'
-        if isscalar(s),
-          fprintf('subtracting %f from the %s\n', s, cfg.parameter{p});
+        if isscalar(s)
+          ft_info('subtracting %f from the %s\n', s, cfg.parameter{p});
         else
-          fprintf('subtracting the contents of cfg.matrix from the %s\n', cfg.parameter{p});
+          ft_info('subtracting the contents of cfg.matrix from the %s\n', cfg.parameter{p});
         end
         if iscell(x1)
           y = cellminus(x1, s);
@@ -252,12 +248,12 @@ for p = 1:length(cfg.parameter)
         end
 
       case 'multiply'
-        if isscalar(s),
-          fprintf('multiplying %s with %f\n', cfg.parameter{p}, s);
+        if isscalar(s)
+          ft_info('multiplying %s with %f\n', cfg.parameter{p}, s);
         else
-          fprintf('multiplying %s with the content of cfg.matrix\n', cfg.parameter{p});
+          ft_info('multiplying %s with the content of cfg.matrix\n', cfg.parameter{p});
         end
-        fprintf('multiplying %s with %f\n', cfg.parameter{p}, s);
+        ft_info('multiplying %s with %f\n', cfg.parameter{p}, s);
         if iscell(x1)
           y = celltimes(x1, s);
         else
@@ -265,10 +261,10 @@ for p = 1:length(cfg.parameter)
         end
 
       case 'divide'
-        if isscalar(s),
-          fprintf('dividing %s by %f\n', cfg.parameter{p}, s);
+        if isscalar(s)
+          ft_info('dividing %s by %f\n', cfg.parameter{p}, s);
         else
-          fprintf('dividing %s by the content of cfg.matrix\n', cfg.parameter{p});
+          ft_info('dividing %s by the content of cfg.matrix\n', cfg.parameter{p});
         end
         if iscell(x1)
           y = cellrdivide(x1, s);
@@ -277,7 +273,8 @@ for p = 1:length(cfg.parameter)
         end
 
       case 'log10'
-        fprintf('taking the log10 of %s\n', cfg.parameter{p});
+        assert(isempty(s), sprintf('cfg.scalar or cfg.matrix are not supported for %s', cfg.operation));
+        ft_info('taking the log10 of %s\n', cfg.parameter{p});
         if iscell(x1)
           y = celllog10(x1);
         else
@@ -285,13 +282,32 @@ for p = 1:length(cfg.parameter)
         end
 
       case 'abs'
-        fprintf('taking the abs of %s\n', cfg.parameter{p});
+        assert(isempty(s), sprintf('cfg.scalar or cfg.matrix are not supported for %s', cfg.operation));
+        ft_info('taking the abs of %s\n', cfg.parameter{p});
         if iscell(x1)
           y = cellabs(x1);
         else
           y = abs(x1);
         end
 
+      case 'square'
+        assert(isempty(s), sprintf('cfg.scalar or cfg.matrix are not supported for %s', cfg.operation));
+        ft_info('taking the square of %s\n', cfg.parameter{p});
+        if iscell(x1)
+          y = cellsquare(x1);
+        else
+          y = x1.^2;
+        end
+        
+      case 'sqrt'
+        assert(isempty(s), sprintf('cfg.scalar or cfg.matrix are not supported for %s', cfg.operation));
+        ft_info('taking the sqrt of %s\n', cfg.parameter{p});
+        if iscell(x1)
+          y = cellsqrt(x1);
+        else
+          y = sqrt(x1);
+        end
+        
       otherwise
         % assume that the operation is descibed as a string, e.g. x1^s
         % where x1 is the first argument and s is obtained from cfg.scalar
@@ -311,7 +327,7 @@ for p = 1:length(cfg.parameter)
           end
         else
           y = cell(size(x1));
-          % do the same thing, but now for each element of the cell array
+          % do the same thing, but now for each element of the cell-array
           for i=1:numel(y)
             for j=1:length(varargin)
               % rather than working with x1 and x2, we need to work on its elements
@@ -339,7 +355,7 @@ for p = 1:length(cfg.parameter)
     switch cfg.operation
       case 'add'
         for i=2:length(varargin)
-          fprintf('adding the %s input argument\n', nth(i));
+          ft_info('adding the %s input argument\n', nth(i));
           if iscell(x1)
             y = cellplus(x1, varargin{i}.(cfg.parameter{p}));
           else
@@ -349,7 +365,7 @@ for p = 1:length(cfg.parameter)
 
       case 'multiply'
         for i=2:length(varargin)
-          fprintf('multiplying with the %s input argument\n', nth(i));
+          ft_info('multiplying with the %s input argument\n', nth(i));
           if iscell(x1)
             y = celltimes(x1, varargin{i}.(cfg.parameter{p}));
           else
@@ -359,9 +375,9 @@ for p = 1:length(cfg.parameter)
 
       case 'subtract'
         if length(varargin)>2
-          error('the operation "%s" requires exactly 2 input arguments', cfg.operation);
+          ft_error('the operation "%s" requires exactly 2 input arguments', cfg.operation);
         end
-        fprintf('subtracting the 2nd input argument from the 1st\n');
+        ft_info('subtracting the 2nd input argument from the 1st\n');
         if iscell(x1)
           y = cellminus(x1, varargin{2}.(cfg.parameter{p}));
         else
@@ -370,9 +386,9 @@ for p = 1:length(cfg.parameter)
 
       case 'divide'
         if length(varargin)>2
-          error('the operation "%s" requires exactly 2 input arguments', cfg.operation);
+          ft_error('the operation "%s" requires exactly 2 input arguments', cfg.operation);
         end
-        fprintf('dividing the 1st input argument by the 2nd\n');
+        ft_info('dividing the 1st input argument by the 2nd\n');
         if iscell(x1)
           y = cellrdivide(x1, varargin{2}.(cfg.parameter{p}));
         else
@@ -381,11 +397,17 @@ for p = 1:length(cfg.parameter)
 
       case 'log10'
         if length(varargin)>2
-          error('the operation "%s" requires exactly 2 input arguments', cfg.operation);
+          ft_error('the operation "%s" requires exactly 2 input arguments', cfg.operation);
         end
-        fprintf('taking the log difference between the 2nd input argument and the 1st\n');
+        ft_info('taking the log difference between the 2nd input argument and the 1st\n');
         y = log10(x1 ./ varargin{2}.(cfg.parameter{p}));
-
+        
+      case 'square'
+        ft_error(sprintf('operation %s is not supported with multiple input arguments', cfg.operation));
+        
+      case 'sqrt'
+        ft_error(sprintf('operation %s is not supported with multiple input arguments', cfg.operation));
+        
       otherwise
         % assume that the operation is descibed as a string, e.g. (x1-x2)/(x1+x2)
 
@@ -408,9 +430,11 @@ for p = 1:length(cfg.parameter)
             y = feval(operation, arginval{:});
           end
         else
+          ft_progress('init', cfg.feedback, 'Processing trials...')
           y = cell(size(x1));
-          % do the same thing, but now for each element of the cell array
+          % do the same thing, but now for each element of the cell-array
           for i=1:numel(y)
+            ft_progress(i/numel(y), 'Processing trial %d from %d', i, numel(y))
             for j=1:length(varargin)
               % rather than working with x1 and x2, we need to work on its elements
               % xx1 is one element of the x1 cell-array
@@ -426,7 +450,8 @@ for p = 1:length(cfg.parameter)
             else
               y{i} = feval(operation, arginval{:});
             end
-          end % for each element
+          end % for i over each element
+          ft_progress('close');
         end % iscell or not
 
     end % switch
@@ -434,10 +459,10 @@ for p = 1:length(cfg.parameter)
 
   % store the result of the operation in the output structure
   data = setsubfield(data, cfg.parameter{p}, y);
-end % p over length(cfg.parameter)
+end % for p over all parameters
 
 % certain fields should remain in the output, but only if they are identical in all inputs
-keepfield = {'grad', 'elec', 'opto', 'inside', 'trialinfo', 'sampleinfo', 'tri'};
+keepfield = {'elec', 'grad', 'opto', 'inside', 'trialinfo', 'sampleinfo', 'tri', 'brainordinate', 'fsample'};
 for j=1:numel(keepfield)
   if isfield(varargin{1}, keepfield{j})
     tmp  = varargin{1}.(keepfield{j});
@@ -461,7 +486,6 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   varargin
 ft_postamble provenance data
 ft_postamble history    data
@@ -524,3 +548,9 @@ z = cellfun(@log10, x, 'UniformOutput', false);
 
 function z = cellabs(x)
 z = cellfun(@abs, x, 'UniformOutput', false);
+
+function z = cellsquare(x)
+z = cellfun(@power, x, repmat({2}, size(x)), 'UniformOutput', false);
+
+function z = cellsqrt(x)
+z = cellfun(@sqrt, x, 'UniformOutput', false);

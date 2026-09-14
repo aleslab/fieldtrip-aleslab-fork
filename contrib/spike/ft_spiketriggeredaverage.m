@@ -46,7 +46,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance data
-ft_preamble trackconfig
+
 
 % check input data structure
 data = ft_checkdata(data,'datatype', 'raw', 'feedback', 'yes');
@@ -76,14 +76,12 @@ cfg = ft_checkconfig(cfg, 'allowed', {'timwin', 'spikechannel', 'channel', 'keep
 
 % autodetect the spike channels
 ntrial = length(data.trial);
-nchans  = length(data.label);
-spikechan = zeros(nchans,1);
+nchans = length(data.label);
+sc = zeros(nchans,ntrial);
 for i=1:ntrial
-  for j=1:nchans
-    spikechan(j) = spikechan(j) + all(data.trial{i}(j,:)==0 | data.trial{i}(j,:)==1 | data.trial{i}(j,:)==2);
-  end
+    sc(:,i) = all(mod(data.trial{i},1) == 0,2);
 end
-spikechan = (spikechan==ntrial);
+spikechan = (sum(sc,2)==ntrial);
 
 % determine the channels to be averaged
 cfg.channel = ft_channelselection(cfg.channel, data.label);
@@ -110,7 +108,7 @@ end
 % get the number of trials or change DATA according to cfg.trials
 if  strcmp(cfg.trials,'all')
   cfg.trials = 1:length(data.trial);
-elseif islogical(cfg.trials)
+elseif islogical(cfg.trials) || all(cfg.trials==0 | cfg.trials==1)
   cfg.trials = find(cfg.trials);
 end
 cfg.trials = sort(cfg.trials(:));
@@ -139,7 +137,10 @@ if (cfg.latency(2) > max(endTrialLatency)), cfg.latency(2) = max(endTrialLatency
 end
 
 cfgSelect = [];
-cfgSelect.trials  = cfg.trials;
+cfgSelect.toilim = cfg.latency;
+data = ft_redefinetrial(cfgSelect, data); % ft_selectdata is not sufficiently robust for variable trial lengths
+
+cfgSelect = keepfields(cfg, {'trials'});
 data = ft_selectdata(cfgSelect,data);
 ntrial = length(data.trial);
 
@@ -243,7 +244,7 @@ else
 end
 
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
+
 ft_postamble previous   data
 ft_postamble provenance timelock
 ft_postamble history    timelock

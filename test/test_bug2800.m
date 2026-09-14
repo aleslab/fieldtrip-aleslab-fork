@@ -1,15 +1,16 @@
 function test_bug2800
-
-% TEST project_elec
+% DEPENDENCY project_elec
+% DATA private
 
 % WALLTIME 00:10:00
-% MEM 500mb
+% MEM 1gb
 
-filename = dccnpath('/home/common/matlab/fieldtrip/data/test/bug2800.mat');
+filename = dccnpath('/project/3031000.02/test/bug2800.mat');
 load(filename);
 
 % we need to cd into the private directory
-privatedir = dccnpath('/home/common/matlab/fieldtrip/private');
+[ftver, ftpath] = ft_version;
+privatedir = fullfile(ftpath, 'private');
 cd(privatedir);
 
 [el,prj] = project_elec(elec.elecpos, vol.bnd(1).pnt, vol.bnd(1).tri);

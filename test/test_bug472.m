@@ -1,18 +1,15 @@
 function test_bug472
 
-% MEM 1500mb
-% WALLTIME 00:13:01
-
-% TEST buffer.mexa64 buffer.mexmaci buffer.mexw64 buffer.mexglx buffer.mexmaci64 buffer.mexmac buffer.mexw32
-
-global ft_default;
-ft_default.feedback = 'no';
+% MEM 1gb
+% WALLTIME 00:20:00
+% DEPENDENCY buffer.mexa64 buffer.mexmaci buffer.mexw64 buffer.mexglx buffer.mexmaci64 buffer.mexmac buffer.mexw32
+% DATA no
 
 % start without a buffer
 ft_destroy_buffer
 
 % number of attempts
-cnt = 1; 
+cnt = 1;
 
 % use default url
 url = 'buffer://localhost:1972';
@@ -34,4 +31,3 @@ while (toc(stopwatch)<600)
 end
 
 disp('the test completed without detected problems');
-

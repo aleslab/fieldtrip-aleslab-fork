@@ -95,7 +95,7 @@ for index = 1:length(cheetahObjects)
     fprintf('FAILED to open stream for %s', char(cheetahObjects(index)));
     break;
   end
-end;
+end
 if succeeded == 1
   disp 'PASSED open stream for all current objects'
 end
@@ -186,7 +186,7 @@ while again
 
       selectValid = (numValidSamplesArray==512);
       if ~all(selectValid)
-        warning('some samples were not valid')
+        ft_warning('some samples were not valid')
       end
 
       % remove the records that are somehow corrupted

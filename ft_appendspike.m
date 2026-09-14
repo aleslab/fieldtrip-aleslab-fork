@@ -46,7 +46,6 @@ ft_defaults
 ft_preamble init
 ft_preamble debug
 ft_preamble provenance varargin
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -72,7 +71,7 @@ if all(isspike)
     label = cat(1, label, spike{i}.label(:));
   end
   if length(unique(label))~=length(label)
-    error('not all channel labels are unique');
+    ft_error('not all channel labels are unique');
   end
 
   % concatenate the spikes
@@ -99,7 +98,7 @@ else
   % check the validity of the channel labels
   label = cat(1, data.label(:), spike.label(:));
   if length(unique(label))~=length(label)
-    error('not all channel labels are unique');
+    ft_error('not all channel labels are unique');
   end
 
   if isfield(data, 'cfg')
@@ -109,14 +108,14 @@ else
   end
 
   if isempty(trl);
-    error('could not find the trial information in the continuous data');
+    ft_error('could not find the trial information in the continuous data');
   end
 
   try
     FirstTimeStamp     = data.hdr.FirstTimeStamp;
     TimeStampPerSample = data.hdr.TimeStampPerSample;
   catch
-    error('could not find the timestamp information in the continuous data');
+    ft_error('could not find the timestamp information in the continuous data');
   end
 
   for i=1:length(spike.label)
@@ -128,7 +127,7 @@ else
 
     % determine the corresponding sample numbers for each timestamp
     ts = spike.timestamp{i};
-    % timestamps can be uint64, hence explicitely convert to double at the
+    % timestamps can be uint64, hence explicitly convert to double at the
     % right moment
     if strcmp(class(ts),class(FirstTimeStamp))
       sample = round(double(ts-FirstTimeStamp)/TimeStampPerSample + 1);
@@ -152,7 +151,6 @@ end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous varargin
 ft_postamble provenance data
 ft_postamble history data

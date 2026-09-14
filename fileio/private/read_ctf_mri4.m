@@ -26,16 +26,12 @@ function [mri, hdr, cpersist] = read_ctf_mri4(filename)
 %
 % $Id$
 
-fid = fopen(filename,'rb', 'ieee-be');
-
-if fid<=0
-  error(sprintf('could not open MRI file: %s\n', filename));
-end
+fid = fopen_or_error(filename,'rb', 'ieee-be');
 
 [cpersist] = read_cpersist(fid);
 
 % turn warnings off
-ws = warning('off');
+ws = ft_warning('off');
 
 % general header information
 hdr.identifierString        = get_value(cpersist, '_CTFMRI_VERSION');      % CTF_MRI_FORMAT VER 4.1
@@ -99,7 +95,7 @@ hdr.headOrigin_axial = hmOrigin(3);
 %fread(fid,204,'char'); % unused, padding to 1028 bytes
 
 % revert to previous warning state
-warning(ws);
+ft_warning(ws);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % READ THE IMAGE DATA
@@ -118,11 +114,11 @@ for slice = 1:256
   elseif(hdr.dataSize == 2)
     slicedata = uint16(fread(fid, [256 256], 'uint16'));
   else
-    error('Unknown datasize in CTF MRI file');
-  end;
+    ft_error('Unknown datasize in CTF MRI file');
+  end
 
   mri(:, :, slice) = slicedata;
-end;
+end
 
 %mri = reshape(mri, [256 256 256]);
 fclose(fid);
@@ -195,7 +191,7 @@ hdr.fiducial.head.rpa = ft_warp_apply(hdr.transformMRI2Head, hdr.fiducial.mri.rp
 % @return values matrix Array containing the numbers found
 %
   function [values] = split_nvalue(input, delim)
-    if(nargin < 2), delim = '\\'; end;
+    if(nargin < 2), delim = '\\'; end
 
     remain = input;
     values = [];
@@ -203,7 +199,7 @@ hdr.fiducial.head.rpa = ft_warp_apply(hdr.transformMRI2Head, hdr.fiducial.mri.rp
     while(numel(remain > 0))
       [value, remain] = strtok(remain, delim);
       values(end + 1) = str2num(value);
-    end;
+    end
   end
 
 %
@@ -217,8 +213,8 @@ hdr.fiducial.head.rpa = ft_warp_apply(hdr.transformMRI2Head, hdr.fiducial.mri.rp
   function [value] = get_value(cpersist, key)
     idx = find(strcmp({cpersist.key}, key));
 
-    if(numel(idx) < 1), error('Specified key does not exist.'); end;
-    if(numel(idx) > 1), error('Specified key is not unique.'); end;
+    if(numel(idx) < 1), ft_error('Specified key does not exist.'); end
+    if(numel(idx) > 1), ft_error('Specified key is not unique.'); end
 
     value = cpersist(idx).value;
   end
@@ -232,7 +228,7 @@ hdr.fiducial.head.rpa = ft_warp_apply(hdr.transformMRI2Head, hdr.fiducial.mri.rp
   function [cpersist] = read_cpersist(fid)
     magic = char(fread(fid, 4, 'char'))';
 
-    if(~strcmp(magic, 'WS1_')), error('Invalid CPersist header'); end;
+    if(~strcmp(magic, 'WS1_')), ft_error('Invalid CPersist header'); end
 
     cpersist = struct('key', {}, 'value', {});
 
@@ -242,7 +238,7 @@ hdr.fiducial.head.rpa = ft_warp_apply(hdr.transformMRI2Head, hdr.fiducial.mri.rp
       ltext = char(fread(fid, lsize, 'char'))';
 
       % Last label in file is always EndOfParameters
-      if(strcmp(ltext, 'EndOfParameters')), return; end;
+      if(strcmp(ltext, 'EndOfParameters')), return; end
 
       % Read value
       vtype = fread(fid, 1, 'int32');
@@ -279,7 +275,7 @@ hdr.fiducial.head.rpa = ft_warp_apply(hdr.transformMRI2Head, hdr.fiducial.mri.rp
         vsize = fread(fid, 1, 'int32');
         value = char(fread(fid, vsize, 'char'))';
       otherwise
-        error(['Unsupported valuetype (' num2str(vtype) ') found in CPersist object']);
+        ft_error(['Unsupported valuetype (' num2str(vtype) ') found in CPersist object']);
     end
   end
 

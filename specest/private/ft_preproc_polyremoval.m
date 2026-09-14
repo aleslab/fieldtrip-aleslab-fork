@@ -14,7 +14,7 @@ function [dat,beta,x] = ft_preproc_polyremoval(dat, order, begsample, endsample,
 %              vectors from the first-order basis vector (and the beta
 %              weights). This is to avoid numerical problems with the
 %              inversion of the covariance when the polynomial is of high
-%              order/number of samples is large
+%              order/number of samples is large.
 %
 % If begsample and endsample are not specified, it will use the whole
 % window to estimate the polynomial.
@@ -24,6 +24,9 @@ function [dat,beta,x] = ft_preproc_polyremoval(dat, order, begsample, endsample,
 % removes the mean value from each channel and
 %   ft_preproc_polyremoval(dat, 1)
 % removes the mean and the linear trend.
+%
+% If the data contains NaNs, these are ignored for the computation, but
+% retained in the output.
 %
 % See also FT_PREPROC_BASELINECORRECT, FT_PREPROC_DETREND
 
@@ -60,13 +63,34 @@ end
 
 % This does not work on integer data
 typ = class(dat);
-if ~strcmp(typ, 'double') && ~strcmp(typ, 'single')
+if ~isa(dat, 'double') && ~isa(dat, 'single')
   dat = cast(dat, 'double');
 end
+
+usesamples = false(1,size(dat,2));
+usesamples(begsample:endsample) = true;
 
 % preprocessing fails on channels that contain NaN
 if any(isnan(dat(:)))
   ft_warning('FieldTrip:dataContainsNaN', 'data contains NaN values');
+  
+  datnans = isnan(dat);
+  
+  % if a nan occurs, it's for all time points
+  check1  = all(ismember(sum(datnans,1),[0 size(dat,1)]));
+  
+  % if a channel has nans, it's for all samples
+  check2  = all(ismember(sum(datnans,2),[0 size(dat,2)])); 
+  
+  if ~(check1 || check2)
+    usesamples = repmat(usesamples, [size(dat,1) 1]);
+    usesamples = usesamples & ~isnan(dat);
+  elseif check1
+    usesamples(sum(datnans,1)==size(dat,1)) = false; % switch the nan samples off, they are not to be used for the regression
+  end
+else
+  check1 = true;
+  check2 = true;
 end
 
 % construct a "time" axis
@@ -82,10 +106,20 @@ for i = 0:order
   x(i+1,:) = basis.^(i);
 end
 
-% estimate the contribution of the basis functions
-% beta = dat(:,begsample:endsample)/x(:,begsample:endsample); <-this leads to numerical issues, even in simple examples
-invxcov = inv(x(:,begsample:endsample)*x(:,begsample:endsample)');
-beta    = dat(:,begsample:endsample)*x(:,begsample:endsample)'*invxcov;
+if ~(check1 || check2)
+  % loop across rows
+  beta    = zeros(size(dat,1),size(x,1));
+  for k = 1:size(dat,1)
+    invxcov   = inv(x(:,usesamples(k,:))*x(:,usesamples(k,:))');
+    beta(k,:) = dat(k,usesamples(k,:))*x(:,usesamples(k,:))'*invxcov;
+  end
+else
+  
+  % estimate the contribution of the basis functions
+  % beta = dat(:,begsample:endsample)/x(:,begsample:endsample); <-this leads to numerical issues, even in simple examples
+  invxcov = pinv(x(:,usesamples)*x(:,usesamples)');
+  beta    = dat(:,usesamples)*x(:,usesamples)'*invxcov;
+end
 
 % remove the estimated basis functions
 dat = dat - beta*x;

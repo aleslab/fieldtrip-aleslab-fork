@@ -1,7 +1,9 @@
 function inspect_bug2588
 
-% TEST inspect_bug2588
-% TEST ft_databrowser
+% WALLTIME 00:10:00
+% MEM 1gb
+% DEPENDENCY ft_databrowser
+% DATA no
 
 data = [];
 for i=1:10

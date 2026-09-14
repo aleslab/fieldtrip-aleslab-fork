@@ -1,10 +1,9 @@
 function test_bug1667
 
 % WALLTIME 00:20:00
-% MEM 4gb
-
-% TEST ft_read_data
-% TEST ft_fetch_data
+% MEM 2gb
+% DEPENDENCY ft_read_data ft_fetch_data
+% DATA private
 
 % Improvements:
 % 1-make buffering from multiple sources possible

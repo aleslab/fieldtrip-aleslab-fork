@@ -1,13 +1,9 @@
 function test_bug950
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_megrealign test_bug950
-
-% use FieldTrip defaults instead of personal defaults
-global ft_default;
-ft_default = [];
+% DEPENDENCY ft_megrealign test_bug950
+% DATA private
 
 % the issue explored here is a reputed crash in megrealign due to a problem
 % in the channelposition function.
@@ -15,7 +11,7 @@ ft_default = [];
 % the headmodel for the inverse/forward steps
 
 % load in some data
-load(dccnpath(fullfile('/home/common/matlab/fieldtrip/data/test/latest/raw/meg/','preproc_ctf151')));
+load(dccnpath('/project/3031000.02/test/latest/raw/meg/preproc_ctf151.mat'));
 
 cfg = [];
 cfg.gradient = 'G3BR';
@@ -26,9 +22,9 @@ template.chanpos(:,3) = template.chanpos(:,3)+1;
 template.coilpos(:,3) = template.coilpos(:,3)+1;
 
 cfg = [];
-cfg.template{1} = template;
-cfg.inwardshift = 1;
-cfg.vol.o    = [0 0 4];
-cfg.vol.r    = 8;
-cfg.vol.unit = 'cm';
+cfg.template{1}    = template;
+cfg.inwardshift    = 1;
+cfg.headmodel.o    = [0 0 4];
+cfg.headmodel.r    = 8;
+cfg.headmodel.unit = 'cm';
 data2 = ft_megrealign(cfg, data);

@@ -24,16 +24,18 @@ function [cfg] = ft_layoutplot(cfg, data)
 %   cfg.layout      = filename containg the layout
 %   cfg.rotate      = number, rotation around the z-axis in degrees (default = [], which means automatic)
 %   cfg.projection  = string, 2D projection method can be 'stereographic', 'ortographic', 'polar', 'gnomic' or 'inverse' (default = 'orthographic')
-%   cfg.elec        = structure with electrode definition
-%   cfg.grad        = structure with gradiometer definition
-%   cfg.elecfile    = filename containing electrode definition
-%   cfg.gradfile    = filename containing gradiometer definition
+%   cfg.elec        = structure with electrode positions or filename, see FT_READ_SENS
+%   cfg.grad        = structure with gradiometer definition or filename, see FT_READ_SENS
+%   cfg.opto        = structure with optode definition or filename, see FT_READ_SENS
 %   cfg.output      = filename to which the layout will be written (default = [])
 %   cfg.montage     = 'no' or a montage structure (default = 'no')
 %   cfg.image       = filename, use an image to construct a layout (e.g. usefull for ECoG grids)
-%   cfg.visible     = string, 'yes' or 'no' whether figure will be visible (default = 'yes')
 %   cfg.box         = string, 'yes' or 'no' whether box should be plotted around electrode (default = 'yes')
 %   cfg.mask        = string, 'yes' or 'no' whether the mask should be plotted (default = 'yes')
+%   cfg.visible     = string, 'on' or 'off' whether figure will be visible (default = 'on')
+%   cfg.figure      = 'yes' or 'no', whether to open a new figure. You can also specify a figure handle from FIGURE, GCF or SUBPLOT. (default = 'yes')
+%   cfg.position    = location and size of the figure, specified as [left bottom width height] (default is automatic)
+%   cfg.renderer    = string, 'opengl', 'zbuffer', 'painters', see RENDERERINFO (default is automatic, try 'painters' when it crashes)
 %
 % Alternatively the layout can be constructed from either
 %   data.elec     structure with electrode positions
@@ -86,7 +88,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar data
 ft_preamble provenance data
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -101,62 +102,33 @@ if hasdata
   data = ft_checkdata(data);
 end
 
+% check if the input cfg is valid for this function
+cfg = ft_checkconfig(cfg, 'renamed', {'elecfile', 'elec'});
+cfg = ft_checkconfig(cfg, 'renamed', {'gradfile', 'grad'});
+cfg = ft_checkconfig(cfg, 'renamed', {'optofile', 'opto'});
+cfg = ft_checkconfig(cfg, 'renamed', {'newfigure', 'figure'});
+
 % set the defaults
-cfg.visible = ft_getopt(cfg, 'visible', 'yes');
-cfg.box     = ft_getopt(cfg, 'box', 'yes');
-cfg.mask    = ft_getopt(cfg, 'mask', 'yes');
+cfg.box       = ft_getopt(cfg, 'box', 'yes');
+cfg.mask      = ft_getopt(cfg, 'mask', 'yes');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% extract/generate layout information
+% extract or generate the layout information
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-lay = [];
 
-% try to use the layout structure from input if specified
-if isfield(cfg, 'layout')
-  % brief check to determine if cfg.layout is a valid layout (lay) structre
-  if isstruct(cfg.layout)
-    if all(isfield(cfg.layout, {'pos';'width';'height';'label'}))
-      lay = cfg.layout;
-    end
-  end
-end
-
-% otherwise create the layout structure
-if isempty(lay)
-  if hasdata
-    lay = ft_prepare_layout(cfg, data);
-  else
-    lay = ft_prepare_layout(cfg);
-  end
+tmpcfg = keepfields(cfg, {'layout', 'channel', 'rows', 'columns', 'commentpos', 'skipcomnt', 'scalepos', 'skipscale', 'projection', 'viewpoint', 'rotate', 'width', 'height', 'elec', 'grad', 'opto', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
+if hasdata
+  layout = ft_prepare_layout(tmpcfg, data);
+else
+  layout = ft_prepare_layout(tmpcfg);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % plot all details pertaining to the layout in one figure
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if istrue(cfg.visible)
-  f = figure('visible', 'on');
-else
-  f = figure('visible', 'off');
-end
 
-% set the figure window title
-funcname = mfilename();
-if hasdata
-  if isfield(cfg, 'inputfile') && ~isempty(cfg.inputfile)
-    dataname = cfg.inputfile;
-  else
-    dataname = inputname(2);
-  end
-else
-  dataname = [];
-end
-
-if ~isempty(dataname)
-  set(gcf, 'Name', sprintf('%d: %s: %s', double(gcf), funcname, dataname));
-else
-  set(gcf, 'Name', sprintf('%d: %s', double(gcf), funcname));
-end
-set(gcf, 'NumberTitle', 'off');
+% open a new figure with the specified settings
+h = open_figure(keepfields(cfg, {'figure', 'position', 'visible', 'renderer'}));
 
 if isfield(cfg, 'image') && ~isempty(cfg.image)
   % start with the background image
@@ -180,7 +152,7 @@ if isfield(cfg, 'image') && ~isempty(cfg.image)
   axis xy
 end
 
-ft_plot_lay(lay, 'point', true, 'box', istrue(cfg.box), 'label', true, 'mask', istrue(cfg.mask), 'outline', true);
+ft_plot_layout(layout, 'point', true, 'box', cfg.box, 'label', true, 'mask', cfg.mask, 'outline', true);
 
 % the following code can be used to verify a bipolar montage, given the
 % layout of the monopolar channels
@@ -198,19 +170,38 @@ if isfield(cfg, 'montage') && ~isempty(cfg.montage)
     % find the position of the begin and end of the arrow
     beglab = cfg.montage.labelold{begindx};
     endlab = cfg.montage.labelold{endindx};
-    begindx = find(strcmp(lay.label, beglab)); % the index in the layout
-    endindx = find(strcmp(lay.label, endlab)); % the index in the layout
+    begindx = find(strcmp(layout.label, beglab)); % the index in the layout
+    endindx = find(strcmp(layout.label, endlab)); % the index in the layout
     if ~numel(begindx)==1 || ~numel(endindx)==1
       % one of the channels in the bipolar pair does not seem to be in the layout
       continue
     end
     
-    begpos = lay.pos(begindx,:);
-    endpos = lay.pos(endindx,:);
+    begpos = layout.pos(begindx,:);
+    endpos = layout.pos(endindx,:);
     arrow(begpos, endpos, 'Length', 5)
     
   end % for all re-referenced channels
 end % if montage
+
+% this is needed for the figure title
+if isfield(cfg, 'dataname') && ~isempty(cfg.dataname)
+  dataname = cfg.dataname;
+elseif isfield(cfg, 'inputfile') && ~isempty(cfg.inputfile)
+  dataname = cfg.inputfile;
+elseif nargin>1
+  dataname = arrayfun(@inputname, 2:nargin, 'UniformOutput', false);
+else
+  dataname = {};
+end
+
+% set the figure window title
+if ~isempty(dataname)
+  set(h, 'Name', sprintf('%d: %s: %s', double(h), mfilename, join_str(', ', dataname)));
+else
+  set(h, 'Name', sprintf('%d: %s', double(h), mfilename));
+end
+set(h, 'NumberTitle', 'off');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % deal with the output
@@ -218,6 +209,14 @@ end % if montage
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
-ft_postamble provenance
 ft_postamble previous data
+ft_postamble provenance
+ft_postamble savefig
+
+% add a menu to the figure, but only if the current figure does not have subplots
+menu_fieldtrip(gcf, cfg, false);
+
+if ~ft_nargout
+  % don't return anything
+  clear cfg
+end

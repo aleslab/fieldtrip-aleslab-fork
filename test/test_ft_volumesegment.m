@@ -1,14 +1,14 @@
 function test_ft_volumesegment
 
-% MEM 2000mb
+% MEM 1gb
 % WALLTIME 01:00:00
-
-% TEST ft_volumesegment  ft_read_mri
+% DEPENDENCY ft_volumesegment  ft_read_mri
+% DATA private
 
 % initial version by Lilla Magyari 2012
 
 % read in an mri
-mri = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/mri/nifti/single_subj_T1.nii'));
+mri = ft_read_mri(dccnpath('/project/3031000.02/test/latest/mri/nifti/single_subj_T1.nii'));
 
 % the following could also be done using ft_determine_coordsys
 mri.coordsys = 'spm';
@@ -64,6 +64,9 @@ tpm = tpm2; % use one of the segmentations created above for the rest
 
 cfg = [];
 cfg.output = 'brain';
+cfg.spmversion = 'spm8'; % this is the old default, and needed for the test
+% function to run through, using spm12 leads to rng state dependent minor
+% differences, causing the isequals below to fail.
 brain = ft_volumesegment(cfg,mri);
 
 if ~(isfield(brain,'brain'))
@@ -74,6 +77,7 @@ end
 
 cfg = [];
 cfg.output = 'brain';
+cfg.spmversion = 'spm8';
 brain2 = ft_volumesegment(cfg,tpm);
 
 if ~(isfield(brain2,'brain'))
@@ -91,6 +95,7 @@ tpm.anatomy = mri.anatomy; % for scalp segmentation
 
 cfg = [];
 cfg.output = {'brain' 'skull' 'scalp'};
+cfg.spmversion = 'spm8';
 seg = ft_volumesegment(cfg,tpm);
 
 
@@ -103,6 +108,7 @@ end
 
 cfg = [];
 cfg.output = {'brain' 'skull' 'scalp'};
+cfg.spmversion = 'spm8';
 seg2 = ft_volumesegment(cfg, mri);
 
 if ~(isfield(seg2,'brain')) || ~(isfield(seg2,'skull')) || ~(isfield(seg2,'scalp'))
@@ -158,8 +164,8 @@ elseif isfield(scalp2,'anatomy') || isfield(scalp2,'tpm') || isfield(scalp2,'bra
   error('inconsistent segmentation structure');
 end
 
-% when scalp is the only output: the representation is "cummulative"
-% for comparison, also the seg.scalp is converted to cummulative
+% when scalp is the only output: the representation is "cumulative"
+% for comparison, also the seg.scalp is converted to cumulative
 seg.scalp(seg.brain == 1) = 1;
 seg.scalp(seg.skull == 1) = 1;
 seg2.scalp(seg2.brain == 1) = 1;
@@ -176,6 +182,7 @@ clear scalp2;
 
 cfg = [];
 cfg.output = 'skullstrip';
+cfg.spmversion = 'spm8';
 skullstr = ft_volumesegment(cfg,tpm);
 
 if ~(isfield(skullstr,'anatomy'))
@@ -186,6 +193,7 @@ end
 
 cfg = [];
 cfg.output = 'skullstrip';
+cfg.spmversion = 'spm8';
 skullstr2 = ft_volumesegment(cfg,mri);
 
 if ~(isfield(skullstr2,'anatomy'))
@@ -207,6 +215,7 @@ clear skullstr2;
 cfg = [];
 cfg.downsample = 2;
 cfg.output = 'scalp';
+cfg.spmversion = 'spm8';
 scalp3 = ft_volumesegment(cfg,tpm);
 
 if isequal(scalp.scalp,scalp3.scalp)
@@ -238,6 +247,7 @@ cfg = [];
 cfg.threshold = 0.3;
 cfg.smooth = 6;
 cfg.output = 'scalp';
+cfg.spmversion = 'spm8';
 scalp6 = ft_volumesegment(cfg,tpm);
 
 if ~(isequal(scalp4.scalp,scalp6.scalp))
@@ -251,6 +261,7 @@ cfg = [];
 cfg.brainthreshold = 0.1;
 cfg.brainsmooth  =  6;
 cfg.output = 'skullstrip';
+cfg.spmversion = 'spm8';
 skullstr3 = ft_volumesegment(cfg,tpm);
 
 cfg = [];
@@ -268,6 +279,7 @@ cfg = [];
 cfg.threshold = 0.1;
 cfg.smooth  =  6;
 cfg.output = 'skullstrip';
+cfg.spmversion = 'spm8';
 skullstr5 = ft_volumesegment(cfg,tpm);
 
 if ~(isequal(skullstr5.anatomy,skullstr3.anatomy))
@@ -280,6 +292,7 @@ cfg = [];
 cfg.threshold = 0.1;
 cfg.smooth  =  6;
 cfg.output =  {'skullstrip' 'brain'};
+cfg.spmversion = 'spm8';
 skullstr6 = ft_volumesegment(cfg,tpm);
 
 if ~(isequal(skullstr5.anatomy,skullstr6.anatomy))
@@ -290,6 +303,7 @@ end
 
 cfg = [];
 cfg.output = {'skullstrip' 'brain'};
+cfg.spmversion = 'spm8';
 skullstr = ft_volumesegment(cfg,tpm);
 
 assert(isfield(skullstr,'anatomy') & isfield(skullstr,'brain'),'skullstrip segmentation is missing anatomy');

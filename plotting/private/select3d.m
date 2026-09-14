@@ -63,16 +63,16 @@ faceiout = [];
 
 % other variables
 ERRMSG = 'Input argument must be a valid graphics handle';
-isline = logical(0);
-isperspective = logical(0);
+isline = false;
+isperspective = false;
 
 % Parse input arguments
 if nargin<1
    obj = gco;
 end
 
-if isempty(obj) | ~ishandle(obj) | length(obj)~=1
-    error(ERRMSG);
+if isempty(obj) || ~ishandle(obj) || length(obj)~=1
+    ft_error(ERRMSG);
 end
 
 % if obj is a figure
@@ -118,11 +118,11 @@ is_perspective = strcmp(get(ax,'projection'),'perspective');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % syntax not supported in old versions of MATLAB
-[a b] = view(ax); 
+[a, b] = view(ax); 
 xform = viewmtx(a,b);
 if is_perspective
-    warning('%s does not support perspective axes projection.',mfilename);
-    d = norm(camtarget(ax)-campos(ax))
+    ft_warning('%s does not support perspective axes projection', mfilename);
+    d = norm(camtarget(ax)-campos(ax));
     P = [1 0 0 0; 
          0 1 0 0;
          0 0 1 0;
@@ -154,7 +154,7 @@ elseif strcmp(obj_type,'line')
     zdata = get(axchild,'zdata');
     vert = [xdata', ydata',zdata'];
     faces = []; 
-    isline = logical(1);
+    isline = true;
 
 % Ignore all other objects
 else     
@@ -172,8 +172,8 @@ end
 % NaN and Inf check 
 nan_inf_test1 = isnan(faces) | isinf(faces);
 nan_inf_test2 = isnan(vert) | isinf(vert);
-if any(nan_inf_test1(:)) | any(nan_inf_test2(:))
-    warning('%s does not support NaNs or Infs in face/vertex data.',mfilename);
+if any(nan_inf_test1(:)) || any(nan_inf_test2(:))
+    ft_warning('%s does not support NaNs or Infs in face/vertex data.',mfilename);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -241,11 +241,11 @@ if isline
     % Ignoring line width and marker attributes, find closest 
     % vertex in 2-D view space.
     d = xvert(1,:).*xvert(1,:) + xvert(2,:).*xvert(2,:);
-    [val i] = min(d);
+    [val, i] = min(d);
     i = i(1); % enforce only one output
     
     % Assign output
-    vout = [ xdata(i) ydata(i) zdata(i)];
+    vout = [xdata(i) ydata(i) zdata(i)];
     viout = i;
     
     return % Bail out early
@@ -258,8 +258,7 @@ end
 % Find all vertices that have y components less than zero
 vert_with_negative_y = zeros(size(faces));
 face_y_vert = xvert(2,faces);
-ind_vert_with_negative_y = find(face_y_vert<0); 
-vert_with_negative_y(ind_vert_with_negative_y) = logical(1);
+vert_with_negative_y(face_y_vert<0) = true;
 
 % Find all the line segments that span the x axis
 is_line_segment_spanning_x = abs(diff([vert_with_negative_y, vert_with_negative_y(:,1)],1,2));
@@ -308,7 +307,7 @@ end
 % three vertices since that is all we need to define a plane).
 % assuming planar polygons.
 candidate_faces = candidate_faces(ind_intersection_test,1:3);
-candidate_faces = reshape(candidate_faces',1,prod(size(candidate_faces)));
+candidate_faces = reshape(candidate_faces',1,numel(candidate_faces));
 vert = vert';
 candidate_facev = vert(:,candidate_faces);
 candidate_facev = reshape(candidate_facev,3,3,length(ind_intersection_test));
@@ -319,8 +318,8 @@ v2 = squeeze(candidate_facev(:,2,:));
 v3 = squeeze(candidate_facev(:,3,:));
 
 % Get normal to face plane
-vec1 = [v2-v1];
-vec2 = [v3-v2];
+vec1 = v2-v1;
+vec2 = v3-v2;
 crs = cross(vec1,vec2);
 mag = sqrt(sum(crs.*crs));
 nplane(1,:) = crs(1,:)./mag;
@@ -349,7 +348,7 @@ B = sum(B,1);
 t = (-dp-B)./A;
 
 % Find "best" distance (smallest)
-[tbest ind_best] = min(t);
+[tbest, ind_best] = min(t);
 
 % Determine intersection point
 pout = cp1 + tbest .* d;
@@ -367,9 +366,8 @@ if nargout>1
     facexv = xvert(:,faces(faceiout,:));
     dist = sqrt(facexv(1,:).*facexv(1,:) +  facexv(2,:).*facexv(2,:));
     min_dist = min(dist);
-    min_index = find(dist==min_dist);
     
     % Get closest vertex index and vertex
-    viout = faces(faceiout,min_index);
+    viout = faces(faceiout, dist==min_dist);
     vout = vert(:,viout);
 end

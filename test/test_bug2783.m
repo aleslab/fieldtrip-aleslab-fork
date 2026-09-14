@@ -1,9 +1,9 @@
 function test_bug2783
 
-% MEM 2gb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_redefinetrial ft_checkdata
+% DEPENDENCY ft_redefinetrial ft_checkdata
+% DATA no
 
 %% create some data
 

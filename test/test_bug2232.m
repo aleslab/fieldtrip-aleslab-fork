@@ -2,14 +2,12 @@ function test_bug2232
 
 % MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST gifti
-% TEST ft_read_headshape
-% TEST ft_read_atlas
+% DEPENDENCY gifti ft_read_headshape ft_read_atlas
+% DATA private
 
 ft_hastoolbox('gifti', 1);
 
-datadir = dccnpath('/home/common/matlab/fieldtrip/data/test/bug2232');
+datadir = dccnpath('/project/3031000.02/test/bug2232');
 d       = dir(datadir);
 subdir  = {d.name}';
 sel     = cellfun(@numel, subdir)>2;

@@ -1,7 +1,9 @@
 function test_bug1270
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY
+% DATA no
 
 % script to verify and fix an error related to using a mask in
 % ft_singleplotER

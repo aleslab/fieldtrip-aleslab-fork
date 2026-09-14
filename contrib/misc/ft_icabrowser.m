@@ -1,355 +1,611 @@
-function [rej_comp] = ft_icabrowser(cfg, comp)
+function [rej_comp, artifact] = ft_icabrowser(cfg, comp)
 
-% ICA component viewer and GUI
+% FT_ICABROWSER takes as an input comp structure from FieldTrip ft_componentanalysis
+% and presents a GUI interface showing the power spectrum, variance over
+% time and the topography of the components, as well as the possibility to
+% save a PDF, inspect the timecourse and toggle components to be rejected vs
+% kept. Also, it allows for the specification of artifactual segments,
+% through the functionality of ft_databrowser. This may be handy in order
+% to identify data segments that cause infrequent data features loading on
+% a limited set of channels (e.g. isolated SQUID jumps in MEG). This type
+% of artitfact defendibly would require the extreme segments to be rejected
+% from the data a priori, i.e. before application of the independent
+% component analysis.
 %
-% loads in comp structure from FieldTrip ft_componentanalysis
-% presents a GUI interface showin the power spectrum, variance over time
-% and the topography of the components, as well as the possibility to save
-% a PDF, view the timecourse and toggle components to be rejected vs kept.
-% when done, will create a file with the components to be rejected
+% Use as
+%    [rej_comp, artifact] = ft_icabrowser(cfg, comp)
 %
-% CONFIGURATION NEEDED:
-% cfg.path         where pdfs will be saves
-% cfg.prefix       prefix of the pdf files
-% cfg.layout       layout of the topo view
+% where the input comp structure should be obtained from FT_COMPONENTANALYSIS.
 %
-% OPTIONAL CONFIGURATION:
-% cfg.colormap      colormap for topo
-% cfg.inputfile
-% cfg.outputfile    will contain indices of all components to reject
+% The configuration must contain:
+%   cfg.layout     = filename of the layout, see FT_PREPARE_LAYOUT
+%
+% further optional configuration parameters are
+%   cfg.rejcomp       = list of components which shall be initially marked for rejection, e.g. [1 4 7]
+%   cfg.blocksize     = blocksize of time course length for visualization (default = [])
+%   cfg.powscale      = scaling of y axis in power plot, 'lin' or 'log10', (default = 'log10')
+%   cfg.freqscale     = scaling of x axis in power plot, 'lin' or 'log', (default = 'lin')
+%   cfg.foilim
+%   cfg.zlim          = plotting limits for color dimension of topoplot, 'maxmin', 'maxabs', 'zeromax', 'minzero', or [zmin zmax] (default = 'maxmin')
+%   cfg.outputfolder  = where pdfs will be saved (default = pwd)
+%   cfg.prefix        = prefix of the pdf files (default = 'ICA')
+%   cfg.colormap      = any sized colormap, see FT_COLORMAP
+%   cfg.outputfile    = MAT file which contains indices of all components to reject
+%   cfg.showcallinfo  = show call info, 'yes' or 'no' (default: 'no')
+%   cfg.chunklength
 %
 % original written by Thomas Pfeffer
 % adapted by Jonathan Daume and Anne Urai
 % University Medical Center Hamburg-Eppendorf, 2015
+%
+% modified by Daniel Matthes
+% Max Planck Institute for Human Cognitive and Brain Sciences, 2019
+%
+% Jan-Mathijs did a big overhaul of the functionality, allowing for more
+% interaction. Future versions may lose some functionality, e.g. w.r.t
+% saving pdfs.
+%
+% See also FT_COMPONENTANALYSIS, FT_TOPOPLOTIC, FT_PREPARE_LAYOUT, FT_DATABROWSER
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if isfield(cfg, 'inputfile'), load(cfg.inputfile); end
-assert(exist('comp', 'var') > 0, 'could not find a comp structure');
+persistent prev_comp_hash prev_freq
 
-% setup
-var_data = cat(2,comp.trial{:});
-var_time = (1:(size(var_data,2)))/comp.fsample;
-% only do the fft on a subset of trials, saves time
-fft_data = cat(2,comp.trial{1:5:end});
-% preallocate rejected components
-rej_comp = zeros(size(comp.label,1),1);
-
-subpl = 4;
-l = 0;
-cnt = 1;
-il = 0;
-logar = 1; % default logarithmic or linear scale for powspctrm
-
-% set path
-path = cfg.path;
-if ~exist(path, 'dir'),
-    mkdir path;
+% check if the input data is valid for this function
+comp = ft_checkdata(comp, 'datatype', 'raw+comp', 'hassampleinfo', 'yes');
+comp_hash = ft_hash(removefields(comp, 'cfg'));
+if isequal(comp_hash, prev_comp_hash)
+  sameinputdata = true;
+else
+  sameinputdata  = false;
+  prev_comp_hash = comp_hash;
 end
-prefix = cfg.prefix;
+
+% set the defaults
+layout        = ft_getopt(cfg, 'layout');
+rejcomp       = ft_getopt(cfg, 'rejcomp',   []);
+blocksize     = ft_getopt(cfg, 'blocksize', []);
+powscale      = ft_getopt(cfg, 'powscale',  'log10');
+freqscale     = ft_getopt(cfg, 'freqscale', 'lin');
+cfg.zlim      = ft_getopt(cfg, 'zlim',      'maxmin');
+outputfolder  = ft_getopt(cfg, 'outputfolder',      pwd);
+prefix        = ft_getopt(cfg, 'prefix',    'ICA');
+colormap      = ft_getopt(cfg, 'colormap',  'default');
+outputfile    = ft_getopt(cfg, 'outputfile',   []);
+showcallinfo  = ft_getopt(cfg, 'showcallinfo', 'no');
+cfg.chunklength = ft_getopt(cfg, 'chunklength', 'trial');
+cfg.foilim   = ft_getopt(cfg, 'foilim', []);
+cfg.colormap = ft_getopt(cfg, 'colormap', []);
+
+% cfg.rejcomp can be indicated by number or by label
+rejcomp = ft_channelselection(rejcomp, comp.label);
+reject = match_str(comp.label, rejcomp);
+
+% create folder if not exist
+if ~exist(outputfolder, 'dir')
+  mkdir outputfolder;
+end
+
+% test config
+if ~ismember(powscale, {'lin', 'log10'})
+  powscale = 'log10';
+end
+
+if ~ismember(freqscale, {'lin', 'log'})
+  freqscale = 'lin';
+end
+
+if isscalar(comp.trial) && isequal(cfg.chunklength, 'trial')
+  fprintf('Using a default chunk length = 2 seconds, assuming the single trial input is too long to make sense\n');
+  cfg.chunklength = 2;
+end
+
+if ~isequal(cfg.chunklength, 'trial')
+  % NEW: precompute a ncomponent x nchunk matrix of variance values, for the data cut into 2 second chunks
+  fprintf('Computing the variance in %d-second chunks\n', cfg.chunklength);
+  cfgredef         = [];
+  cfgredef.length  = cfg.chunklength;
+  cfgredef.keeppartial = 'yes';
+  cfgredef.updatetrialinfo = 'yes';
+  newcomp  = ft_redefinetrial(cfgredef, comp);
+
+  % update the blocksize
+  blocksize = cfg.chunklength;
+else
+  newcomp = comp;
+end
+trialinfo = (1:numel(newcomp.trial))';
+
+if istable(trialinfo)
+  trialinfo = table2array(trialinfo);
+end
+comp_var = zeros(numel(comp.label), numel(newcomp.trial));
+for s = 1:numel(newcomp.trial)
+  comp_var(:,s) = var(newcomp.trial{s}, [], 2, 'omitnan');
+end
+comp_time = 1:size(comp_var,2);
+
+if ~sameinputdata
+  % NEW: precompute the spectra
+  fprintf('Computing power spectra\n');
+  hasnan = false(numel(newcomp.trial),1);
+  for s = 1:numel(newcomp.trial)
+    hasnan(s) = any(~isfinite(newcomp.trial{s}(:)));
+  end
+  cfgfreq = [];
+  cfgfreq.method = 'mtmfft';
+  cfgfreq.taper  = 'hanning';
+  cfgfreq.pad    = 10;
+  cfgfreq.trials = find(~hasnan);
+  if ~isempty(cfg.foilim)
+    cfgfreq.foilim = cfg.foilim;
+  end
+  freq      = ft_freqanalysis(cfgfreq, newcomp);
+  prev_freq = freq;
+else
+  freq = prev_freq;
+end
+
+% preallocate rejected components
+rej_comp = false(size(comp.label,1),1);
+rej_comp(reject) = true;
+
+numOfPlots = 4;                            % number of subplots per page
+page = 1;                                  % number of current page
+numOfPages = ceil(size(comp.label, 1)/4);  % maximum number of pages
 
 % to save time redoing this for each topo
-cfglay = keepfields(cfg, {'layout'});
-lay = ft_prepare_layout(cfglay, comp);
+cfglay              = [];
+cfglay.layout       = layout;
+cfglay.showcallinfo = showcallinfo;
+lay                 = ft_prepare_layout(cfglay);
 
-cfgtopo = [];
-cfgtopo.layout    = lay;     % specify the layout file that should be used for plotting
-cfgtopo.comment   = 'no';
-cfgtopo.highlight = 'off';
-cfgtopo.marker    = 'off';
-cfgtopo.style     = 'straight';
-if isfield(cfg, 'colormap'),  cfgtopo.colormap  = cfg.colormap;  end
+% match the labels in the layout with the labels in the data
+[i1, i2] = match_str(lay.label, comp.topolabel);
+xpos = lay.pos(i1,1);
+ypos = lay.pos(i1,2);
 
-err = 0;
-manpos = [0.1 0.1 0.8 0.8]; % figure position, can be updated later
-
-% ------------------------------------------------
-% COMPUTE LATENCY FOR 2s-WINDOWS
-% ------------------------------------------------
-
-slen = floor(2*comp.fsample);
-smax = floor(size(var_data,2)/slen);
-comp_var  = nan(subpl, smax); % preallocate
-comp_time = nan(1, smax);     % preallocate
-for s = 1 : smax
-  comp_time(s) = mean(var_time(1,(s-1)*slen+1:s*slen));
+cfgtopo               = [];
+cfgtopo.layout        = lay;                                              
+cfgtopo.comment       = 'no';
+cfgtopo.zlim          = cfg.zlim;
+cfgtopo.highlight     = 'off';
+cfgtopo.marker        = 'off';
+cfgtopo.style         = 'straight';
+cfgtopo.showcallinfo  = showcallinfo;
+if ~isempty(colormap)
+  cfgtopo.colormap    = ft_colormap(cfg.colormap);
+  close;
 end
-        
+
+err      = 0;
+manpos   = [0.1 0.1 0.5 0.5]; % figure position, can be updated later
+artifact = zeros(0,2);
+
+rej_str = {'Keep' 'Reject'};
+rej_col = [0 0.5 0; 0.5 0 0];
+
+f = figure('units','normalized','outerposition', manpos, 'CloseRequestFcn', @(h, evt)quitme);
+set(f, 'Name', sprintf('%d: %s', double(f), 'ft_icabrowser'));
+
+% ------------------------------------------------
+% FIRST/PREVIOUS/NEXT/LAST PAGE BUTTONS
+% ------------------------------------------------
+first = uicontrol('Units','normalized','Position',[0.05 0.01 0.075 0.05],'Style','pushbutton','String','First','Callback',@(h, evt)firstpage);
+first.Enable = 'off';
+
+prev = uicontrol('Units','normalized','Position',[0.15 0.01 0.075 0.05],'Style','pushbutton','String','Prev','Callback',@(h, evt)prevpage);
+prev.Enable = 'off';
+
+next = uicontrol('Units','normalized','Position',[0.25 0.01 0.075 0.05],'Style','pushbutton','String','Next','Callback',@(h, evt)nextpage);
+next.Enable = 'off';
+
+last = uicontrol('Units','normalized','Position',[0.35 0.01 0.075 0.05],'Style','pushbutton','String','Last','Callback',@(h, evt)lastpage);
+last.Enable = 'off';
+
+% ------------------------------------------------
+% SWITCH POWER AXIS LOG/LINEAR
+% ------------------------------------------------
+powlog = uicontrol('Units','normalized','Position',[0.45 0.01 0.075 0.05],'Style','pushbutton', 'Callback',@(h, evt)powplotlog);
+powlog.Enable = 'off';
+if strcmp(powscale, 'log10')
+  powlog.String = 'Linear Power Scale';
+else
+  powlog.String = 'Log Power Scale';
+end
+
+% ------------------------------------------------
+% SWITCH FREQUENCY AXIS LOG/LINEAR
+% ------------------------------------------------
+freqlog = uicontrol('Units','normalized','Position',[0.55 0.01 0.090 0.05],'Style','pushbutton', 'Callback',@(h, evt)freqplotlog);
+freqlog.Enable = 'off';
+if strcmp(freqscale, 'log')
+  freqlog.String = 'Linear Frequency Scale';
+else
+  freqlog.String = 'Log Frequency Scale';
+end
+
+% ------------------------------------------------
+% SAVE AND QUIT
+% ------------------------------------------------
+save_it = uicontrol('Units','normalized','Position',[0.80 0.01 0.075 0.05], ...
+  'Style','pushbutton','String','Save','Callback',@(h, evt)save_callback);
+save_it.Enable = 'off';
+quit_it = uicontrol('Units','normalized','Position',[0.90 0.01 0.075 0.05],...
+  'Style','pushbutton','String','Quit','Callback',@(h, evt)quitme);
+quit_it.Enable = 'off';
+
+orient landscape
+drawnow;
+
+trial_for_disp = 1;
+subcomp = cell(4,numOfPlots);
 while err == 0 % KEEP GOING UNTIL THERE IS AN ERROR
-    
-    while il < subpl, % il is the subplot count
-        
-        il = il + 1;
-        i = (cnt-1)*subpl+il;
-        
-        if mod(i-1,subpl)==0
-            % keep manual screen position - better in dual monitor settings
-            f = figure('units','normalized','outerposition', manpos);
-            l = l + 1;
-        end
-        
-        % ------------------------------------------------
-        % COMPUTE VARIANCE FOR 2s-WINDOWS
-        % ------------------------------------------------
-        
-        for s = 1 : smax
-            comp_var(i,s)=var(var_data(i,(s-1)*slen+1:s*slen));
-        end
-        
-        % ------------------------------------------------
-        % COMPUTE POWER SPECTRUM
-        % ------------------------------------------------
-        smo = 50;
-        steps = 10;
-        Fs = comp.fsample;
-        N = floor(size(fft_data,2));
-        xdft = fft(fft_data(i,:));
-        xdft = xdft(1:N/2+1);
-        psdx = (1/(Fs*N)).*abs(xdft).^2;
-        psdx(2:end-1) = 2*psdx(2:end-1);
-        
-        j = 1;
-        k = 1;
-        while j < length(psdx)-smo
-            smoothed(k)=mean(psdx(j:j+smo));
-            j = j + steps;
-            k = k + 1;
-        end
-        
-        freq = linspace(0,Fs/2,size(smoothed,2));
-        strt = find(freq > 2,1,'first');
-        stp  = find(freq < 200,1,'last');
-        
-        % ------------------------------------------------
-        % PLOT POWER SPECTRUM
-        % ------------------------------------------------
-        subcomp{1}{il} = subplot(subpl,3,(i-(l-1)*subpl)*3-2);
-        if logar
-            plot(freq(strt:stp),log10(smoothed(strt:stp)));
-            ylabel('(dB/Hz)');
-        else
-            plot(freq(strt:stp),smoothed(strt:stp));
-            ylabel('T^2/Hz');
-        end
-        set(gca,'TickDir','out','XTick',0:25:200)
-        xlabel('Frequency (Hz)'); grid on;
-        axis tight;
-        
-        % ------------------------------------------------
-        % PLOT VARIANCE OVER TIME
-        % ------------------------------------------------
-        subcomp{2}{il} = subplot(subpl,3,(i-(l-1)*subpl)*3-1);
-        scatter(comp_time,comp_var(i,:),'k.');
-        xlabel('Time (s)'); ylabel('Variance');
-        axis tight; set(gca, 'tickdir', 'out');
-        
-        % ------------------------------------------------
-        % PLOT COMPONENT TOPOGRAPHY
-        % ------------------------------------------------
-        subcomp{3}{il} = subplot(subpl,3,(i-(l-1)*subpl)*3);
-        cfgtopo.component = i;       % specify the component(s) that should be plotted
-        ft_topoplotIC(cfgtopo, comp);
-        
-        if mod(i,subpl)==0 || i == 80
-            
-            pos = [0.76 0.73 0.075 0.035; ...
-                0.76 0.51 0.075 0.035; ...
-                0.76 0.29 0.075 0.035; ...
-                0.76 0.07 0.075 0.035];
-            
-            for ibgc = 1 : 4
-                if rej_comp(i+(ibgc-4)) == 1
-                    bgc{ibgc} = 'r';
-                else
-                    bgc{ibgc} = 'g';
-                end
-            end
-            
-            % ------------------------------------------------
-            % SHOW TIMECOURSE OF THIS COMPONENT
-            % ------------------------------------------------
-            tc1 = uicontrol('Units','normalized','Position',[0.86 0.73 0.075 0.035],...
-                'Style','pushbutton','String','Timecourse','Callback',{@tc_cb, 1});
-            tc2 = uicontrol('Units','normalized','Position',[0.86 0.51 0.075 0.035],...
-                'Style','pushbutton','String','Timecourse','Callback',{@tc_cb, 2});
-            tc3 = uicontrol('Units','normalized','Position',[0.86 0.29 0.075 0.035],...
-                'Style','pushbutton','String','Timecourse','Callback',{@tc_cb, 3});
-            tc4 = uicontrol('Units','normalized','Position',[0.86 0.07 0.075 0.035],...
-                'Style','pushbutton','String','Timecourse','Callback',{@tc_cb, 4});
-            
-            % ------------------------------------------------
-            % REJECT COMPONENT
-            % ------------------------------------------------
-            rej1 = uicontrol('Units','normalized', 'Tag', 'rej1', 'Position',pos(1,:),'Style','pushbutton','String','Keep', ...
-                'Backgroundcolor',bgc{1},'Callback',@rej_callback1);
-            rej2 = uicontrol('Units','normalized','Tag', 'rej2','Position',pos(2,:),'Style','pushbutton','String','Keep', ...
-                'Backgroundcolor',bgc{2},'Callback',@rej_callback2);
-            rej3 = uicontrol('Units','normalized','Tag', 'rej3','Position',pos(3,:),'Style','pushbutton','String','Keep', ...
-                'Backgroundcolor',bgc{3},'Callback',@rej_callback3);
-            rej4 = uicontrol('Units','normalized','Tag', 'rej4','Position',pos(4,:),'Style','pushbutton','String','Keep', ...
-                'Backgroundcolor',bgc{4},'Callback',@rej_callback4);
-            
-            % ------------------------------------------------
-            % SAVE COMPONENT PDF
-            % ------------------------------------------------
-            savecomp1 = uicontrol('Units','normalized','Position',[0.86 0.78 0.075 0.035],'Style','pushbutton','String','Save PDF','Callback',{@sc_cb, 1});
-            savecomp2 = uicontrol('Units','normalized','Position',[0.86 0.56 0.075 0.035],'Style','pushbutton','String','Save PDF','Callback',{@sc_cb, 2});
-            savecomp3 = uicontrol('Units','normalized','Position',[0.86 0.34 0.075 0.035],'Style','pushbutton','String','Save PDF','Callback',{@sc_cb, 3});
-            savecomp4 = uicontrol('Units','normalized','Position',[0.86 0.12 0.075 0.035],'Style','pushbutton','String','Save PDF','Callback',{@sc_cb, 4});
-            
-            % ------------------------------------------------
-            % MOVE TO NEXT
-            % ------------------------------------------------
-            
-            if i > 4
-                prev = uicontrol('Units','normalized','Position',[0.1 0.01 0.075 0.05],'Style','pushbutton','String','Prev','Callback',@nextplot);
-            else
-                prev = uicontrol('Units','normalized','Position',[0.1 0.01 0.075 0.05],'Style','pushbutton','String','');
-            end
-            
-            if i < size(comp.label,1)-3
-                next = uicontrol('Units','normalized','Position',[0.2 0.01 0.075 0.05],'Style','pushbutton','String','Next','Callback',@lastplot);
-            else
-                next = uicontrol('Units','normalized','Position',[0.2 0.01 0.075 0.05],'Style','pushbutton','String','');
-            end
-            
-            % ------------------------------------------------
-            % CHANGE FREQUENCY AXIS
-            % ------------------------------------------------
-            logarith = uicontrol('Units','normalized','Position',[0.3 0.01 0.075 0.05],'Style','pushbutton','String','Log10','Callback',@plotlog);
-            lin      = uicontrol('Units','normalized','Position',[0.4 0.01 0.075 0.05],'Style','pushbutton','String','Linear','Callback',@plotlin);
-            
-            % ------------------------------------------------
-            % SAVE AND QUIT
-            % ------------------------------------------------
-            s = uicontrol('Units','normalized','Position',[0.90 0.01 0.075 0.05], ...
-                'Style','pushbutton','String','Save','Callback',@save_callback);
-            quit_it = uicontrol('Units','normalized','Position',[0.80 0.01 0.075 0.05],...
-                'Style','pushbutton','String','Quit','Callback',@quitme);
-            orient landscape
-            uiwait
-        end
+
+  for row = 1:numOfPlots % il is the subplot count
+    freqlog.Enable = 'off';
+    powlog.Enable  = 'off';
+      
+    compNum = (page-1) * numOfPlots + row; % number of current component
+   
+    % ------------------------------------------------
+    % PLOT FIRST TRIAL
+    % ------------------------------------------------
+    if isempty(subcomp{1,row})
+      subcomp{1,row} = subplot(numOfPlots,4,row*4-3, 'tag', sprintf('data_%s', comp.label{compNum}));
+      xlabel('Time (s)');
+      plot(comp.time{trial_for_disp}, comp.trial{trial_for_disp}(compNum,:));
+      ylabel(comp.label{compNum});
+      if row==1
+        set(gca, 'XaxisLocation', 'top');
+        xlabel(sprintf('trial %d', trial_for_disp));
+      end
+      axis tight;
+    else
+      l = get(subcomp{1,row}, 'children');
+      set(l, 'XData', comp.time{trial_for_disp}, 'YData', comp.trial{trial_for_disp}(compNum,:));
+      set(subcomp{1,row}, 'tag', sprintf('data_%s', comp.label{compNum}));
+      set(get(subcomp{1,row}, 'ylabel'), 'string', comp.label{compNum});
+      if row==1
+        set(get(subcomp{1,row}, 'xlabel'), 'string', sprintf('trial %d', trial_for_disp));
+      end
     end
-end
+
+    % ------------------------------------------------
+    % PLOT POWER SPECTRUM
+    % ------------------------------------------------
+    flim = [1 200];
+    strt = find(freq.freq > flim(1), 1, 'first');
+    stp  = find(freq.freq < flim(2), 1, 'last');
+    subcomp{2,row} = subplot(numOfPlots,4,row*4-2, 'tag', sprintf('freq_%s', comp.label{compNum}));
+    xlabel('Frequency (Hz)'); grid on;
+    
+    if strcmp(powscale, 'log10')
+      dat = log10(freq.powspctrm(compNum, strt:stp));
+      plot(freq.freq(strt:stp), dat);
+      set(gca, 'ylim', [min(dat) max(dat)], 'xlim', freq.freq([strt stp]));
+      ylabel('PSD (dB/Hz)');
+    else
+      plot(freq.freq(strt:stp),freq.powspctrm(compNum, strt:stp));
+      ylabel('PSD (T^2/Hz)');
+    end
+
+    if strcmp(freqscale, 'log')
+      set(gca, 'XScale', 'log');
+      set(gca,'TickDir','out','XTick', [1 10 100]);
+    else
+      set(gca, 'XScale', 'linear');
+      set(gca,'TickDir','out','XTick',0:25:200);
+    end
+    
+    % ------------------------------------------------
+    % PLOT VARIANCE OVER TIME
+    % ------------------------------------------------
+    if isempty(subcomp{3,row})
+      subcomp{3,row} = subplot(numOfPlots,4,row*4-1);
+      plot(comp_time,comp_var(compNum,:),'k.');
+      xlabel('Chunk'); ylabel('Variance');
+      axis tight; set(gca, 'tickdir', 'out');
+      set(gca, 'ButtonDownFcn', @(h,evt)toggle_visual, 'tag', sprintf('var_%s', comp.label{compNum}));
+    else
+      l = get(subcomp{3,row}, 'children');
+      set(l, 'YData', comp_var(compNum,:));
+      set(subcomp{3,row}, 'tag',  sprintf('var_%s', comp.label{compNum}));
+    end
+
+    % ------------------------------------------------
+    % PLOT COMPONENT TOPOGRAPHY
+    % ------------------------------------------------
+    subcomp{4,row} = subplot(numOfPlots,4,row*4, 'Tag', sprintf('topo_%s', comp.label{compNum}));
+    ft_plot_layout(lay, 'label', 'off', 'box', 'no', 'point', 'no');
+    dat = comp.topo(i2, compNum);
+    % Get physical min/max range of z:
+    if strcmp(cfg.zlim, 'maxmin')
+      zmin = min(dat);
+      zmax = max(dat);
+    elseif strcmp(cfg.zlim, 'maxabs')
+      zmin = -max(max(abs(dat)));
+      zmax = max(max(abs(dat)));
+    elseif strcmp(cfg.zlim, 'zeromax')
+      zmin = 0;
+      zmax = max(dat);
+    elseif strcmp(cfg.zlim, 'minzero')
+      zmin = min(dat);
+      zmax = 0;
+    else
+      zmin = cfg.zlim(1);
+      zmax = cfg.zlim(2);
+    end
+    ft_plot_topo(xpos, ypos, dat, 'outline', lay.outline, 'mask', lay.mask, 'clim', [zmin zmax], 'gridscale', 95);
+    
+    % decorate with buttons
+    ypos_button = [0.73 0.51 0.29 0.07];
+
+    % ------------------------------------------------
+    % SHOW TIMECOURSE OF THIS COMPONENT BUTTON
+    % ------------------------------------------------
+    button{row,1} = uicontrol('Units','normalized','Position',[0.9 ypos_button(row) 0.075 0.035],...
+      'Style','pushbutton','String','Timecourse','Callback',@(h, evt)tc_cb(compNum));
+
+    % ------------------------------------------------
+    % REJECT COMPONENT BUTTON
+    % ------------------------------------------------
+    button{row,2} = uicontrol('Units','normalized', 'Tag', sprintf('rej%d',row), 'Position',[0.75 ypos_button(row) 0.11 0.035],...
+      'Style','checkbox','String','select for rejection','Callback',@(h, evt)rej_callback(row));
+
+    % ------------------------------------------------
+    % SAVE COMPONENT PDF BUTTON
+    % ------------------------------------------------
+    button{row,3} = uicontrol('Units','normalized','Position',[0.9 ypos_button(row)+0.05 0.075 0.035],'Style','pushbutton','String','Save PDF','Callback',@(h, evt)sc_cb(1));
+    if isempty(outputfolder)
+      button{row,3}.Enable = 'off';
+    end
+
+    if mod(compNum, numOfPlots)==0 || compNum == numel(comp.label)
+      % ------------------------------------------------
+      % ENABLE/DISABLE NEXT/LAST PAGE BUTTONS
+      % ------------------------------------------------
+      if compNum > 4
+        prev.Enable = 'on';
+        first.Enable = 'on';
+      else
+        prev.Enable = 'off';
+        first.Enable = 'off';
+      end
+
+      if compNum < size(comp.label,1)-3
+        next.Enable = 'on';
+        last.Enable = 'on';
+      else
+        next.Enable = 'off';
+        last.Enable = 'off';
+      end
+
+      if isempty(outputfile)
+        save_it.Enable = 'Off';
+      else
+        save_it.Enable = 'On';
+      end
+      freqlog.Enable = 'on';
+      powlog.Enable  = 'on';
+      quit_it.Enable = 'on';
+      uiwait
+    end
+  end % for
+end % while
+rej_comp = find(rej_comp);
 
 % ------------------------------------------------
 % DEFINE NESTED CALLBACK FUNCTIONS
 % ------------------------------------------------
-    function rej_callback1(h, evt)
-        rej1 = findobj('Tag','rej1');
-        if (rej_comp(i-3) == 0),
-            set(rej1,'Backgroundcolor','r'),
-            rej_comp(i-3)=1;
-        else
-            set(rej1,'Backgroundcolor','g'),
-            rej_comp(i-3)=0;
-        end
+  function rej_callback(k)
+    rejk = findobj('Tag', sprintf('rej%d',k));
+    if (rej_comp(compNum+k-4) == 0)
+      %set(rejk,'Backgroundcolor',[0.5 0 0]);
+      %set(rejk,'String', 'Reject');
+      rej_comp(compNum+k-4) = true;
+    else
+      %set(rejk,'Backgroundcolor',[0 0.5 0]);
+      %set(rejk,'String', 'Keep');
+      rej_comp(compNum+k-4) = false;
     end
+  end
 
-    function rej_callback2(h, evt)
-        rej2 = findobj('Tag','rej2');
-        if (rej_comp(i-2) == 0),
-            set(rej2,'Backgroundcolor','r'),
-            rej_comp(i-2)=1;
-        else
-            set(rej2,'Backgroundcolor','g'),
-            rej_comp(i-2)=0;
+  function toggle_visual()
+    % copied from FT_SELECT_BOX, but without the waitforbuttonpress command since here it is triggered by the ButtonDown event
+    point1 = get(gca, 'CurrentPoint');    % button down detected
+    rbbox;                                % this draws the rubber-band box
+    point2 = get(gca, 'CurrentPoint');    % button up detected
+    point1 = point1(1, 1:2);              % extract x and y
+    point2 = point2(1, 1:2);
+    x = sort([point1(1) point2(1)]);
+    y = sort([point1(2) point2(2)]);
+
+    thistag = get(gca, 'tag');
+    if ~contains(thistag, 'var')
+      return;
+    else
+      % identify the intended trial to be displayed
+      l = get(gca,'children');
+      xsel = find(l.XData>x(1) & l.XData<x(2));
+      ysel = l.YData(xsel);
+      iy = xsel(ysel>y(1) & ysel<y(2));
+      if numel(iy)>1
+        iy = iy(1);
+      end
+
+      if ~isempty(iy)
+        trial_for_disp = trialinfo(iy);
+        for k = 1:4
+          p = get(subcomp{1, k}, 'children');
+          set(p, 'XData', comp.time{trial_for_disp}, 'YData', comp.trial{trial_for_disp}(compNum-row+k, :));
         end
+        set(get(subcomp{1,1}, 'xlabel'), 'string', sprintf('trial %d', trial_for_disp));
+      end
     end
-    function rej_callback3(h, evt)
-        rej3 = findobj('Tag','rej3');
-        if (rej_comp(i-1) == 0),
-            set(rej3,'Backgroundcolor','r'),
-            rej_comp(i-1)=1;
-        else
-            set(rej3,'Backgroundcolor','g'),
-            rej_comp(i-1)=0;
-        end
-    end
-    function rej_callback4(h, evt)
-        rej4 = findobj('Tag','rej4');
-        if (rej_comp(i-0) == 0),
-            set(rej4,'Backgroundcolor','r'),
-            rej_comp(i-0)=1;
-        else
-            set(rej4,'Backgroundcolor','g'),
-            rej_comp(i-0)=0;
-        end
-    end
+    uiresume;
+    
+  end
 
 % timecourse funcs
-    function tc_cb(h, evt, whichcomp)
-        cfgtc = [];
-        cfgtc.layout = lay;
-        cfgtc.viewmode = 'butterfly';
-        cfgtc.channel = [i+(4-whichcomp)];
-        % cfgtc.ylim = [-5e-13 5e-13];
-        ft_databrowser(cfgtc, comp);
+  function tc_cb(compNum)
+    thistag = get(gca, 'tag');
+    if ~startsWith(thistag, 'topo')
+      return;
+    else
+      thistag = thistag(6:end);
     end
+
+    cfgtc = [];
+    cfgtc.layout        = lay;
+    cfgtc.viewmode      = 'butterfly';
+    cfgtc.channel       = compNum;
+    cfgtc.blocksize     = blocksize;
+    cfgtc.showcallinfo  = showcallinfo;
+    cfgtc.linecolor     = 'k';
+    cfgtc.allowoverlap  = 'yes';
+    ft_info off;
+    cfgout = ft_databrowser(cfgtc, comp);
+    if isfield(cfgout, 'artfctdef') && isfield(cfgout.artfctdef, 'visual')
+      artifact = cat(1, artifact, cfgout.artfctdef.visual.artifact);
+    end
+    ft_info on;
+    uiresume;
+  end
 
 % save to figure
-    function sc_cb(h, evt, whichcomp)
-        h = figure;
-        set(h,'Position',[200 200 1000 300]);
-        set(h,'Units','inches');
-        screenposition = get(h,'Position');
-        set(h, 'PaperPosition',[0 0 screenposition(3:4)],'PaperSize',[screenposition(3:4)]);
-        new = copyobj(subcomp{1}{whichcomp},h);
-        set(new,'Position',[.05 .1 0.25 0.85]);
-        new = copyobj(subcomp{2}{whichcomp},h);
-        set(new,'Position',[.35 .1 0.25 0.85]);
-        set(new,'LineWidth',2);
-        new = copyobj(subcomp{3}{whichcomp},h); set(new,'Position',[.55 .05 0.5 0.95]);
-        
-        % save under the correct comp nr
-        compnrs = [i-3 : i];
-        print(h,'-dpdf',sprintf('%s/%s_comp%d.pdf', path, prefix, compnrs(whichcomp)));
-        fprintf('saved pdf to %s/%s_comp%d.pdf', path, prefix, compnrs(whichcomp));
-        close(h)
-    end
+  function sc_cb(whichcomp)
+    h = figure;
+    set(h,'Position',[200 200 1000 300]);
+    set(h,'Units','inches');
+    screenposition = get(h,'Position');
+    set(h, 'PaperPosition',[0 0 screenposition(3:4)],'PaperSize',screenposition(3:4));
+    new = copyobj(subcomp{1}{whichcomp},h);
+    set(new,'Position',[.05 .1 0.25 0.85]);
+    new = copyobj(subcomp{2}{whichcomp},h);
+    set(new,'Position',[.35 .1 0.25 0.85]);
+    set(new,'LineWidth',2);
+    new = copyobj(subcomp{3}{whichcomp},h); set(new,'Position',[.55 .05 0.5 0.95]);
+
+    % save under the correct comp nr
+    compnrs = compNum-3:compNum;
+    print(h,'-dpdf',sprintf('%s/%s_comp%d.pdf', outputfolder, prefix, compnrs(whichcomp)));
+    fprintf('saved pdf to %s/%s_comp%d.pdf\n', outputfolder, prefix, compnrs(whichcomp));
+    close(h)
+  end
 
 % gui
-    function nextplot(h, evt)
-        manpos = get(f,'OuterPosition');
-        cnt = cnt - 1;
-        il = 0;
-        l = l - 2;
-        close;
+  function firstpage()
+    manpos = get(f,'OuterPosition');
+    page = 1;
+    uiresume;
+  end
+
+  function prevpage()
+    manpos = get(f,'OuterPosition');
+    page = page - 1;
+    uiresume;
+  end
+
+  function nextpage()
+    manpos = get(f,'OuterPosition');
+    page = page + 1;
+    uiresume;
+  end
+
+  function lastpage()
+    manpos = get(f,'OuterPosition');
+    page = numOfPages;
+    uiresume;
+  end
+
+  function powplotlog()
+    manpos = get(f,'OuterPosition');
+    if strcmp(powscale, 'log10')
+      powscale = 'lin';
+    else
+      powscale = 'log10';
+    end
+    uiresume;
+  end
+
+  function freqplotlog()
+    manpos = get(f,'OuterPosition');
+    if strcmp(freqscale, 'log')
+      freqscale = 'lin';
+    else
+      freqscale = 'log';
+    end
+    uiresume;
+  end
+
+  function save_callback()
+    if ~isempty(outputfile)
+      idx = find(rej_comp == 1);
+      save(outputfile, 'idx', 'rej_comp');
+    end
+    delete(f);
+    disp('saved');
+    err = 1;
+  end
+
+  function quitme()
+    delete(f);
+    err = 1;
+  end
+
+  function trl = sampleinfo2trl(data)
+
+    % SAMPLEINFO2TRL constructs the trial definition from the sampleinfo, the time axes
+    % and optionally from the trialinfo
+    %
+    % Use as
+    %   trl = sampleinfo2trl(data)
+    %
+    % See also ARTIFACT2BOOLVEC, ARTIFACT2EVENT, ARTIFACT2TRL, BOOLVEC2ARTIFACT, BOOLVEC2EVENT, BOOLVEC2TRL, EVENT2ARTIFACT, EVENT2BOOLVEC, EVENT2TRL, TRL2ARTIFACT, TRL2BOOLVEC, TRL2EVENT
+
+    % get the begin and end sample of each trial
+    begsample = data.sampleinfo(:,1);
+    endsample = data.sampleinfo(:,2);
+
+    % recreate the offset
+    offset = zeros(numel(data.trial), 1);
+    for i=1:numel(data.trial)
+      offset(i) = time2offset(data.time{i}, data.fsample);
     end
 
-    function lastplot(h, evt)
-        manpos = get(f,'OuterPosition');
-        cnt = cnt + 1;
-        il = 0; close;
+    if isfield(data, 'trialinfo') && istable(data.trialinfo)
+      trl = table(begsample, endsample, offset);
+      trl = horzcat(trl, data.trialinfo);
+    elseif isfield(data, 'trialinfo') && isnumeric(data.trialinfo)
+      trl = [begsample endsample offset data.trialinfo];
+    else
+      trl = [begsample endsample offset];
     end
+  end
 
-    function plotlog(h, evt)
-        manpos = get(f,'OuterPosition');
-        il = 0;
-        logar = 1;
-        l = l - 1; close;
+  function offset = time2offset(time, fsample)
+
+    % TIME2OFFSET converts a time-axis of a trial into the offset in samples
+    % according to the definition from DEFINETRIAL
+    %
+    % Use as
+    %   [offset] = time2offset(time, fsample)
+    %
+    % The trialdefinition "trl" is an Nx3 matrix. The first column contains
+    % the sample-indices of the begin of the trial relative to the begin
+    % of the raw data , the second column contains the sample_indices of
+    % the end of the trials, and the third column contains the offset of
+    % the trigger with respect to the trial. An offset of 0 means that
+    % the first sample of the trial corresponds to the trigger. A positive
+    % offset indicates that the first sample is later than the trigger, a
+    % negative offset indicates a trial beginning before the trigger.
+
+    if ~isempty(time)
+      offset = round(time(1)*fsample);
+    else
+      offset = nan;
     end
+  end
 
-    function plotlin(h, evt)
-        manpos = get(f,'OuterPosition');
-        il = 0; logar = 0; l = l - 1; close;
-    end
-
-    function save_callback(h, evt)
-        idx = find(rej_comp==1);
-        if isfield(cfg, 'outputfile'),
-            save(cfg.outputfile,'idx','rej_comp');
-        else
-            save(sprintf('%s/%s_rejectedcomps.mat', cfg.path, cfg.prefix), 'idx', 'rej_comp');
-        end
-        close(f);
-        disp('saved');
-        err = 1;
-    end
-
-    function quitme(h, evt)
-        close(f);
-        err = 1;
-    end
-
-end % main function
+end

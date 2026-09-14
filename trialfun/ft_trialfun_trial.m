@@ -1,9 +1,15 @@
 function [trl, event] = ft_trialfun_trial(cfg)
 
-% FT_TRIALFUN_TRIAL creates a trial definition that corresponds to the
-% events that are returned by FT_READ_EVENT with type='trial'
+% FT_TRIALFUN_TRIAL creates a trial definition that corresponds to the events that
+% are returned by FT_READ_EVENT with type='trial'
 %
-% See also FT_DEFINETRIAL, FT_PREPROCESSING
+% Use this function by calling
+%   [cfg] = ft_definetrial(cfg)
+% where the configuration structure should contain
+%   cfg.dataset           = string with the filename
+%   cfg.trialfun          = 'ft_trialfun_trial'
+%
+% See also FT_DEFINETRIAL, FT_TRIALFUN_GENERAL
 
 % Copyright (C) 2012, Donders Centre for Cognitive Neuroimaging, Nijmegen, NL
 %
@@ -44,17 +50,24 @@ for i=1:length(sel)
   endsample = begsample + event(sel(i)).duration - 1;
   offset    = event(sel(i)).offset;
 
-  tmpsel    = find(smp==smp(sel(i))-offset);
-  tmpval    = zeros(1,0);
-  for k=1:length(tmpsel)
-    if ~isempty(event(tmpsel(k)).value)
-      % this assumes per trial that the triggers occur in a standardised
-      % order, otherwise the entries per column will have different
-      % meanings
-      tmpval = [tmpval event(tmpsel(k)).value];
+  % this is the value of the trial itself, it might be empty
+  value = event(sel(i)).value;
+
+  if isempty(value)
+    % try to find corresponding triggers in other events
+    extrasel = find(smp==smp(sel(i))-offset);
+    value    = nan(1,length(extrasel));
+    for k=1:length(extrasel)
+      if ~isempty(event(extrasel(k)).value)
+        % this assumes per trial that the triggers occur in a standardised
+        % order, otherwise the entries per column will have different
+        % meanings
+        value(k) = event(extrasel(k)).value;
+      end
     end
   end
-  
-  trl(i,1:(length(tmpval)+3))  = [begsample endsample offset tmpval];
-end
 
+  % store the begin, end and offset, plus the value of the trial
+  trl(i,1:(3+length(value))) = [begsample endsample offset value];
+
+end

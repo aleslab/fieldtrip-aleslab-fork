@@ -1,11 +1,11 @@
 function test_bug2059
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_topoplotER ft_channelselection
+% DATA private
 
-% TEST ft_topoplotER ft_channelselection
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug2059.mat'));
+load(dccnpath('/project/3031000.02/test/bug2059.mat'));
 
 close all
 

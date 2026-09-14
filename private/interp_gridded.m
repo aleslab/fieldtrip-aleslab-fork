@@ -12,7 +12,7 @@ function varargout = interp_gridded(transform, val, pos_to, varargin)
 %   val        3-D matrix with the values in the volume
 %   pos        Mx3 matrix with the vertex positions onto which the data should
 %              be interpolated
-% 
+%
 % Optional arguments are specified in key-value pairs and can be
 %    projmethod   = 'nearest', 'sphere_avg', 'sphere_weighteddistance'
 %    sphereradius = number
@@ -40,7 +40,7 @@ function varargout = interp_gridded(transform, val, pos_to, varargin)
 % $Id$
 
 if nargin<3
-  error('Not enough input arguments.');
+  ft_error('Not enough input arguments.');
 end
 
 % get the optional arguments
@@ -75,9 +75,9 @@ if isempty(distmat)
         distmat = distmat(:, inside);
       end
 
-    case {'sphere_avg', 'sphere_weighteddistance', 'sphere_weightedprojection'}
+    case {'sphere_avg', 'sphere_weighteddistance'}
       if isempty(sphereradius)
-        error('sphereradius should be specified');
+        ft_error('sphereradius should be specified');
       end
 
       [X, Y, Z] = ndgrid(1:dim(1), 1:dim(2), 1:dim(3));
@@ -103,7 +103,7 @@ if isempty(distmat)
       % do nothing I believe
     
     otherwise
-      error('unsupported projection method');
+      ft_error('unsupported projection method');
   end % case projmethod
 end % if isempty distmat
 
@@ -154,7 +154,7 @@ switch projmethod
           fi   = find(dat < max(tmp2));
           val(fi) = tmp2(fi);
         else
-          error('undefined method to combine projections; use cfg.projcomb= mean or max')
+          ft_error('undefined method to combine projections; use cfg.projcomb= mean or max')
         end
       end
       if strcmp(projcomb,'mean'),
@@ -167,7 +167,7 @@ switch projmethod
       %
     
   otherwise
-    error('unsupported projection method');
+    ft_error('unsupported projection method');
 end  % case projmethod
 
 if nargout==1 && ~strcmp(projmethod, 'project')

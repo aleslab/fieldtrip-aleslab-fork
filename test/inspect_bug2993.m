@@ -2,8 +2,10 @@ function inspect_bug2993
 
 % WALLTIME 00:10:00
 % MEM 1gb
+% DEPENDENCY
+% DATA private
 
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/bug2993'));
+cd(dccnpath('/project/3031000.02/test/bug2993'));
 elec_original = ft_read_sens('EEGMarkersLocalite.xml');
 
 % elec_original = ft_determine_coordsys(elec_original);
@@ -54,15 +56,15 @@ assert(~isequal(outcfg.m, eye(4)));
 
 cfg = [];
 cfg.elec = elec_original;
-figure; ft_plot_lay(ft_prepare_layout(cfg));
+figure; ft_plot_layout(ft_prepare_layout(cfg));
 
 cfg = [];
 cfg.elec = elec_original;
 cfg.rotate = 180;
-figure; ft_plot_lay(ft_prepare_layout(cfg));
+figure; ft_plot_layout(ft_prepare_layout(cfg));
 
 cfg = [];
 cfg.elec = elec_realigned1;
-figure; ft_plot_lay(ft_prepare_layout(cfg));
+figure; ft_plot_layout(ft_prepare_layout(cfg));
 
 

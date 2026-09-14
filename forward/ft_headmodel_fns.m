@@ -26,7 +26,7 @@ function headmodel = ft_headmodel_fns(seg, varargin)
 % Additional documentation available at:
 % http://hunghienvn.nmsu.edu/wiki/index.php/FNS
 %
-% See also FT_PREPARE_VOL_SENS, FT_COMPUTE_LEADFIELD
+% See also FT_PREPARE_HEADMODEL, FT_COMPUTE_LEADFIELD
 
 % Copyright (C) 2011, Cristiano Micheli and Hung Dang
 %
@@ -61,17 +61,17 @@ deepelec     = ft_getopt(varargin, 'deepelec', []); % used in the case of deep v
 tolerance    = ft_getopt(varargin, 'tolerance', 1e-8);
 
 if isempty(sens)
-  error('A set of sensors is required')
+  ft_error('A set of sensors is required')
 end
 
 if ispc
-  error('FNS only works on Linux and OS X')
+  ft_error('FNS only works on Linux and OS X')
 end
 
 % check the consistency between tissue values and the segmentation
 vecval = ismember(tissueval,unique(seg(:)));
 if any(vecval)==0
-  warning('Some of the tissue values are not in the segmentation')
+  ft_warning('Some of the tissue values are not in the segmentation')
 end
 
 % create the files to be written
@@ -125,7 +125,7 @@ try
   if ~ispc
     fprintf(efid,'#!/usr/bin/env bash\n');
     fprintf(efid,['elecsfwd1 -img ' segfile ' -electrodes ./' elecfile ' -data ./', ...
-      datafile ' -contable ./' confile ' -TOL ' num2str(tolerance) ' \n']);%2>&1 > /dev/null
+      datafile ' -contable ./' confile ' -TOL ' num2str(tolerance) ' \n']); %2>&1 > /dev/null
   end
   fclose(efid);
   

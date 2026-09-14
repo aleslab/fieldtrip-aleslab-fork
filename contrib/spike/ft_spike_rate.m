@@ -34,7 +34,7 @@ function [rate] = ft_spike_rate(cfg, spike)
 %   rate.avg:          nTrials array containing the average firing rate per unit
 %   rate.var:          nTrials array containing the variance of firing rates per unit
 %   rate.dof:          nTrials array containing the degree of freedom per unit
-%   rate.label:        nUnits cell array containing the labels of the neuronal units%
+%   rate.label:        nUnits cell-array containing the labels of the neuronal units%
 %   rate.time:         Mean latency (this field ensures it is TIMELOCK
 %                      struct)
 
@@ -67,7 +67,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance spike
-ft_preamble trackconfig
+
 
 % control input spike structure
 spike = ft_checkdata(spike,'datatype', 'spike', 'feedback', 'yes');
@@ -171,7 +171,7 @@ end
 if isfield(spike, 'trialinfo'), rate.trialinfo = spike.trialinfo(cfg.trials,:); end
   
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
+
 ft_postamble previous   spike
 ft_postamble provenance rate
 ft_postamble history    rate
@@ -196,7 +196,7 @@ function [cfg] = trialselection(cfg,spike)
 nTrials = size(spike.trialtime,1);
 if  strcmp(cfg.trials,'all')
   cfg.trials = 1:nTrials;
-elseif islogical(cfg.trials)
+elseif islogical(cfg.trials) || all(cfg.trials==0 | cfg.trials==1)
   cfg.trials = find(cfg.trials);
 end
 cfg.trials = sort(cfg.trials(:));

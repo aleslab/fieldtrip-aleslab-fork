@@ -38,7 +38,7 @@ function ft_realtime_coillocalizer(cfg)
 % If you want to skip all data that was acquired before you start the
 % realtime function, but don't want to miss any data that was acquired while
 % the realtime function is started, then you should use jumptoeof=yes and
-% bufferdata=first. If you want to analyse data from a file, then you
+% bufferdata=first. If you want to analyze data from a file, then you
 % should use jumptoeof=no and bufferdata=first.
 %
 % To stop this realtime function, you have to press Ctrl-C
@@ -123,7 +123,7 @@ chanindx    = sort([megindx(:)' refindx(:)']);
 
 nchan = length(chanindx);
 if nchan==0
-    error('no channels were selected');
+    ft_error('no channels were selected');
 end
 
 % determine the size of blocks to process
@@ -134,7 +134,7 @@ overlap   = round(cfg.overlap*hdr.Fs);
 % FIXME the blocksize should match an integer number of cycles -> perhaps use nan and nansum?
 ncoil = length(cfg.coilfreq);
 if ncoil==0
-    error('no coil frequencies were specified');
+    ft_error('no coil frequencies were specified');
 else
     time = (1:blocksize)./hdr.Fs;
     coil = zeros(ncoil, blocksize);
@@ -192,9 +192,9 @@ while true
             endsample  = hdr.nSamples*hdr.nTrials;
         elseif strcmp(cfg.bufferdata, 'first')
             begsample  = prevSample+1;
-            endsample  = prevSample+blocksize ;
+            endsample  = prevSample+blocksize;
         else
-            error('unsupported value for cfg.bufferdata');
+            ft_error('unsupported value for cfg.bufferdata');
         end
         
         % this allows overlapping data segments
@@ -244,7 +244,7 @@ while true
                 ft_plot_dipole(dip(i).pos, dip(i).mom);
                 ft_plot_topo3d(sens.chanpos, real(topo(:,i)));
                 m = max(abs(caxis));
-                caxis([-m m]);
+                clim([-m m]);
                 alpha 0.5
             end
         end
@@ -259,7 +259,7 @@ while true
             end
             dipall = [];
             dipall.pos = pos;
-            dipall = dipole_fit(dipall, sens, vol, topo, 'constr', constr);
+            dipall = ft_inverse_dipolefit(dipall, sens, vol, topo, 'constr', constr);
             for i=1:ncoil
                 sel = (1:3) + 3*(i-1);
                 dip(i).pos = dipall.pos(i,:);
@@ -268,7 +268,7 @@ while true
         else
             % fit the coils sequentially
             for i=1:ncoil
-                dip(i) = dipole_fit(dip(i), sens, vol, topo(:,i));
+                dip(i) = ft_inverse_dipolefit(dip(i), sens, vol, topo(:,i));
             end
         end
         

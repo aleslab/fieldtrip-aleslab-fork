@@ -95,6 +95,10 @@ typedef uint64_t UINT64_T;
 #define WAIT_OK    (UINT16_T)0x0404 /* decimal 1027 */
 #define WAIT_ERR   (UINT16_T)0x0405 /* decimal 1028 */
 
+#define PUT_HDR_NORESPONSE (UINT16_T)0x0501 /* decimal 1281 */
+#define PUT_DAT_NORESPONSE (UINT16_T)0x0502 /* decimal 1282 */
+#define PUT_EVT_NORESPONSE (UINT16_T)0x0503 /* decimal 1283 */
+
 /* these are used in the data_t and event_t structure */
 #define DATATYPE_CHAR    (UINT32_T)0
 #define DATATYPE_UINT8   (UINT32_T)1
@@ -184,12 +188,12 @@ typedef struct {
 
 /* the header definition is fixed, except for the channel labels */
 typedef struct {
-    UINT32_T nchans;
-    UINT32_T nsamples;
-    UINT32_T nevents;
+    UINT32_T  nchans;
+    UINT32_T  nsamples;
+    UINT32_T  nevents;
     FLOAT32_T fsample;
-    UINT32_T data_type;
-    UINT32_T bufsize;     /* size of the buffer in bytes */
+    UINT32_T  data_type;
+    UINT32_T  bufsize;     /* size of the buffer in bytes */
 } headerdef_t;
 
 /* the data definition is fixed */
@@ -206,9 +210,9 @@ typedef struct {
     UINT32_T type_numel;  /* length of the type string */
     UINT32_T value_type;
     UINT32_T value_numel;
-    INT32_T sample;
-    INT32_T offset;
-    INT32_T duration;
+    INT32_T  sample;
+    INT32_T  offset;
+    INT32_T  duration;
     UINT32_T bufsize;     /* size of the buffer in bytes */
 } eventdef_t;
 

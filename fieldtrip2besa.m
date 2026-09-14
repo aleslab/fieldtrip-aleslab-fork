@@ -5,24 +5,47 @@ function fieldtrip2besa(filename, data, varargin)
 % BESA.
 %
 % Use as
-%   fieldtrip2besa(filename, elec)
-% to export single trial data as a set of ascii-vectorized files (.avr)
+%   fieldtrip2besa(filename, data)
+% with data as obtained from FT_PREPROCESSING to export single trial data as a
+% set of .avr files.
 %
 % Use as
 %   fieldtrip2besa(filename, elec)
 % or
 %   fieldtrip2besa(filename, grad)
-% to export channel positions (.elp).
+% with an electrode structure as obtained from FT_READ_SENS to export channel
+% positions to an .elp file.
 %
 % Additional key-value pairs can be specified according to
-%   channel   = cell-array, can be used to make subset and to reorder the channels
+%   channel = cell-array, can be used to make subset and to reorder the channels
 %
 % See also FIELDTRIP2SPSS, FIELDTRIP2FIFF
+
+% Copyright (C) 2015, Donders Centre for Cognitive Neuroimaging
+%
+% This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
+% for the documentation and details.
+%
+%    FieldTrip is free software: you can redistribute it and/or modify
+%    it under the terms of the GNU General Public License as published by
+%    the Free Software Foundation, either version 3 of the License, or
+%    (at your option) any later version.
+%
+%    FieldTrip is distributed in the hope that it will be useful,
+%    but WITHOUT ANY WARRANTY; without even the implied warranty of
+%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%    GNU General Public License for more details.
+%
+%    You should have received a copy of the GNU General Public License
+%    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
+%
+% $Id$
 
 % parse the optional input arguments
 channel = ft_getopt(varargin, 'channel');
 
-% this requires the "MATLAB to BESA Export functions" which are available from http://www.besa.de/downloads/matlab/
+% this requires the "MATLAB to BESA Export functions"
+% which are available from http://www.besa.de/downloads/matlab/
 ft_hastoolbox('matlab2besa', 1);
 
 datatype = ft_datatype(data);
@@ -53,7 +76,7 @@ switch datatype
 
     if isfield(data, 'trial') && strcmp(getdimord(data, 'trial'), 'rpt_chan_time')
       [NumTrials, NumChans, NumSamp] = size(data.trial);
-      
+
       % Multiply by 1000 to get the time in milliseconds.
       time_samples = data.time.*1000;
       channel_labels = data.label;
@@ -82,7 +105,7 @@ switch datatype
       besa_save2Avr(custom_path, file_name, data_matrix, time_samples, channel_labels, data_scale_factor, time_scale_factor);
 
     else
-      error('unsupported data structure');
+      ft_error('unsupported data structure');
     end
 
   case {'elec', 'grad'}
@@ -137,6 +160,6 @@ switch datatype
     besa_save2Elp(custom_path, filename, SphericalCoords, channel_labels, channel_type);
 
   otherwise
-    error('unsupported data structure');
+    ft_error('unsupported data structure');
 
 end % switch type

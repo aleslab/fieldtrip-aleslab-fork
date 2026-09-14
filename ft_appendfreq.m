@@ -25,10 +25,14 @@ function [freq] = ft_appendfreq(cfg, varargin)
 % These mat files should contain only a single variable, corresponding with
 % the input/output structure.
 %
+% If you encounter difficulties with memory usage, you can use
+%   cfg.memory = 'low' or 'high', whether to be memory or computationally efficient, respectively (default = 'high')
+%
 % See also FT_FREQANALYSIS, FT_DATATYPE_FREQ, FT_APPENDDATA, FT_APPENDTIMELOCK,
 % FT_APPENDSENS
 
 % Copyright (C) 2011-2017, Robert Oostenveld
+% Copyright (C) 2018-, Jan-Mathijs Schoffelen and Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -59,7 +63,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar    varargin
 ft_preamble provenance varargin
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -68,16 +71,17 @@ end
 
 % check if the input data is valid for this function
 for i=1:length(varargin)
-  % FIXME: what about freq+comp?
-  varargin{i} = ft_checkdata(varargin{i}, 'datatype', {'freq', 'freq+comp'}, 'feedback', 'yes');
+  varargin{i} = ft_checkdata(varargin{i}, 'datatype', {'freq+comp', 'freq'}, 'feedback', 'yes');
 end
 
 % set the defaults
 cfg.channel    = ft_getopt(cfg, 'channel', 'all');
+cfg.channelcmb = ft_getopt(cfg, 'channelcmb', {'all' 'all'});
 cfg.parameter  = ft_getopt(cfg, 'parameter', []);
 cfg.appenddim  = ft_getopt(cfg, 'appenddim', []);
-cfg.tolerance  = ft_getopt(cfg, 'tolerance',  1e-5);
+cfg.tolerance  = ft_getopt(cfg, 'tolerance',  1e-5); % this is passed to append_common, which passes it to ft_selectdata
 cfg.appendsens = ft_getopt(cfg, 'appendsens', 'no');
+cfg.memory     = ft_getopt(cfg, 'memory', 'high');
 
 hastime = isfield(varargin{1}, 'time');
 hasfreq = isfield(varargin{1}, 'freq');
@@ -93,7 +97,7 @@ if isempty(cfg.appenddim) || strcmp(cfg.appenddim, 'auto')
     elseif checkchan(varargin{:}, 'unique')
       cfg.appenddim = 'chan';
     else
-      error('cfg.appenddim should be specified');
+      ft_error('cfg.appenddim should be specified');
     end
   else
     if checkchan(varargin{:}, 'identical') && checkfreq(varargin{:}, 'identical', cfg.tolerance)
@@ -103,11 +107,11 @@ if isempty(cfg.appenddim) || strcmp(cfg.appenddim, 'auto')
     elseif checkchan(varargin{:}, 'unique')
       cfg.appenddim = 'chan';
     else
-      error('cfg.appenddim should be specified');
+      ft_error('cfg.appenddim should be specified');
     end
   end
 end
-fprintf('concatenating over the "%s" dimension\n', cfg.appenddim);
+ft_info('concatenating over the "%s" dimension\n', cfg.appenddim);
 
 if isempty(cfg.parameter)
   fn = fieldnames(varargin{1});
@@ -121,11 +125,17 @@ end
 assert(~isempty(cfg.parameter), 'cfg.parameter should be specified');
 
 % use a low-level function that is shared with the other ft_appendxxx functions
-freq = append_common(cfg, varargin{:});
+if strcmp(cfg.memory, 'high') || numel(varargin)<=2
+  freq = append_common(cfg, varargin{:});
+elseif strcmp(cfg.memory, 'low')
+  freq = varargin{1};
+  for i=2:numel(varargin)
+    freq = append_common(cfg, freq, varargin{i});
+  end
+end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   varargin
 ft_postamble provenance freq
 ft_postamble history    freq

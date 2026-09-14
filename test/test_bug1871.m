@@ -1,11 +1,11 @@
 function test_bug1871
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_struct2single 
+% DATA private
 
-% TEST ft_struct2single 
-
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test'));
+cd(dccnpath('/project/3031000.02/test'));
 load avgFIC.mat
 
 avgFIC.avg = ft_struct2single(avgFIC.avg);
@@ -25,7 +25,7 @@ freq.powspctrm = ft_struct2single(freq.powspctrm);
 cfg = [];
 cfg.interactive = 'yes';
 % cfg.showlabels  = 'no'; % this is a deprecated option, use cfg.marker instead
-cfg.marker = 'no'; 
+cfg.marker      = 'off'; 
 cfg.zlim        = 'maxabs';
 cfg.layout      = 'neuromag306cmb.lay';
 ft_topoplotTFR(cfg, freq);

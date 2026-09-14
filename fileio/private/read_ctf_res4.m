@@ -18,6 +18,7 @@ function [hdr] = read_ctf_res4(fname)
 %
 % modifications Copyright (C) 2002, Ole Jensen
 % modifications Copyright (C) 2003, Robert Oostenveld
+% modifications Copyright (C) 2025, Jan-Mathijs Schoffelen
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -41,19 +42,17 @@ function [hdr] = read_ctf_res4(fname)
 % read header information
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-fid = fopen(fname,'r','ieee-be');
-
-% Check if header file exist
-if fid == -1
-  errMsg = strcat('Could not open header file:',fname);
-  error(errMsg);
+try
+  fid = fopen_or_error(fname,'r','ieee-be');
+catch err
+  ft_error('Cound not open header file: %s', err.message);
 end
 
 % First 8 bytes contain filetype, check is fileformat is correct.
 % This function was written for MEG41RS, but also seems to work for some other formats
 CTFformat=char(fread(fid,8,'uint8'))';
 if ~strcmp(CTFformat(1,1:7),'MEG41RS') && ~strcmp(CTFformat(1,1:7),'MEG42RS') && ~strcmp(CTFformat(1,1:7),'MEG3RES')
-  warning('res4 format (%s) is not supported for file %s, trying anyway...', CTFformat(1,1:7), fname);
+  ft_warning('res4 format (%s) is not supported for file %s, trying anyway...', CTFformat(1,1:7), fname);
 end
 
 % Read the initial parameters
@@ -82,8 +81,8 @@ run_title    = char(fread(fid,256,'uint8')');
 instruments  = char(fread(fid,32,'uint8')');
 coll_desc    = char(fread(fid,32,'uint8')');
 subj_id      = char(fread(fid,32,'uint8')');
-operator     = char(fread(fid,32,'uint8')') ;
-sensFilename = char(fread(fid,60,'uint8')') ;
+operator     = char(fread(fid,32,'uint8')');
+sensFilename = char(fread(fid,60,'uint8')');
 
 % not nececssary to seek, the file pointer is already at the desired location
 % fseek(fid,1836,'bof');
@@ -113,10 +112,10 @@ for i=1:no_channels,
   temp=fread(fid,32,'uint8')';
   temp(find(temp<32 )) = ' ';       % remove non-printable characters
   temp(find(temp>126)) = ' ';       % remove non-printable characters
-  endstr = findstr(temp, '-'); temp(endstr:end) = ' ';  % cut off at '-'
-  endstr = findstr(temp, ' '); temp(endstr:end) = ' ';  % cut off at ' '
+  endstr = strfind(temp, '-'); if ~isempty(endstr), temp(endstr(1):end) = ' '; end % cut off at '-'
+  endstr = strfind(temp, ' '); if ~isempty(endstr), temp(endstr(1):end) = ' '; end % cut off at ' '
   chan_name(i,:) = char(temp);      % as char array
-  chan_label{i}  = deblank(char(temp)); % as cell array
+  chan_label{i}  = deblank(char(temp)); % as cell-array
 end %for
 
 % pre-allocate some memory space

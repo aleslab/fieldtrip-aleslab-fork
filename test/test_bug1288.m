@@ -1,12 +1,14 @@
 function test_bug1288
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY
+% DATA private
 
 % this function serves to create planar gradient data and combined planar
 % gradient data, for testing purposes of a fix for bug 1288
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/raw/meg/preproc_ctf151.mat'));
+load(dccnpath('/project/3031000.02/test/latest/raw/meg/preproc_ctf151.mat'));
 
 cfg = [];
 cfg.method = 'distance';
@@ -23,10 +25,12 @@ datac = ft_combineplanar(cfg, datap);
 
 cfg = [];
 cfg.grad = datac.grad;
+cfg.channel = 'MEG'; % do not include the reference channels in the layout
 lay = ft_prepare_layout(cfg);
 
 % this appears to run through without error, but
 cfg = [];
+cfg.channel = 'MEG'; % do not include the reference channels in the layout
 ft_layoutplot(cfg, datac);
 % results in a figure that has channels ML* (left) towards the nose and MR* (right)
 % towards the back of the head. So 90 degrees rotated clockwise.

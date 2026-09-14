@@ -14,22 +14,21 @@ function [scd] = ft_scalpcurrentdensity(cfg, data)
 % where the input data is obtained from FT_PREPROCESSING or from
 % FT_TIMELOCKANALYSIS. The output data has the same format as the input
 % and can be used in combination with most other FieldTrip functions
-% such as FT_FREQNALYSIS or FT_TOPOPLOTER.
+% such as FT_FREQANALYSIS or FT_TOPOPLOTER.
 %
 % The configuration should contain
 %   cfg.method       = 'finite' for finite-difference method or
 %                      'spline' for spherical spline method
 %                      'hjorth' for Hjorth approximation method
-%   cfg.elecfile     = string, file containing the electrode definition
-%   cfg.elec         = structure with electrode definition
+%   cfg.elec         = structure with electrode positions or filename, see FT_READ_SENS
 %   cfg.trials       = 'all' or a selection given as a 1xN vector (default = 'all')
 %   cfg.feedback     = string, 'no', 'text', 'textbar', 'gui' (default = 'text')
 %
 % The finite method require the following
-%   cfg.conductivity = conductivity of the skin (default = 0.33 S/m)
+%   cfg.conductivity = conductivity of the scalp (default = 0.33 S/m)
 %
 % The spline and finite method require the following
-%   cfg.conductivity = conductivity of the skin (default = 0.33 S/m)
+%   cfg.conductivity = conductivity of the scalp (default = 0.33 S/m)
 %   cfg.lambda       = regularization parameter (default = 1e-05)
 %   cfg.order        = order of the splines (default = 4)
 %   cfg.degree       = degree of legendre polynomials (default for
@@ -41,7 +40,10 @@ function [scd] = ft_scalpcurrentdensity(cfg, data)
 % The hjorth method requires the following
 %   cfg.neighbours   = neighbourhood structure, see FT_PREPARE_NEIGHBOURS
 %
-% Note that the skin conductivity, electrode dimensions and the potential
+% For the spline method you can specify the following
+%   cfg.badchannel      = cell-array, see FT_CHANNELSELECTION for details (default = [])
+%
+% Note that the scalp conductivity, electrode dimensions and the potential
 % all have to be expressed in the same SI units, otherwise the units of
 % the SCD values are not scaled correctly. The spatial distribution still
 % will be correct.
@@ -108,18 +110,21 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar data
 ft_preamble provenance data
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
   return
 end
 
+% check if the input cfg is valid for this function
+cfg = ft_checkconfig(cfg, 'forbidden',  {'trial'}); % prevent accidental typos, see issue 1729
+
 % set the defaults
-cfg.method       = ft_getopt(cfg, 'method',       'spline');
-cfg.conductivity = ft_getopt(cfg, 'conductivity', 0.33); % in S/m
-cfg.trials       = ft_getopt(cfg, 'trials',       'all', 1);
-cfg.feedback     = ft_getopt(cfg, 'feedback',     'text');
+cfg.method          = ft_getopt(cfg, 'method',       'spline');
+cfg.conductivity    = ft_getopt(cfg, 'conductivity', 0.33); % in S/m
+cfg.trials          = ft_getopt(cfg, 'trials',       'all', 1);
+cfg.feedback        = ft_getopt(cfg, 'feedback',     'text');
+cfg.badchannel      = ft_getopt(cfg, 'badchannel',     {});
 
 switch cfg.method
   case 'hjorth'
@@ -140,7 +145,7 @@ switch cfg.method
       else
         cfg.degree = 32;
       end
-    end;
+    end
   otherwise
     cfg = ft_checkconfig(cfg); % perform a simple consistency check
 end
@@ -149,61 +154,75 @@ end
 dtype = ft_datatype(data);
 
 % check if the input data is valid for this function
-data = ft_checkdata(data, 'datatype', 'raw', 'feedback', 'yes', 'iseeg','yes','ismeg',[]);
-
-% select trials of interest
-tmpcfg = keepfields(cfg, {'trials', 'showcallinfo'});
-data   = ft_selectdata(tmpcfg, data);
-% restore the provenance information
-[cfg, data] = rollback_provenance(cfg, data);
+data = ft_checkdata(data, 'datatype', 'raw', 'feedback', 'yes', 'ismeg', []);
 
 % get the electrode positions
 tmpcfg = cfg;
 tmpcfg.senstype = 'EEG';
-
 elec = ft_fetch_sens(tmpcfg, data);
 
-% remove all junk fields from the electrode array
-tmp  = elec;
-elec = [];
-elec.chanpos = tmp.chanpos;
-if isfield(tmp, 'elecpos')
-  elec.elecpos = tmp.elecpos;
-end
-elec.label   = tmp.label;
+% select channels and trials of interest
+tmpcfg = keepfields(cfg, {'trials', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
+tmpcfg.channel = elec.label;
+data = ft_selectdata(tmpcfg, data);
+% restore the provenance information
+[cfg, data] = rollback_provenance(cfg, data);
 
-% find matching electrode positions and channels in the data
-[dataindx, elecindx] = match_str(data.label, elec.label);
-data.label   = data.label(dataindx);
-elec.label   = elec.label(elecindx);
-elec.chanpos = elec.chanpos(elecindx, :);
-Ntrials = length(data.trial);
-for trlop=1:Ntrials
-  data.trial{trlop} = data.trial{trlop}(dataindx,:);
+Ntrials = numel(data.trial);
+
+if isempty(cfg.badchannel)
+  % check if the first sample of the first trial contains NaNs; if so treat it as a bad channel
+  cfg.badchannel = ft_channelselection(find(isnan(data.trial{1}(:,1))), data.label);
 end
+
+% match the order of the data channels with the channel positions, order them according to the data
+[datindx, elecindx] = match_str(data.label, elec.label);
+[goodindx, tmp]     = match_str(data.label, setdiff(data.label, cfg.badchannel, 'stable'));
+
+if ~isempty(cfg.badchannel)
+  ft_info('detected channel %s as bad\n', cfg.badchannel{:});
+  tmpcfg         = [];
+  tmpcfg.channel = data.label(goodindx);
+  data           = ft_selectdata(tmpcfg, data);
+end
+
+allchanpos  = elec.chanpos(elecindx,:); % the position of all channels, ordered according to the data
+goodchanpos = allchanpos(goodindx,:);   % the position of good channels
 
 % compute SCD for each trial
 if strcmp(cfg.method, 'spline')
-
-  ft_progress('init', cfg.feedback, 'computing SCD for trial...')
-  for trlop=1:Ntrials
-    % do not compute interpolation, but only one value at [0 0 1]
-    % this also gives L1, the laplacian of the original data in which we
-    % are interested here
-
-    ft_progress(trlop/Ntrials, 'computing SCD for trial %d of %d', trlop, Ntrials);
-    [V2, L2, L1] = splint(elec.chanpos, data.trial{trlop}, [0 0 1], cfg.order, cfg.degree, cfg.lambda);
-    scd.trial{trlop} = L1;
+  fprintf('Checking spherical fit... ');
+  [c, r] = fitsphere(allchanpos);
+  d = allchanpos - repmat(c, size(allchanpos,1), 1);
+  d = sqrt(sum(d.^2, 2));
+  d = mean(abs(d) / r);
+  if abs(d-1) > 0.1
+    ft_warning('bad spherical fit (residual: %.2f%%). The interpolation will be inaccurate.', 100*(d-1));
+  elseif abs(d-1) < 0.01
+    fprintf('perfect spherical fit (residual: %.1f%%)\n', 100*(d-1));
+  else
+    fprintf('good spherical fit (residual: %.1f%%)\n', 100*(d-1));
   end
-
-  ft_progress('close');
+  % Builds the spatial filter only once.
+  fprintf('Calculating the filter to build the SCD.\n');
+  [WVo, WLo] = sphsplint(goodchanpos, allchanpos, cfg.order, cfg.degree, cfg.lambda);
+  % Creates a montage to apply the spatial filter.
+  montage.tra      = WLo;
+  montage.labelold = elec.label(elecindx(goodindx));
+  montage.labelnew = elec.label(elecindx);
+  % Applies the montage to both the data and electrode definition
+  scd  = ft_apply_montage(data, montage);
+  elec = ft_apply_montage(elec, montage);
 
 elseif strcmp(cfg.method, 'finite')
+  if ~isempty(cfg.badchannel)
+    ft_error('the method "%s" does not support the specification of bad channels', cfg.method);
+  end
   % the finite difference approach requires a triangulation
-  prj = elproj(elec.chanpos);
+  prj = elproj(allchanpos);
   tri = delaunay(prj(:,1), prj(:,2));
   % the new electrode montage only needs to be computed once for all trials
-  montage.tra = lapcal(elec.chanpos, tri);
+  montage.tra = lapcal(allchanpos, tri);
   montage.labelold = data.label;
   montage.labelnew = data.label;
   % apply the montage to the data, also update the electrode definition
@@ -211,6 +230,9 @@ elseif strcmp(cfg.method, 'finite')
   elec = ft_apply_montage(elec, montage);
 
 elseif strcmp(cfg.method, 'hjorth')
+  if ~isempty(cfg.badchannel)
+    ft_error('the method "%s" does not support the specification of bad channels', cfg.method);
+  end
   % convert the neighbourhood structure into a montage
   labelnew = {};
   labelold = {};
@@ -236,12 +258,12 @@ elseif strcmp(cfg.method, 'hjorth')
   elec = ft_apply_montage(elec, montage);
 
 else
-  error('unknown method for SCD computation');
+  ft_error('unknown method "%s"', cfg.method);
 end
 
 if strcmp(cfg.method, 'spline') || strcmp(cfg.method, 'finite')
   % correct the units
-  warning('trying to correct the units, assuming uV and mm');
+  ft_warning('trying to correct the units, assuming uV and mm');
   for trlop=1:Ntrials
     % The surface laplacian is proportional to potential divided by squared distance which means that, if
     % - input potential is in uV, which is 10^6 too large
@@ -255,17 +277,8 @@ else
   fprintf('output Hjorth filtered potential is in uV\n');
 end
 
-% collect the results
-scd.elec    = elec;
-scd.time    = data.time;
-scd.label   = data.label;
-scd.fsample = 1/mean(diff(data.time{1}));
-if isfield(data, 'sampleinfo')
-  scd.sampleinfo = data.sampleinfo;
-end
-if isfield(data, 'trialinfo')
-  scd.trialinfo = data.trialinfo;
-end
+% Adds the electrode definition to the data.
+scd.elec = elec;
 
 % convert back to input type if necessary
 switch dtype
@@ -277,10 +290,9 @@ end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous data
 
-% rename the output variable to accomodate the savevar postamble
+% rename the output variable to accommodate the savevar postamble
 data = scd;
 
 ft_postamble provenance data

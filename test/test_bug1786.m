@@ -1,9 +1,9 @@
 function test_bug1786
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_channelrepair ft_prepare_neighbours
+% DEPENDENCY ft_channelrepair ft_prepare_neighbours
+% DATA private
 
 % Original report:
 % Hello,
@@ -14,21 +14,20 @@ function test_bug1786
 % Thanks
 % Yoel
 %
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=1786
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=1786
 
 % EEG bad electrode repair
-% requires fieldtrip
 % 
 % input format:
-% labels   - 1XN cell array  
-% badchans - 1XB cell array eg. {'O2', 'Fp2'}
+% labels   - 1XN cell-array  
+% badchans - 1XB cell-array eg. {'O2', 'Fp2'}
 % data     - MXN array
 
 % function fixedelec = fixelec(labels, badchans,data)
 
 % narginchk(3, 3);
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug1786.mat'));
+load(dccnpath('/project/3031000.02/test/bug1786.mat'));
 
 labels = electrodes_names_to_keep;
 badchans = interpolate_at_z;
@@ -85,7 +84,7 @@ function [elec] = elec_1020all_cart
 % 
 % [elec] = elec_1020all_cart
 %
-% elec is a struct array with fields:
+% elec is a struct-array with fields:
 %
 % elec.labels
 % elec.X
@@ -871,7 +870,7 @@ function [CHAN1020,XYZ1020] = elec_1020select(CHAN)
 % 
 % [labels,xyz] = elec_1020select(CHAN)
 %
-% where CHAN input is a cell array of channel names from the International
+% where CHAN input is a cell-array of channel names from the International
 % 10-20 nomenclature for EEG electrode placement.  For a list of the 10-20
 % electrode names, see the elec_1020all_cart function, which is based on:
 %

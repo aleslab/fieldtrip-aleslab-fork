@@ -6,10 +6,12 @@ function [H] = scale(f)
 % Use as
 %   [H] = translate(S)
 % where
-%   S       [sx, sy, sz] scaling along each of the axes
+%   S   [sx, sy, sz] scaling along each of the axes
 %   H   corresponding homogenous transformation matrix
+%
+% See also TRANSLATE, ROTATE, RIGIDBODY, QUATERNION, HOMOGENOUS2TRADITIONAL
 
-% Copyright (C) 2000-2005, Robert Oostenveld
+% Copyright (C) 2000-2024, Robert Oostenveld
 %
 % This program is free software; you can redistribute it and/or modify
 % it under the terms of the GNU General Public License as published by
@@ -44,7 +46,7 @@ function [H] = scale(f)
 % $Id$
 
 if numel(f)~=3
-  error('incorrect input vector');
+  ft_error('incorrect input vector');
 end
 
 H = [

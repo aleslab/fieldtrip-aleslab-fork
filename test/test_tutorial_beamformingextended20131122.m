@@ -1,24 +1,22 @@
 function test_tutorial_beamformingextended20131122
 
-% MEM 8gb
+% MEM 6gb
 % WALLTIME 02:30:00
-
-% TEST test_tutorial_beamformer20131122
-% TEST ft_sourceanalysis ft_prepare_leadfield
-
-% use FieldTrip defaults instead of personal defaults
-global ft_default;
-ft_default = [];
+% DEPENDENCY ft_sourceanalysis ft_prepare_leadfield
+% DATA public
 
 % this test script represents the MATLAB code from http://www.fieldtriptoolbox.org/tutorial/beamformer
 % as downloaded from the wiki on 22 November 2013
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/sensor_analysis/subjectK.mat'));
+[ftver, ftpath] = ft_version;
+templatedir  = fullfile(ftpath, 'template');
+
+load(dccnpath('/project/3031000.02/external/download/tutorial/sensor_analysis/subjectK.mat'));
 data_combined = ft_appenddata([], data_left, data_right);
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer_extended/segmentedmri.mat'));
+load(dccnpath('/project/3031000.02/external/download/tutorial/beamformingextended/segmentedmri.mat'));
 
-mri = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer_extended/subjectK.mri'));
+mri = ft_read_mri(dccnpath('/project/3031000.02/external/download/tutorial/beamformingextended/subjectK.mri'));
 
 cfg          = [];
 cfg.coordsys = 'ctf'; % the MRI is expressed in the CTF coordinate system, see below
@@ -36,20 +34,20 @@ cfg        = [];
 cfg.method = 'singleshell';
 hdm        = ft_prepare_headmodel(cfg, segmentedmri);
 
-template = load(dccnpath('/home/common/matlab/fieldtrip/template/sourcemodel/standard_sourcemodel3d8mm'));
+template = load(fullfile(templatedir, 'sourcemodel', 'standard_sourcemodel3d8mm.mat'));
 
 % inverse-warp the subject specific grid to the template grid
 cfg                = [];
-cfg.grid.warpmni   = 'yes';
-cfg.grid.template  = template.sourcemodel;
-cfg.grid.nonlinear = 'yes'; % use non-linear normalization
+cfg.sourcemodel.warpmni   = 'yes';
+cfg.sourcemodel.template  = template.sourcemodel;
+cfg.sourcemodel.nonlinear = 'yes'; % use non-linear normalization
 cfg.mri            = mri;
 sourcemodel        = ft_prepare_sourcemodel(cfg);
 
 hdm_cm = ft_convert_units(hdm, 'cm');
 
 figure; hold on     % plot all objects in one figure
-ft_plot_vol(hdm_cm, 'edgecolor', 'none')
+ft_plot_headmodel(hdm_cm, 'edgecolor', 'none')
 alpha 0.4           % make the surface transparent
 ft_plot_mesh(sourcemodel.pos(sourcemodel.inside,:));
 ft_plot_sens(data_combined.grad);
@@ -93,8 +91,8 @@ freq_exp.cumtapcnt = freq_cmb.cumtapcnt(cfg.trials);
 freq_exp.cumsumcnt = freq_cmb.cumsumcnt(cfg.trials);
 
 cfg             = [];
-cfg.grid        = sourcemodel;
-cfg.vol         = hdm;
+cfg.sourcemodel = sourcemodel;
+cfg.headmodel   = hdm;
 cfg.channel     = {'MEG'};
 cfg.grad        = freq_cmb.grad;
 sourcemodel_lf  = ft_prepare_leadfield(cfg, freq_cmb);
@@ -104,8 +102,9 @@ cfg.frequency         = freq_cmb.freq;
 cfg.grad              = freq_cmb.grad;
 cfg.method            = 'dics';
 cfg.keeptrials        = 'yes';
-cfg.grid              = sourcemodel_lf;
-cfg.vol               = hdm;
+cfg.channel           = 'MEG';
+cfg.sourcemodel       = sourcemodel_lf;
+cfg.headmodel         = hdm;
 cfg.keeptrials        = 'yes';
 cfg.dics.lambda       = '5%';
 cfg.dics.keepfilter   = 'yes';
@@ -114,7 +113,7 @@ cfg.dics.realfilter   = 'yes';
 source                = ft_sourceanalysis(cfg, freq_cmb);
 
 % beam pre- and poststim by using the common filter
-cfg.grid.filter  = source.avg.filter;
+cfg.sourcemodel.filter = source.avg.filter;
 source_bsl       = ft_sourceanalysis(cfg, freq_bsl);
 source_exp       = ft_sourceanalysis(cfg, freq_exp);
 
@@ -124,7 +123,7 @@ source_diff.avg.pow = (source_exp.avg.pow ./ source_bsl.avg.pow) - 1;
 source_diff.pos = template.sourcemodel.pos;
 source_diff.dim = template.sourcemodel.dim;
 
-template_mri = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/external/spm8/templates/T1.nii'));
+template_mri = ft_read_mri(fullfile(ftpath, 'external', 'spm8', 'templates', 'T1.nii'));
 
 cfg              = [];
 cfg.voxelcoord   = 'no';
@@ -163,14 +162,14 @@ cfg                 = [];
 cfg.method          = 'dics';
 cfg.refchan         = 'EMGlft';
 cfg.frequency       = 20;
-cfg.vol             = hdm;
-cfg.grid            = sourcemodel;
+cfg.headmodel       = hdm;
+cfg.sourcemodel     = sourcemodel;
 source_coh_lft      = ft_sourceanalysis(cfg, freq_csd);
 
 source_coh_lft.pos = template.sourcemodel.pos;
 source_coh_lft.dim = template.sourcemodel.dim;
 
-template_mri = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/external/spm8/templates/T1.nii'));
+template_mri = ft_read_mri(fullfile(ftpath, 'external', 'spm8', 'templates', 'T1.nii'));
 
 cfg              = [];
 cfg.voxelcoord   = 'no';

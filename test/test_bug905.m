@@ -1,11 +1,11 @@
 function test_bug905
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_freqanalysis ft_specest_mtmfft
+% DATA private
 
-% TEST ft_freqanalysis ft_specest_mtmfft
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug905.mat'));
+load(dccnpath('/project/3031000.02/test/bug905.mat'));
 
 timeunitinsec=10^(-4); % in seconds
 fs=1/(4.8*timeunitinsec);
@@ -43,10 +43,10 @@ while ~finished
     if lastfreqindxthisbin>=nfreq
         lastfreqindxthisbin=nfreq;
         finished=true;
-    end;
+    end
     freqsthisbin=freqs(firstfreqindxthisbin:lastfreqindxthisbin);
     freqbins{freqbinindx}=[freqsthisbin(1),freqsthisbin(end)];
-end;
+end
 nfreqbins=length(freqbins);
 tapsmofreqs=zeros(1,nfreqbins);
 freqbinindcs=zeros(1,nfreq);
@@ -58,7 +58,7 @@ for freqbinindx=1:nfreqbins
     freqindx1=find(freqs==freqbins{freqbinindx}(1));
     freqindx2=find(freqs==freqbins{freqbinindx}(2));
     freqbinindcs(freqindx1:freqindx2)=freqbinindx;
-end;
+end
 
 % perform a frequency analysis
 allfreqs=[];
@@ -74,7 +74,7 @@ for freqbinindx=1:nfreqbins
   freqcfg.pad='maxperlen';
   freqout_mtmfft{freqbinindx}=ft_freqanalysis(freqcfg,datapart);
   allfreqs=[allfreqs,freqout_mtmfft{freqbinindx}.freq];
-end;
+end
 
 ntrials=length(datapart.trial);
 trialindcs=1:ntrials;
@@ -84,6 +84,4 @@ for freqbinindx=1:nfreqbins
   freqdescrcfg=[];
   freqdescrcfg.trials=trialindcs;
   freqdescrout_mtmfft{freqbinindx}=ft_freqdescriptives(freqdescrcfg,freqout_mtmfft{freqbinindx});
-end;
-
-
+end

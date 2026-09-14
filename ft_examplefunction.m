@@ -1,4 +1,4 @@
-function dataout = ft_examplefunction(cfg, datain)
+function [dataout] = ft_examplefunction(cfg, datain)
 
 % FT_EXAMPLEFUNCTION demonstrates to new developers how a FieldTrip function should look like
 %
@@ -9,9 +9,9 @@ function dataout = ft_examplefunction(cfg, datain)
 %
 % <<note that the cfg list should be indented with two spaces
 %
-%  cfg.option1    = value, explain the value here (default = something)
-%  cfg.option2    = value, describe the value here and if needed
-%                   continue here to allow automatic parsing of the help
+%   cfg.option1    = value, explain the value here (default = something)
+%   cfg.option2    = value, describe the value here and if needed
+%                    continue here to allow automatic parsing of the help
 %
 % The configuration can optionally contain
 %   cfg.option3   = value, explain it here (default is automatic)
@@ -50,7 +50,6 @@ ft_preamble init              % this will reset ft_warning and show the function
 ft_preamble debug             % this allows for displaying or saving the function name and input arguments upon an error
 ft_preamble loadvar    datain % this reads the input data in case the user specified the cfg.inputfile option
 ft_preamble provenance datain % this records the time and memory usage at the beginning of the function
-ft_preamble trackconfig       % this converts the cfg structure in a config object, which tracks the cfg options that are being used
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -75,9 +74,10 @@ cfg = ft_checkconfig(cfg, 'required', {'method', 'foi', 'tapsmofrq'});
 cfg = ft_checkopt(cfg, 'vartrllen', 'double', {0, 1, 2});
 cfg = ft_checkopt(cfg, 'method', 'char', {'mtm', 'convol'});
 
-% get the options
-method    = ft_getopt(cfg, 'method');        % there is no default
-vartrllen = ft_getopt(cfg, 'vartrllen', 2);  % the default is 2
+% check the user-supplied options or set the defaults
+% store them in cfg, so that they end up in dataout.cfg
+cfg.method    = ft_getopt(cfg, 'method');        % there is no default, this wil be []
+cfg.vartrllen = ft_getopt(cfg, 'vartrllen', 2);  % the default is 2
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % the actual computation is done in the middle part
@@ -99,7 +99,6 @@ dataout = [];
 % fieldtrip/utility/private that are able to modify the local workspace
 
 ft_postamble debug               % this clears the onCleanup function used for debugging in case of an error
-ft_postamble trackconfig         % this converts the config object back into a struct and can report on the unused fields
 ft_postamble previous   datain   % this copies the datain.cfg structure into the cfg.previous field. You can also use it for multiple inputs, or for "varargin"
 ft_postamble provenance dataout  % this records the time and memory at the end of the function, prints them on screen and adds this information together with the function name and MATLAB version etc. to the output cfg
 ft_postamble history    dataout  % this adds the local cfg structure to the output data structure, i.e. dataout.cfg = cfg

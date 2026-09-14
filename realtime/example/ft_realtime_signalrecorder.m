@@ -38,12 +38,28 @@ function ft_realtime_signalrecorder(cfg)
 % If you want to skip all data that was acquired before you start the
 % RT function, but don't want to miss any data that was acquired while
 % the realtime function is started, then you should use jumptoeof=yes and
-% bufferdata='first'. If you want to analyse data from a file, then you
+% bufferdata='first'. If you want to analyze data from a file, then you
 % should use cfg.jumptoeof='no' and cfg.bufferdata='first'.
 %
 % To stop this realtime function, you will have have to press Ctrl-C.
 
 % Copyright (C) 2012, Robert Oostenveld
+%
+% This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
+% for the documentation and details.
+%
+%    FieldTrip is free software: you can redistribute it and/or modify
+%    it under the terms of the GNU General Public License as published by
+%    the Free Software Foundation, either version 3 of the License, or
+%    (at your option) any later version.
+%
+%    FieldTrip is distributed in the hope that it will be useful,
+%    but WITHOUT ANY WARRANTY; without even the implied warranty of
+%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%    GNU General Public License for more details.
+%
+%    You should have received a copy of the GNU General Public License
+%    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
 %
 % $Id$
 
@@ -76,7 +92,7 @@ cfg.channel = ft_channelselection(cfg.channel, hdr.label);
 chanindx    = match_str(hdr.label, cfg.channel);
 nchan       = length(chanindx);
 if nchan==0
-  error('no channels were selected');
+  ft_error('no channels were selected');
 end
 
 % make a copy of the header that will be passed to the writing function, update with the channel selection
@@ -116,9 +132,9 @@ while true
       endsample  = hdr.nSamples*hdr.nTrials;
     elseif strcmp(cfg.bufferdata, 'first')
       begsample  = prevSample+1;
-      endsample  = prevSample+blocksize ;
+      endsample  = prevSample+blocksize;
     else
-      error('unsupported value for cfg.bufferdata');
+      ft_error('unsupported value for cfg.bufferdata');
     end
     
     % this allows overlapping data segments

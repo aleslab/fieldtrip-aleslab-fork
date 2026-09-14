@@ -44,7 +44,7 @@ function varargout = filetype_check_uri(filename, ftyp)
 %
 % $Id$
 
-% these are for remembering the type on subsequent calls with the same input arguments
+% these are for speeding up subsequent calls with the same input arguments
 persistent previous_argin previous_argout
 
 if nargin<2
@@ -179,7 +179,7 @@ else
       varargout{3} = filename((8+1+length(tok0{1})):end);
 
     otherwise
-      error('unsupported scheme in URI')
+      ft_error('unsupported scheme in URI')
   end
 end
 

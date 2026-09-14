@@ -29,13 +29,19 @@ function ft_realtime_classification(cfg)
 % matrix should contain a flag indicating whether it belongs to the test or
 % to the training set (0 or 1 respectively).
 %
-% Example useage:
+% Example usage:
 %   cfg = [];
 %   cfg.dataset  = 'Subject01.ds';
 %   cfg.trialfun = 'trialfun_Subject01';
 %   ft_realtime_classification(cfg);
 %
 % To stop the realtime function, you have to press Ctrl-C
+
+% Undocumented options:
+%   cfg.timeout = scalar, time in seconds after which the function stops.
+%                 Default value is inf, but may be set to a finite number
+%                 (so that it stops executing when running without user
+%                 interaction).
 
 % Copyright (C) 2009, Robert Oostenveld
 %
@@ -61,11 +67,12 @@ function ft_realtime_classification(cfg)
 ft_hastoolbox('prtools', 1);
 
 % set the default configuration options
-if ~isfield(cfg, 'dataformat'),     cfg.dataformat = [];      end % default is detected automatically
-if ~isfield(cfg, 'headerformat'),   cfg.headerformat = [];    end % default is detected automatically
-if ~isfield(cfg, 'eventformat'),    cfg.eventformat = [];     end % default is detected automatically
-if ~isfield(cfg, 'channel'),        cfg.channel = 'all';      end
-if ~isfield(cfg, 'bufferdata'),     cfg.bufferdata = 'last';  end % first or last
+cfg.dataformat   = ft_getopt(cfg, 'dataformat',   []); % default is detected automatically
+cfg.headerformat = ft_getopt(cfg, 'headerformat', []); % default is detected automatically
+cfg.eventformat  = ft_getopt(cfg, 'eventformat', []);  % default is detected automatically
+cfg.channel      = ft_getopt(cfg, 'channel',    'all');
+cfg.bufferdata   = ft_getopt(cfg, 'bufferdata', 'last'); % first or last
+cfg.timeout      = ft_getopt(cfg, 'timeout',    inf);
 
 % translate dataset into datafile+headerfile
 cfg = ft_checkconfig(cfg, 'dataset2files', 'yes');
@@ -82,7 +89,7 @@ chanindx    = match_str(hdr.label, cfg.channel);
 nchan       = length(chanindx);
 
 if nchan==0
-  error('no channels were selected');
+  ft_error('no channels were selected');
 end
 
 % these are for the data handling
@@ -104,7 +111,7 @@ clear(cfg.trialfun);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % this is the general BCI loop where realtime incoming data is handled
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-while true
+while t(end)<cfg.timeout
 
   % determine latest header and event information
   event     = ft_read_event(cfg.dataset, 'minsample', prevSample+1);  % only consider events that are later than the data processed sofar
@@ -151,7 +158,7 @@ while true
     t(end+1) = toc;
     s(end+1) = endsample;
 
-    % compute the cummulative and instantaneous number of samples per second
+    % compute the cumulative and instantaneous number of samples per second
     % compare these to the sampling frequency to get the relative acceleration factor
     instantaneous = [nan diff(s) ./ diff(t)];
     cumulative    = (s-s(1)) ./ (t-t(1));
@@ -185,7 +192,7 @@ while true
         Bc  = B*W;
         estimate = labeld(Bc);          % this is the estimated class
       else
-        warning('classifier has not yet been trained');
+        ft_warning('classifier has not yet been trained');
         estimate = nan;
       end
 
@@ -213,7 +220,10 @@ while true
         train_class = cat(1, train_class, class);
       end
     end % if train
-
   end % looping over new trials
-end % while true
+
+  % update the timing, also if there are no new trials
+  t(end) = toc;
+  
+end % while not timeout
 

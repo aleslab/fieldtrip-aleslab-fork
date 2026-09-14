@@ -7,14 +7,16 @@ function [H] = rotate(f)
 % Use as
 %   [H] = rotate(R)
 % where
-%   R       [rx, ry, rz] in degrees
-%   H       corresponding homogenous transformation matrix
+%   R   [rx, ry, rz] in degrees
+%   H   corresponding homogenous transformation matrix
 %
 % Note that the order in which the rotations are performs matters. The
 % rotation is first done around the z-axis, then the y-axis and finally the
 % x-axis.
+%
+% See also TRANSLATE, SCALE, RIGIDBODY, QUATERNION, HOMOGENOUS2TRADITIONAL
 
-% Copyright (C) 2000-2005, Robert Oostenveld
+% Copyright (C) 2000-2024, Robert Oostenveld
 %
 % This program is free software; you can redistribute it and/or modify
 % it under the terms of the GNU General Public License as published by
@@ -49,7 +51,7 @@ function [H] = rotate(f)
 % $Id$
 
 if numel(f)~=3
-  error('incorrect input vector');
+  ft_error('incorrect input vector');
 end
 
 % convert degrees to radians

@@ -1,7 +1,7 @@
 function [timelock] = ft_appendtimelock(cfg, varargin)
 
 % FT_APPENDTIMELOCK concatenates multiple timelock (ERP/ERF) data structures that
-% have been processed seperately. If the input data structures contain different
+% have been processed separately. If the input data structures contain different
 % channels, it will be concatenated along the channel direction. If the channels are
 % identical in the input data structures, the data will be concatenated along the
 % repetition dimension.
@@ -9,16 +9,29 @@ function [timelock] = ft_appendtimelock(cfg, varargin)
 % Use as
 %   combined = ft_appendtimelock(cfg, timelock1, timelock2, ...)
 %
-% The configuration can optionally contain
-%   cfg.appenddim  = string, the dimension to concatenate over which to append,
-%                    this can be 'chan' and 'rpt' (default is automatic)
-%   cfg.tolerance  = scalar, tolerance to determine how different the time axes
-%                    are allowed to still be considered compatible (default = 1e-5)
+% The configuration can contain
+%   cfg.appenddim       = string, the dimension to concatenate over which to append,
+%                         this can be 'chan' and 'rpt' (default is automatic)
+%   cfg.tolerance       = scalar, tolerance to determine how different the time axes
+%                         are allowed to still be considered compatible (default = 1e-5)
+%   cfg.keepsampleinfo  = 'yes', 'no', 'ifmakessense' (default = 'ifmakessense')
+%
+% To facilitate data-handling and distributed computing you can use
+%   cfg.inputfile   =  ...
+%   cfg.outputfile  =  ...
+% If you specify one of these (or both) the input data will be read from a
+% *.mat file on disk and/or the output data will be written to a *.mat file.
+% These mat files should contain only a single variable, corresponding with
+% the input/output structure.
+%
+% If you encounter difficulties with memory usage, you can use
+%   cfg.memory = 'low' or 'high', whether to be memory or computationally efficient, respectively (default = 'high')
 %
 % See also FT_TIMELOCKANALYSIS, FT_DATATYPE_TIMELOCK, FT_APPENDDATA, FT_APPENDFREQ,
-% FT_APPENDSENS, FT_APPENDSOURCE
+% FT_APPENDSOURCE, FT_APPENDSENS
 
-% Copyright (C) 2011-2017, Robert Oostenveld
+% Copyright (C) 2011-2018, Robert Oostenveld
+% Copyright (C) 2019-, Jan-Mathijs Schoffelen and Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -49,25 +62,37 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar    varargin
 ft_preamble provenance varargin
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
   return
 end
 
-% check if the input data is valid for this function
-for i=1:length(varargin)
-  % FIXME: what about timelock+comp?
-  varargin{i} = ft_checkdata(varargin{i}, 'datatype', {'timelock', 'timelock+comp'}, 'feedback', 'yes', 'hassampleinfo', 'ifmakessense');
-end
-
 % set the defaults
-cfg.channel    = ft_getopt(cfg, 'channel', 'all');
-cfg.parameter  = ft_getopt(cfg, 'parameter', []);
-cfg.appenddim  = ft_getopt(cfg, 'appenddim', []);
-cfg.tolerance  = ft_getopt(cfg, 'tolerance',  1e-5);
-cfg.appendsens = ft_getopt(cfg, 'appendsens', 'no');
+cfg.channel         = ft_getopt(cfg, 'channel', 'all');
+cfg.parameter       = ft_getopt(cfg, 'parameter', []);
+cfg.appenddim       = ft_getopt(cfg, 'appenddim', []);
+cfg.tolerance       = ft_getopt(cfg, 'tolerance',  1e-5); % this is passed to append_common, which passes it to ft_selectdata
+cfg.appendsens      = ft_getopt(cfg, 'appendsens', 'no');
+cfg.keepsampleinfo  = ft_getopt(cfg, 'keepsampleinfo', 'no');
+cfg.memory          = ft_getopt(cfg, 'memory', 'high');
+
+try
+  % although not 100% robust, this could make some users becoming aware of the issue of overlapping trials
+  for i=1:numel(varargin)
+    dataset{i}       = ft_findcfg(varargin{i}.cfg, 'dataset');
+    hassampleinfo(i) = isfield(varargin{i}, 'sampleinfo');
+  end
+  if ~all(strcmp(dataset, dataset{1})) && ~strcmp(cfg.keepsampleinfo, 'no')
+    ft_warning('the data originates from different recordings on disk');
+    ft_warning('please consider specifying cfg.keepsampleinfo=''no''')
+  end
+end % try
+
+% ensure that the input data is valid for this function
+for i=1:length(varargin)
+  varargin{i} = ft_checkdata(varargin{i}, 'datatype', {'timelock+comp', 'timelock'}, 'feedback', 'yes', 'hassampleinfo', cfg.keepsampleinfo);
+end
 
 if isempty(cfg.appenddim) || strcmp(cfg.appenddim, 'auto')
   if checkchan(varargin{:}, 'identical') && checktime(varargin{:}, 'identical', cfg.tolerance)
@@ -79,10 +104,10 @@ if isempty(cfg.appenddim) || strcmp(cfg.appenddim, 'auto')
   elseif checktime(varargin{:}, 'unique', cfg.tolerance)
     cfg.appenddim = 'time';
   else
-    error('cfg.appenddim should be specified');
+    ft_error('cfg.appenddim should be specified');
   end
 end
-fprintf('concatenating over the "%s" dimension\n', cfg.appenddim);
+ft_info('concatenating over the "%s" dimension\n', cfg.appenddim);
 
 if isempty(cfg.parameter)
   fn = fieldnames(varargin{1});
@@ -96,23 +121,29 @@ end
 assert(~isempty(cfg.parameter), 'cfg.parameter should be specified');
 
 if any(strcmp(cfg.parameter, 'avg')) && any(strcmp(cfg.parameter, 'trial'))
-  warning('appending the individual trials, not the averages');
+  ft_warning('appending the individual trials, not the averages');
   % also prevent var and dof from being appended
-  cfg.parameter = setdiff(cfg.parameter, {'avg', 'var', 'dof'}); 
+  cfg.parameter = setdiff(cfg.parameter, {'avg', 'var', 'dof'});
 end
 
 % use a low-level function that is shared with the other ft_appendxxx functions
-timelock = append_common(cfg, varargin{:});
+if strcmp(cfg.memory, 'high') || numel(varargin)<=2
+  timelock = append_common(cfg, varargin{:});
+elseif strcmp(cfg.memory, 'low')
+  timelock = varargin{1};
+  for i=2:numel(varargin)
+    timelock = append_common(cfg, timelock, varargin{i});
+  end
+end
 
 if isfield(timelock, 'avg') && ~isfield(timelock, 'trial')
-  warning('renaming the appended averages to "trial"');
+  ft_warning('renaming the appended averages to "trial"');
   timelock.trial = timelock.avg;
   timelock = rmfield(timelock, 'avg');
 end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   varargin
 ft_postamble provenance timelock
 ft_postamble history    timelock

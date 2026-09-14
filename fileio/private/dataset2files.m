@@ -6,7 +6,7 @@ function [filename, headerfile, datafile] = dataset2files(filename, format)
 % Use as
 %   [filename, headerfile, datafile] = dataset2files(filename, format)
 
-% Copyright (C) 2007-2013, Robert Oostenveld
+% Copyright (C) 2007-2019, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -38,13 +38,18 @@ if iscell(filename)
   return
 end
 
+if isstring(filename)
+  % the below code does not deal well with matlab strings (i.e. "" vs. '')
+  filename = char(filename);
+end
+
 if isempty(format)
   format = ft_filetype(filename);
 end
 
 current_argin = {filename, format};
 if isequal(current_argin, previous_argin)
-  % don't do the whole cheking again, but return the previous output from cache
+  % don't do the whole checking again, but return the previous output from cache
   filename   = previous_argout{1};
   headerfile = previous_argout{2};
   datafile   = previous_argout{3};
@@ -65,6 +70,10 @@ switch format
     datafile   = fullfile(path, [file,ext]);
     headerfile = fullfile(path, [file,ext]);
     configfile = fullfile(path, 'config');
+  case {'anywave_ades', 'anywave_dat'}
+    [path, file, ext] = fileparts(filename);
+    datafile   = fullfile(path, [file '.dat']);
+    headerfile = fullfile(path, [file '.ades']);
   case {'ctf_ds', 'ctf_old'}
     % convert CTF filename into filenames
     [path, file, ext] = fileparts(filename);
@@ -96,6 +105,14 @@ switch format
     if length(path)>3 && strcmp(path(end-2:end), '.ds')
       filename = path; % this is the *.ds directory
     end
+  case 'bids_tsv'
+    [path, file, ext] = fileparts(filename);
+    if exist(fullfile(path, [file '.json']), 'file')
+      headerfile   = fullfile(path, [file '.json']);
+    end
+    if exist(fullfile(path, [file '.tsv']), 'file')
+      datafile   = fullfile(path, [file '.tsv']);
+    end
   case 'brainvision_vhdr'
     [path, file, ext] = fileparts(filename);
     headerfile = fullfile(path, [file '.vhdr']);
@@ -106,7 +123,7 @@ switch format
     elseif exist(fullfile(path, [file '.dat']), 'file')
       datafile   = fullfile(path, [file '.dat']);
     else
-      error('cannot determine the data file that corresponds to %s', filename);
+      ft_error('cannot determine the data file that corresponds to %s', filename);
     end
   case 'brainvision_eeg'
     [path, file, ext] = fileparts(filename);
@@ -120,6 +137,15 @@ switch format
     [path, file, ext] = fileparts(filename);
     headerfile = fullfile(path, [file '.vhdr']);
     datafile   = fullfile(path, [file '.dat']);
+  case 'brainvision_bvrh'
+    % this pertains to the newer brainvision fileformat
+    [path, file, ext] = fileparts(filename);
+    headerfile = fullfile(path, [file '.bvrh']);
+    datafile   = fullfile(path, [file '.bnrd']);
+  case 'brainvision_bvrd'
+    [path, file, ext] = fileparts(filename);
+    headerfile = fullfile(path, [file '.bvrh']);
+    datafile   = fullfile(path, [file '.bvrd']);
   case 'itab_raw'
     [path, file, ext] = fileparts(filename);
     headerfile = fullfile(path, [file '.raw.mhd']);
@@ -129,7 +155,7 @@ switch format
     headerfile = fullfile(path, [file '.mat']);
     datafile   = fullfile(path, [file '.bin']);
   case 'fcdc_buffer_offline'
-    if isdir(filename)
+    if isfolder(filename)
       path = filename;
     else
       [path, file, ext] = fileparts(filename);
@@ -141,7 +167,7 @@ switch format
     headerfile = fullfile(path, [file '.tsq']);
     datafile   = fullfile(path, [file '.tev']);
   case 'egi_mff'
-    if ~isdir(filename);
+    if ~isfolder(filename);
       [path, file, ext] = fileparts(filename);
       headerfile = path;
       datafile   = path;
@@ -177,6 +203,14 @@ switch format
       headerfile = filename;
       datafile = filename;
     end
+  case 'spikeglx_bin'
+    [p, f, x] = fileparts(filename);
+    headerfile = fullfile(p, [f '.meta']);
+    datafile   = fullfile(p, [f '.bin']);
+  case 'opm_fil'
+    [p, f, x] = fileparts(filename);
+    headerfile = fullfile(p, [f '.json']);
+    datafile   = fullfile(p, [f '.bin']);
   otherwise
     % convert filename into filenames, assume that the header and data are the same
     datafile   = filename;

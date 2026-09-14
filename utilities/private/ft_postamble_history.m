@@ -1,12 +1,13 @@
-% FT_POSTAMBLE_HISTORY stores the configuration structure that is present in the
-% present workspace in the output variable.
+% FT_POSTAMBLE_HISTORY is a helper script that stores the configuration structure that
+% is present in the present workspace (i.e. the workspace of the calling function) in
+% the output variable.
 %
 % Use as
 %   ft_postamble history outputvar
 %
-% See also FT_POSTAMBLE_PROVENANCE
+% See also FT_PREAMBLE, FT_POSTAMBLE, FT_POSTAMBLE_PROVENANCE
 
-% Copyright (C) 2011-2016, Robert Oostenveld, DCCN
+% Copyright (C) 2011-2024, Robert Oostenveld, DCCN
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -26,19 +27,40 @@
 %
 % $Id$
 
-global ft_default
+if isfield(cfg, 'keepcfg') && ~istrue(cfg.keepcfg)
+  % do not keep the configuration in the output
+  return
+end
 
-% some fields are for internal use only and should not be stored
+% large fields should be removed in the output configuration
+cfg = ft_checkconfig(cfg, 'checksize', 'yes');
+
+% some fields are for internal use only and should not be stored in the output configuration
 cfg = removefields(cfg, ignorefields('history'));
 
-for tmpindx=1:length(ft_default.postamble)
-  if isequal(ft_default.postamble, {'varargout'})
-    eval(sprintf('try, %s{%d}.cfg = cfg; end', ft_default.postamble{tmpindx}, tmpindx));
+if isequal(postamble_argin, {'varargout'}) && isequal(preamble_argin, {'varargin'}) && isfield(cfg, 'previous')
+  % distribute the elements of cfg.previous over the output variables
+  if iscell(cfg.previous)
+    aa5mo0Ke = cfg.previous;
   else
-    eval(sprintf('try, %s.cfg = cfg; end', ft_default.postamble{tmpindx}));
+    % this happens when varargin only has a single element
+    aa5mo0Ke = {cfg.previous};
   end
+  for tmpindx=1:numel(varargout)
+    cfg.previous = aa5mo0Ke{tmpindx};
+    eval(sprintf('try, varargout{%d}.cfg = cfg; end', tmpindx));
+  end
+  cfg.previous = aa5mo0Ke;
+  clear aa5mo0Ke tmpindx
+elseif isequal(postamble_argin, {'varargout'})
+  for tmpindx=1:numel(varargout)
+    eval(sprintf('try, varargout{%d}.cfg = cfg; end', tmpindx));
+  end
+  clear tmpindx
+else
+  for tmpindx=1:length(postamble_argin)
+    eval(sprintf('try, %s.cfg = cfg; end', postamble_argin{tmpindx}));
+  end
+  clear tmpindx
 end
-clear tmpindx
 
-% clear warnings from ft_default, so that they don't end up in the next cfg
-ft_warning('-clear');

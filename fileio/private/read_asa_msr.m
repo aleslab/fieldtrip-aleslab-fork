@@ -23,18 +23,18 @@ function data = read_asa_msr(fn)
 %
 % $Id$
 
-Npnt      = read_asa(fn, 'NumberPositions=', '%d');
-Ntime     = read_asa(fn, 'NumberTimesteps=', '%d');
-UnitT     = read_asa(fn, 'UnitTime', '%s');
-UnitM     = read_asa(fn, 'UnitMeas', '%s');
-Timesteps = read_asa(fn, 'Timesteps', '%s');
-lab       = read_asa(fn, 'Labels', '%s', Npnt);
+Npnt      = read_ini(fn, 'NumberPositions=', '%d');
+Ntime     = read_ini(fn, 'NumberTimesteps=', '%d');
+UnitT     = read_ini(fn, 'UnitTime', '%s');
+UnitM     = read_ini(fn, 'UnitMeas', '%s');
+Timesteps = read_ini(fn, 'Timesteps', '%s');
+lab       = read_ini(fn, 'Labels', '%s', Npnt);
 
-val = read_asa(fn, 'Values', '%f');
+val = read_ini(fn, 'Values', '%f');
 if any(size(val)~=[Npnt,Ntime])
-  msm_file = read_asa(fn, 'Values', '%s');
+  msm_file = read_ini(fn, 'Values', '%s');
   [path, name, ext] = fileparts(fn);
-  fid = fopen(fullfile(path, msm_file), 'rb', 'ieee-le');
+  fid = fopen_or_error(fullfile(path, msm_file), 'rb', 'ieee-le');
   val = fread(fid, [Ntime, Npnt], 'float32')';
   fclose(fid);
 end
@@ -47,7 +47,7 @@ if strcmpi(UnitT,'ms')
 elseif strcmpi(UnitT,'s')
   time = 1000*time;
 elseif ~isempty(UnitT)
-  error(sprintf('Unknown unit of time (%s)', UnitT));
+  ft_error(sprintf('Unknown unit of time (%s)', UnitT));
 end
 
 if strcmpi(UnitM,'uv')
@@ -63,7 +63,7 @@ elseif strcmpi(UnitM,'ft')
 elseif strcmpi(UnitM,'pt')
   val = 1000*val;
 elseif ~isempty(UnitM)
-  error(sprintf('Unknown unit of measurement (%s)', UnitM));
+  ft_error(sprintf('Unknown unit of measurement (%s)', UnitM));
 end
 
 if length(size(lab))==2

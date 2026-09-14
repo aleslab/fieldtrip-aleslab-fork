@@ -1,10 +1,10 @@
 function [proj] = elproj(pos, method)
 
-% ELPROJ makes a azimuthal projection of a 3D electrode cloud
-%  on a plane tangent to the sphere fitted through the electrodes
-%  the projection is along the z-axis
+% ELPROJ makes a azimuthal projection of a 3D electrode cloud on a plane tangent to
+% the sphere fitted through the electrodes. The projection is along the z-axis.
 %
-%  [proj] = elproj([x, y, z], 'method');
+% Use as
+%   proj = elproj([x, y, z], 'method');
 %
 % Method should be one of these:
 %     'gnomic'
@@ -20,8 +20,10 @@ function [proj] = elproj(pos, method)
 % projection results, if the light is antipodal a Sterographic,
 % and if at infinity, an Orthographic.
 %
-% The default projection is a polar projection (BESA like).
+% The default projection is a BESA-like polar projection.
 % An inverse projection is the opposite of the default polar projection.
+%
+% See also PROJECTTRI
 
 % Copyright (C) 2000-2008, Robert Oostenveld
 %
@@ -61,7 +63,7 @@ if strcmp(method, 'orthographic')
   num = length(find(z<0));
   str = sprintf('%d electrodes may be folded inwards in orthographic projection\n', num);
   if num
-    warning(str);
+    ft_warning(str);
   end
   proj = [xp yp];
 
@@ -77,7 +79,7 @@ elseif strcmp(method, 'gnomic')
   num = length(find(th==pi/2 | z<0));
   str = sprintf('removing %d electrodes from gnomic projection\n', num);
   if num
-    warning(str);
+    ft_warning(str);
   end
   xp(find(th==pi/2 | z<0)) = NaN;
   yp(find(th==pi/2 | z<0)) = NaN;
@@ -94,7 +96,7 @@ elseif strcmp(method, 'stereographic')
   num = length(find(th==pi/2 | z<0));
   str = sprintf('removing %d electrodes from stereographic projection\n', num);
   if num
-    warning(str);
+    ft_warning(str);
   end
   xp(find(th==pi/2 | z<0)) = NaN;
   yp(find(th==pi/2 | z<0)) = NaN;
@@ -113,5 +115,5 @@ elseif strcmp(method, 'polar')
   proj = [x, y];
 
 else
-  error('unsupported method (%s)', method);
+  ft_error('unsupported method "%s"', method);
 end

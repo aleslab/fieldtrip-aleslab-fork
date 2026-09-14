@@ -1,19 +1,15 @@
 function test_tutorial_connectivityextended
 
 % WALLTIME 00:45:00
-% MEM 3gb
-
-% TEST test_tutorial_connectivity
-% TEST ft_connectivityanalysis ft_connectivitysimulation ft_freqanalysis ft_connectivityplot ft_mvaranalysis
+% MEM 1gb
+% DEPENDENCY ft_connectivityanalysis ft_connectivitysimulation ft_freqanalysis ft_connectivityplot ft_mvaranalysis
+% DATA public
 
 % This is the first section of the connectivity tutorial, which
 % starts with an MVAR model and then uses parametric and nonparametric
 % spectral decomposition for coherence and granger
 
 % See also test_tutorial_connectivity2 and test_tutorial_connectivity3
-
-global ft_default;
-ft_default.feedback = 'no';
 
 %% simulate data
 cfg             = [];
@@ -93,11 +89,11 @@ for row=1:3
 end
 
 %% do the virtual channel stuff
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer_extended/source_coh_lft.mat'));
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer_extended/source_diff.mat'));
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer_extended/data_cmb.mat'));
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer_extended/sourcemodel.mat'));
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer_extended/hdm.mat'));
+load(dccnpath('/project/3031000.02/external/download/tutorial/beamformingextended/source_coh_lft.mat'));
+load(dccnpath('/project/3031000.02/external/download/tutorial/beamformingextended/source_diff.mat'));
+load(dccnpath('/project/3031000.02/external/download/tutorial/beamformingextended/data_cmb.mat'));
+load(dccnpath('/project/3031000.02/external/download/tutorial/beamformingextended/sourcemodel.mat'));
+load(dccnpath('/project/3031000.02/external/download/tutorial/beamformingextended/hdm.mat'));
 
 [maxval, maxcohindx] = max(source_coh_lft.avg.coh);
 source_coh_lft.pos(maxcohindx, :)
@@ -111,15 +107,18 @@ cfg.vartrllength      = 2;
 cfg.covariancewindow  = 'all';
 tlock                 = ft_timelockanalysis(cfg, data_cmb);
 
+% this is old-style stuff. as of end 2020 there's a ft_virtualchannel
+% function that does the virtualchannel creation
 cfg              = [];
 cfg.method       = 'lcmv';
 cfg.headmodel    = hdm;
-cfg.grid.pos     = sourcemodel.pos([maxcohindx maxpowindx], :);
-cfg.grid.inside  = true(2,1);
-cfg.grid.unit    = sourcemodel.unit;
+cfg.sourcemodel.pos     = sourcemodel.pos([maxcohindx maxpowindx], :);
+cfg.sourcemodel.inside  = true(2,1);
+cfg.sourcemodel.unit    = sourcemodel.unit;
 cfg.lcmv.keepfilter = 'yes';
 source_idx       = ft_sourceanalysis(cfg, tlock);
 
+%% old style
 beamformer_lft_coh = source_idx.avg.filter{1};
 beamformer_gam_pow = source_idx.avg.filter{2};
 
@@ -154,6 +153,20 @@ for k = 1:length(data_cmb.trial)
   virtualchanneldata.trial{k}(1,:) = u1(:,1)' * beamformer_gam_pow * data_cmb.trial{k}(chansel,:);
   virtualchanneldata.trial{k}(2,:) = u2(:,1)' * beamformer_lft_coh * data_cmb.trial{k}(chansel,:);
 end
+virtualchanneldata_old = virtualchanneldata;
+
+%% new-style
+cfg = [];
+cfg.pos            = source_idx.pos;
+cfg.method         = 'svd';
+cfg.numcomponent   = 1;
+virtualchanneldata = ft_virtualchannel(cfg, data_cmb, source_idx);
+virtualchanneldata.label = {'motor';'visual'}; % note the order is reversed w.r.t. old-style
+
+% do a sanity check on whether the old and new style vcs match more or less
+c = corr([virtualchanneldata_old.trial{1}' virtualchanneldata.trial{1}']);
+assert(c(2,3)>0.99);
+assert(c(1,4)>0.99);
 
 % select the two EMG channels
 cfg = [];

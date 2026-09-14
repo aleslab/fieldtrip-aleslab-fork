@@ -2,6 +2,8 @@ function test_old_connectivityanalysis
 
 % MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY
+% DATA no
 
 
 % this script tests the functionality of connectivityanalysis
@@ -10,7 +12,7 @@ is_octave=~ft_platform_supports('matlabversion',1,inf);
 if is_octave
   % TODO: figure out what the issue is here
   % Note: this seems hard to reproduce on non-Travis system
-  reason=sprintf('%s can crash Octave on travis and has been distabled',...
+  reason=sprintf('%s can crash Octave on travis and has been disabled',...
                     mfilename());
   moxunit_throw_test_skipped_exception(reason)
 end

@@ -1,16 +1,16 @@
 function test_ft_senstype
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_senstype
+% DEPENDENCY ft_senstype
+% DATA private
 
 % ft_senstype can work on different input data structures. Here, use the
 % preprocessed data on /home/common/matlab/fieldtrip/test/raw/
 
 cnt = 0;
 
-maindir = dccnpath('/home/common/matlab/fieldtrip/data/test/latest/raw');
+maindir = dccnpath('/project/3031000.02/test/latest/raw');
   
 subdir = 'eeg';
 d = dir(fullfile(maindir, subdir, '*.mat'));

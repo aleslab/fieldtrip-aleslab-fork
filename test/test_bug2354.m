@@ -1,12 +1,12 @@
 function test_bug2354
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_topoplotER ft_multiplotER ft_singleplotER
+% DEPENDENCY ft_topoplotER ft_multiplotER ft_singleplotER
+% DATA private
 
 % example ERF data
-filename = dccnpath('/home/common/matlab/fieldtrip/data/test/bug2354.mat');
+filename = dccnpath('/project/3031000.02/test/bug2354.mat');
 load(filename);
 
 % plot a time window 

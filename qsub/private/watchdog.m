@@ -1,9 +1,9 @@
 function watchdog
 
-% WATCHDOG will trigger an exit() if the master disappears or if the allowed time elapsed
+% WATCHDOG will trigger an exit() if the controller disappears or if the allowed time elapsed
 %
 % To enable the watchdog you should do 
-%   watchdog(masterid, time)
+%   watchdog(controllerid, time)
 % and to disable it again
 %   clear watchdog
 
@@ -27,5 +27,10 @@ function watchdog
 %
 % $Id$
 
-warning('could not locate mex file');
-
+persistent warning_once
+if isempty(warning_once) || ~warning_once
+  % the mex file is many times faster than the matlab implementation, hence that is preferred
+  % but now we use the matlab implementation as a fallback
+  warning_once = true;
+  warning('Could not locate the MEX file "%s.%s"', mfilename, mexext);
+end

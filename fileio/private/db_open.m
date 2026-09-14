@@ -6,16 +6,28 @@ function db_open(user, password, server, port, database)
 %    db_open
 %    db_open(user, password, server, port, database)
 %    db_open('mysql://<user>:<password>@<host>:<port>')
+%
+% See also DB_CLOSE, DB_SELECT, DB_INSERT, DB_SELECT_BLOB, DB_INSERT_BLOB
 
 % Copyright (C) 2007, Robert Oostenveld
+% 
+% This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
+% for the documentation and details.
 %
-% $Log: db_open.m,v $
-% Revision 1.2  2007/11/27 14:38:49  roboos
-% added query "use database"
+%    FieldTrip is free software: you can redistribute it and/or modify
+%    it under the terms of the GNU General Public License as published by
+%    the Free Software Foundation, either version 3 of the License, or
+%    (at your option) any later version.
 %
-% Revision 1.1  2007/11/07 10:50:46  roboos
-% created helper functions for easy access to a MySQL database table using a structure for representing the data
+%    FieldTrip is distributed in the hope that it will be useful,
+%    but WITHOUT ANY WARRANTY; without even the implied warranty of
+%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%    GNU General Public License for more details.
 %
+%    You should have received a copy of the GNU General Public License
+%    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
+%
+% $Id$
 
 % persistent variables should be defined at the beginning of the function
 persistent prev_filename
@@ -42,7 +54,7 @@ switch nargin
     % combine the settings in a string of the form mysql://<user>:<password>@<host>:<port>
     filename = sprintf('mysql://<%s>:<%s>@<%s>:<%d>/<%s>', user, password, server, port, database);
   otherwise
-    error('incorrect input arguments');
+    ft_error('incorrect input arguments');
 end
 
 if ~strcmp(filename, prev_filename)
@@ -64,7 +76,7 @@ if ~strcmp(filename, prev_filename)
     prev_filename = filename;
   catch
     prev_filename = [];
-    warning(lasterr);
+    ft_warning(lasterr);
   end
 end
 

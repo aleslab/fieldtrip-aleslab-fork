@@ -1,13 +1,13 @@
 function test_ft_movieplotTFR
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_movieplotTFR ft_movieplotER
+% DATA public
 
-% TEST ft_movieplotTFR ft_movieplotER
+% the timelock and frequency analysis is based on the tutorials
 
-% the frequency analysis is based on the tutorials
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/timefrequencyanalysis/dataFIC.mat'));
+load(dccnpath('/project/3031000.02/external/download/tutorial/timefrequencyanalysis/dataFIC.mat'));
 
 cfg              = [];
 timelockFIC      = ft_timelockanalysis(cfg, dataFIC);
@@ -44,7 +44,7 @@ cfg = [];
 cfg.layout = 'CTF151.lay';
 ft_movieplotTFR(cfg, freqFIC);
 
-% non interactive TFR movie along frequencies
+% non-interactive TFR movie along frequencies
 figure
 cfg = [];
 cfg.interactive = 'no';
@@ -53,19 +53,11 @@ cfg.movierpt    = 3;
 cfg.layout      = 'CTF151.lay';
 ft_movieplotTFR(cfg, freqFIC);
 
-% non interactive TFR movie along frequencies
+% non-interactive TFR movie along frequencies
 figure
 cfg = [];
 cfg.interactive = 'no';
 cfg.moviefreq   = 2;
 cfg.movierpt    = 3;
-cfg.layout = 'CTF151.lay';
+cfg.layout      = 'CTF151.lay';
 ft_movieplotTFR(cfg, freqFIC);
-
-% ensure that all figures are updated before XUnit starts to close the figures
-drawnow
-close all
-
-
-drawnow
-

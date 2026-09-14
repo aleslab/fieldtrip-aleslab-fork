@@ -15,6 +15,10 @@ function [info,meas] = fiff_read_meas_info(source,tree)
 %   License : BSD 3-clause
 %
 %
+%   Revision 1.15  2025/06/30 10:10:30 
+%   Improved to handle string type digitization, especially in the new FIFF
+%   data by MEGIN
+%   
 %   Revision 1.14  2009/03/31 01:12:30  msh
 %   Improved ID handling
 %
@@ -70,11 +74,11 @@ end
 
 me='MNE:fiff_read_meas_info';
 
-if nargin ~= 2 & nargin ~= 1
+if nargin ~= 2 && nargin ~= 1
     error(me,'Incorrect number of arguments');
 end
 
-if nargin == 1 & nargout == 2
+if nargin == 1 && nargout == 2
     error(me,'meas output argument is not allowed with file name specified');
 end
 
@@ -110,6 +114,8 @@ end
 dev_head_t=[];
 ctf_head_t=[];
 meas_date=[];
+proj_id = [];
+proj_name = [];
 p = 0;
 for k = 1:meas_info.nent
     kind = meas_info.dir(k).kind;
@@ -147,8 +153,16 @@ for k = 1:meas_info.nent
                     cand.to == FIFF.FIFFV_COORD_DEVICE
                 dev_head_t = fiff_invert_transform(cand);
             end
+        case FIFF.FIFF_PROJ_ID
+            tag = fiff_read_tag(fid,pos);
+            proj_id = tag.data;
+        case FIFF.FIFF_PROJ_NAME
+            tag = fiff_read_tag(fid,pos);
+            proj_name = tag.data;
     end
 end
+[chs, ch_rename] = fiff_read_extended_ch_info(chs, meas_info, fid);
+
 %
 %   Check that we have everything we need
 %
@@ -178,7 +192,7 @@ if length(chs) ~= nchan
 end
 
 
-if isempty(dev_head_t) || isempty(ctf_head_t)
+if isempty(dev_head_t) && isempty(ctf_head_t)
     hpi_result = fiff_dir_tree_find(meas_info,FIFF.FIFFB_HPI_RESULT);
     if length(hpi_result) == 1
         for k = 1:hpi_result.nent
@@ -214,6 +228,22 @@ if length(isotrak) == 1
             p = p + 1;
             tag = fiff_read_tag(fid,pos);
             dig(p) = tag.data;
+        elseif kind == FIFF.FIFF_DIG_STRING % added to address updated FIFF format (2024-25)
+            tag = fiff_read_tag(fid,pos);
+            if length(tag.data.r)>3
+                assert(mod(length(tag.data.r), 3) == 0,...
+                    'length of vector tag.data.r must be 3*(no. of points in a string)')
+                rr = reshape(tag.data.r, 3, []);
+                for pp = 1:(length(tag.data.r)/3)
+                    p = p + 1;
+                    tag_data_pp   = tag.data;
+                    tag_data_pp.r = rr(:,pp);
+                    dig(p) = tag_data_pp;
+                end
+            else
+                p = p + 1;
+                dig(p) = tag.data;
+            end
         else
             if kind == FIFF.FIFF_MNE_COORD_FRAME
                 tag = fiff_read_tag(fid,pos);
@@ -257,15 +287,15 @@ end
 %
 %   Load the SSP data
 %
-projs = fiff_read_proj(fid,meas_info);
+projs = fiff_read_proj(fid,meas_info,ch_rename);
 %
 %   Load the CTF compensation data
 %
-comps = fiff_read_ctf_comp(fid,meas_info,chs);
+comps = fiff_read_ctf_comp(fid,meas_info,chs,ch_rename);
 %
 %   Load the bad channel list
 %
-bads = fiff_read_bad_channels(fid,meas_info);
+bads = fiff_read_bad_channels(fid,meas_info,ch_rename);
 %
 %   Put the data together
 %
@@ -343,6 +373,8 @@ info.projs = projs;
 info.comps = comps;
 info.acq_pars = acq_pars;
 info.acq_stim = acq_stim;
+info.proj_id = proj_id;
+info.proj_name = proj_name;
 
 if open_here
     fclose(fid);
@@ -351,7 +383,7 @@ end
 return;
 
     function [tag] = find_tag(node,findkind)
-        
+
         for p = 1:node.nent
             if node.dir(p).kind == findkind
                 tag = fiff_read_tag(fid,node.dir(p).pos);

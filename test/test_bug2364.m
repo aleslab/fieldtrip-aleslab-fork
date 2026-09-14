@@ -2,6 +2,9 @@ function test_bug2364
 
 % WALLTIME 00:10:00
 % MEM 1gb
+% DEPENDENCY
+% DATA no
+
 
 
 nTrials = 20;

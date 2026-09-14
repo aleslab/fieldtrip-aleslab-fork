@@ -71,21 +71,21 @@ function [out] = read_ced_son(datafile,varargin)
 MODE = 'continuous';  % assume continuous now
 
 % process in put parameters
-if ~isempty(varargin) pars=struct(varargin{:}); else pars=[]; end;
-if ~isfield(pars,'readdata'),       pars = setfield(pars,'readdata','no');       end;
-if ~isfield(pars,'readevents'),     pars = setfield(pars,'readevents','no');     end;
-if ~isfield(pars,'readtimestamps'), pars = setfield(pars,'readtimestamps','no');  end;
-if ~isfield(pars,'begsample'),      pars = setfield(pars,'begsample',-1);        end;
-if ~isfield(pars,'endsample'),      pars = setfield(pars,'endsample',-1);        end;
-if ~isfield(pars,'channels'),       pars = setfield(pars,'channels',[]);         end;
+if ~isempty(varargin) pars=struct(varargin{:}); else pars=[]; end
+if ~isfield(pars,'readdata'),       pars = setfield(pars,'readdata','no');       end
+if ~isfield(pars,'readevents'),     pars = setfield(pars,'readevents','no');     end
+if ~isfield(pars,'readtimestamps'), pars = setfield(pars,'readtimestamps','no');  end
+if ~isfield(pars,'begsample'),      pars = setfield(pars,'begsample',-1);        end
+if ~isfield(pars,'endsample'),      pars = setfield(pars,'endsample',-1);        end
+if ~isfield(pars,'channels'),       pars = setfield(pars,'channels',[]);         end
 
 % set all fields string values to lowercase
 fields = fieldnames(pars);
 for idx=1:length(fields)
     if ischar(getfield(pars,fields{idx})),
         pars=setfield(pars,fields{idx},lower(getfield(pars,fields{idx})));
-    end;
-end;
+    end
+end
 
 % First, check if NeuroShare DLL can be loaded
 if ft_filetype(datafile, 'ced_son')
@@ -94,18 +94,18 @@ if ft_filetype(datafile, 'ced_son')
 end
 [st,libinfo] = ns_GetLibraryInfo;
 if st,
-    error(['Could not get NeuroShare library info, please use the NS_SETLIBRARY function.']);
-else,
+    ft_error(['Could not get NeuroShare library info, please use the NS_SETLIBRARY function.']);
+else
     disp(['Loading file ' datafile ' using NeuroShare library v',...
         num2str(libinfo.LibVersionMaj),'.',num2str(libinfo.LibVersionMin),' ...']);
-end;
+end
 
 % open file
 [st,fhandle] = ns_OpenFile(datafile);
 if st,
     [st,mesg] = ns_GetLastErrorMsg;
-    error(mesg);
-end;
+    ft_error(mesg);
+end
 
 try,
     % file header
@@ -113,8 +113,8 @@ try,
     if st,
         [st,mesg] = ns_GetLastErrorMsg;
         ns_CloseFile(fhandle);
-        error(mesg);
-    end;
+        ft_error(mesg);
+    end
 
     % Build catalogue of entities
     [st, entityinfo] = ns_GetEntityInfo(fhandle, [1:fheader.EntityCount]);
@@ -165,13 +165,13 @@ try,
             out.header(cnt).units        = ainfo.Units;
             out.header(cnt).mode         = 'continuous';
         elseif strcmpi(MODE,'triggered'),
-            warning(['Triggered channel mode not implemented yet']);
+            ft_warning(['Triggered channel mode not implemented yet']);
             out = [];
             return
-        else,
-            error(['Unknown channel mode for channel ',num2str(channr)]);
-        end;
-    end;
+        else
+            ft_error(['Unknown channel mode for channel ',num2str(channr)]);
+        end
+    end
     out.header = orderfields(out.header);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -202,13 +202,13 @@ try,
                     out.events(cnt).value = evdata{trignr};  % cell2str
                 else
                     out.events(cnt).value = evdata(trignr);
-                end;
+                end
                 out.events(cnt).offset    = 0;
                 out.events(cnt).duration  = 0;
-            end;
-        end;
+            end
+        end
         out.events = orderfields(out.events);
-    end;
+    end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % DATA
@@ -220,20 +220,20 @@ try,
               pars.channels = analoglist; 
           else, % renumber requested channels to entityIDs
               if length(pars.channels)>length(analoglist),
-                  error(['Requested more analog channels than present in datafile']);
-              else,
+                  ft_error(['Requested more analog channels than present in datafile']);
+              else
                   pars.channels = analoglist(pars.channels);
-              end;
-          end;
+              end
+          end
                     
           % use first analog channel as reference channel
           targetchan = analoglist(1);           
           [st,einfo] = ns_GetEntityInfo(fhandle,targetchan);
           
           %if no begsample specified default to start of channel
-          if pars.begsample<0, begsample=1; else begsample=pars.begsample; end;
+          if pars.begsample<0, begsample=1; else begsample=pars.begsample; end
           %if no endsample specified default to end of channel
-          if pars.endsample<0, endsample=einfo.ItemCount; else endsample=pars.endsample; end;
+          if pars.endsample<0, endsample=einfo.ItemCount; else endsample=pars.endsample; end
           
           % calculate number of samples needed (for all requested channels)
           itemcount         = endsample-begsample+1;                  
@@ -261,27 +261,27 @@ try,
               % get the same number of samples as in the target channel
               endsample               = begsample + itemcount-1;
               [st,contcount,chandata] = ns_GetAnalogData(fhandle,channr, begsample,itemcount);
-              if contcount~=itemcount, warning(['Discontinuity in data']); end;
+              if contcount~=itemcount, ft_warning(['Discontinuity in data']); end
 
               % make a time scale
               [st,begtime]            = ns_GetTimeByIndex(fhandle,channr,begsample);
               [st,endtime]            = ns_GetTimeByIndex(fhandle,channr,endsample);          
               sourcestep              = out.header([out.header.sonentityid]==channr).samplerate;
     
-              if sourcestep~=targetstep, warning(['Source and target channels have time steps of different size']); end;
+              if sourcestep~=targetstep, ft_warning(['Source and target channels have time steps of different size']); end
               chantime                = [begtime:1/sourcestep:endtime];
              
               out.data{cnt} = chandata(:)';              
-              if strcmp(pars.readtimestamps,'yes') out.time{cnt} = chantime(:)'; end;
-          end;
-      end;
+              if strcmp(pars.readtimestamps,'yes') out.time{cnt} = chantime(:)'; end
+          end
+      end
 
       % close file
       [st]  = ns_CloseFile(fhandle);
     if st,
         [st,mesg] = ns_GetLastErrorMsg;
         disp(mesg);
-    end;
+    end
    
 % use catch to close any opened files before terminating
 catch,
@@ -290,7 +290,7 @@ catch,
     if st,
         [st,mesg] = ns_GetLastErrorMsg;
         disp(mesg);
-    end;
-    error(lasterr);
-end;
+    end
+    ft_error(lasterr);
+end
 

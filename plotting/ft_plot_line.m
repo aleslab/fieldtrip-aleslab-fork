@@ -10,9 +10,9 @@ function h = ft_plot_line(X, Y, varargin)
 %   'color'           =
 %   'linestyle'       =
 %   'linewidth'       =
-%   'tag'             = string, the name assigned to the object. All tags with the same name can be deleted in a figure, without deleting other parts of the figure.
+%   'tag'             = string, the tag assigned to the plotted elements (default = '')
 %
-% It is possible to plot the object in a local pseudo-axis (c.f. subplot), which is specfied as follows
+% It is possible to plot the object in a local pseudo-axis (c.f. subplot), which is specified as follows
 %   'hpos'            = horizontal position of the center of the local axes
 %   'vpos'            = vertical position of the center of the local axes
 %   'width'           = width of the local axes
@@ -20,9 +20,9 @@ function h = ft_plot_line(X, Y, varargin)
 %   'hlim'            = horizontal scaling limits within the local axes
 %   'vlim'            = vertical scaling limits within the local axes
 %
-% See also FT_PLOT_BOX
+% See also FT_PLOT_BOX, FT_PLOT_CROSSHAIR
 
-% Copyrights (C) 2009-2011, Robert Oostenveld
+% Copyrights (C) 2009-2022, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -42,8 +42,6 @@ function h = ft_plot_line(X, Y, varargin)
 %
 % $Id$
 
-ws = warning('on', 'MATLAB:divideByZero');
-
 % get the optional input arguments
 hpos        = ft_getopt(varargin, 'hpos');
 vpos        = ft_getopt(varargin, 'vpos');
@@ -57,9 +55,7 @@ linewidth   = ft_getopt(varargin, 'linewidth',  0.5);
 tag         = ft_getopt(varargin, 'tag',        '');
 
 % color management
-if ischar(color) && exist([color '.m'], 'file')
-  color = eval(color);
-end
+if ischar(color), color = colorspec2rgb(color); end
 
 if isempty(hlim) && isempty(vlim) && isempty(hpos) && isempty(vpos) && isempty(height) && isempty(width)
   % no scaling is needed, the input X and Y are already fine
@@ -67,29 +63,27 @@ if isempty(hlim) && isempty(vlim) && isempty(hpos) && isempty(vpos) && isempty(h
   
 else
   % use the full implementation
-  abc = axis;
-  
   if isempty(hlim)
-    hlim = abc([1 2]);
+    hlim = get(gca, 'XLim');
   end
   
   if isempty(vlim)
-    vlim = abc([3 4]);
+    vlim = get(gca, 'YLim');
   end
   
-  if isempty(hpos);
+  if isempty(hpos)
     hpos = (hlim(1)+hlim(2))/2;
   end
   
-  if isempty(vpos);
+  if isempty(vpos)
     vpos = (vlim(1)+vlim(2))/2;
   end
   
-  if isempty(width),
+  if isempty(width)
     width = hlim(2)-hlim(1);
   end
   
-  if isempty(height),
+  if isempty(height)
     height = vlim(2)-vlim(1);
   end
   
@@ -113,7 +107,4 @@ else
   
 end % shortcut
 
-h = line(X, Y, 'Color', color, 'LineStyle', linestyle, 'LineWidth', linewidth);
-set(h, 'tag', tag);
-
-warning(ws); %revert to original state
+h = line(X, Y, 'Color', color, 'LineStyle', linestyle, 'LineWidth', linewidth, 'tag', tag);

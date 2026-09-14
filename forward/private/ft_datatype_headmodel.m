@@ -1,24 +1,24 @@
 function [headmodel] = ft_datatype_headmodel(headmodel, varargin)
 
 % FT_DATATYPE_HEADMODEL describes the FieldTrip MATLAB structure for a volume
-% conduction model of the head that can be used for forward computations of
-% the EEG potentials or the MEG fields. The volume conduction model represents
-% the geometrical and the conductive properties of the head. These determine
-% how the secondary (or impressed) currents flow and how these contribute to
-% the model potential or field.
+% conduction model of the head that can be used for forward computations of the EEG
+% potentials or the MEG fields. The volume conduction model represents the
+% geometrical and the conductive properties of the head. These determine how the
+% secondary (or impressed) currents flow and how these contribute to the model
+% potential or field.
 %
-% A large number of forward solutions for the EEG and MEG are supported
-% in FieldTrip, each with its own specification of the MATLAB structure that
-% describes the volume conduction model of th ehead. It would be difficult to
-% list all the possibilities here. One common feature is that the volume
-% conduction model should specify its type, and that preferably it should
-% specify the geometrical units in which it is expressed (e.g. mm, cm or m).
+% A large number of forward solutions for the EEG and MEG are supported in FieldTrip,
+% each with its own specification of the MATLAB structure that describes the volume
+% conduction model of th ehead. It would be difficult to list all the possibilities
+% here. One common feature is that the volume conduction model should specify its
+% type, and that preferably it should specify the geometrical units in which it is
+% expressed (for example in mm, cm or m).
 %
 % An example of an EEG volume conduction model with 4 concentric spheres is:
 %
 % headmodel =
 %        r: [86 88 94 100]
-%        c: [0.33 1.00 0.042 0.33]
+%        c: [0.33 1.79 0.042 0.33]
 %        o: [0 0 0]
 %     type: 'concentricspheres'
 %     unit: 'mm'
@@ -61,9 +61,9 @@ function [headmodel] = ft_datatype_headmodel(headmodel, varargin)
 % fem_simbio -> simbio, concentric -> concentricspheres. Deprecated the fields
 % that indicate the index of the innermost and outermost surfaces.
 %
-% See also FT_DATATYPE, FT_DATATYPE_COMP, FT_DATATYPE_DIP, FT_DATATYPE_FREQ,
-% FT_DATATYPE_MVAR, FT_DATATYPE_RAW, FT_DATATYPE_SOURCE, FT_DATATYPE_SPIKE,
-% FT_DATATYPE_TIMELOCK, FT_DATATYPE_VOLUME
+% See also FT_PREPARE_HEADMODEL, FT_DATATYPE, FT_DATATYPE_COMP, FT_DATATYPE_DIP,
+% FT_DATATYPE_FREQ, FT_DATATYPE_MVAR, FT_DATATYPE_RAW, FT_DATATYPE_SOURCE, 
+% FT_DATATYPE_SPIKE, FT_DATATYPE_TIMELOCK, FT_DATATYPE_VOLUME
 
 % Copyright (C) 2011-2012, Cristiano Micheli, Robert Oostenveld
 %
@@ -106,10 +106,9 @@ if iscell(headmodel)
 end
 
 switch version
-
   case '2015'
     % first make it consistent with the 2014 version
-    headmodel = ft_datatype_headmodel(headmodel, 'version', '2013');
+    headmodel = ft_datatype_headmodel(headmodel, 'version', '2014');
 
     % rename pnt into pos
     headmodel = fixpos(headmodel);
@@ -125,14 +124,14 @@ switch version
     % first make it consistent with the 2012 version
     headmodel = ft_datatype_headmodel(headmodel, 'version', '2012');
 
-    % then rename (if neccessary the c into cond
+    % then rename (if necessary the c into cond
     if isfield(headmodel, 'c') && ~isfield(headmodel, 'cond')
       headmodel.cond = headmodel.c;
       headmodel = rmfield(headmodel, 'c');
     elseif isfield(headmodel, 'cond') && isfield(headmodel, 'c') && isequal(headmodel.cond, headmodel.c)
       headmodel = rmfield(headmodel, 'c');
     elseif isfield(headmodel, 'cond') && isfield(headmodel, 'c') && ~isequal(headmodel.cond, headmodel.c)
-      error('inconsistent specification of conductive properties for %s model', headmodel.type);
+      ft_error('inconsistent specification of conductive properties for %s model', headmodel.type);
     end
 
   case '2012'
@@ -165,9 +164,9 @@ switch version
       elseif strcmp(headmodel.type, 'fdm_fns')
         headmodel.type = 'fns';
       elseif strcmp(headmodel.type, 'bem')
-        error('not able to convert the original ''bem'' volume type, try using headmodel.type=''dipoli''');
+        ft_error('not able to convert the original ''bem'' volume type, try using headmodel.type=''dipoli''');
       elseif strcmp(headmodel.type, 'avo')
-        error('this format is not supported anymore');
+        ft_error('this format is not supported anymore');
       end
     end
 
@@ -183,15 +182,13 @@ switch version
       elseif isfield(headmodel, 'cond') && isfield(headmodel, 'c') && isequal(headmodel.cond, headmodel.c)
         headmodel = rmfield(headmodel, 'cond');
       elseif isfield(headmodel, 'cond') && isfield(headmodel, 'c') && ~isequal(headmodel.cond, headmodel.c)
-        error('inconsistent specification of conductive properties for %s model', headmodel.type);
+        ft_error('inconsistent specification of conductive properties for %s model', headmodel.type);
       end
     end
 
     % ensure that the geometrical units are specified
-    if ~isfield(headmodel, 'unit')
-      headmodel = ft_convert_units(headmodel);
-    end
+    headmodel = ft_determine_units(headmodel);
 
   otherwise
-    error('converting to version "%s" is not supported', version);
+    ft_error('converting to version "%s" is not supported', version);
 end

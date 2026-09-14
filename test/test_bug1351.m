@@ -1,13 +1,12 @@
 function test_bug1351
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST test_bug1315
-% TEST ft_topoplotER ft_topoplotTFR ft_checksize ft_checkconfig
+% DEPENDENCY ft_topoplotER ft_topoplotTFR ft_checksize ft_checkconfig
+% DATA private
 
 % load the test data of just two subjects
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug1351.mat'));
+load(dccnpath('/project/3031000.02/test/bug1351.mat'));
 
 % plot topographically - note: plot will look strange
 cfg = [];

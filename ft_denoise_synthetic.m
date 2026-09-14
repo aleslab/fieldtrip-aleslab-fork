@@ -4,12 +4,13 @@ function [data] = ft_denoise_synthetic(cfg, data)
 % preprocessed data and for the corresponding gradiometer definition.
 %
 % Use as
-%   [data] = ft_denoise_synthetic(cfg, data);
-%
-% where data should come from FT_PREPROCESSING and the configuration should contain
-%   cfg.gradient = 'none', 'G1BR', 'G2BR' or 'G3BR' specifies the gradiometer
-%                  type to which the data should be changed
-%   cfg.trials   = 'all' or a selection given as a 1xN vector (default = 'all')
+%   [data] = ft_denoise_synthetic(cfg, data)
+% where the input data should come from FT_PREPROCESSING or
+% FT_TIMELOCKANALYSIS and the configuration should contain
+%   cfg.gradient   = 'none', 'G1BR', 'G2BR' or 'G3BR' specifies the gradiometer
+%                    type to which the data should be changed
+%   cfg.trials     = 'all' or a selection given as a 1xN vector (default = 'all')
+%   cfg.updatesens = 'yes' or 'no', whether to update the sensor array with the spatial projector (default = 'yes')
 %
 % To facilitate data-handling and distributed computing you can use
 %   cfg.inputfile   =  ...
@@ -19,9 +20,11 @@ function [data] = ft_denoise_synthetic(cfg, data)
 % files should contain only a single variable, corresponding with the
 % input/output structure.
 %
-% See also FT_PREPROCESSING, FT_DENOISE_PCA
+% See also FT_PREPROCESSING, FT_DENOISE_AMM, FT_DENOISE_DSSP,
+% FT_DENOISE_HFC, FT_DENOISE_PCA, FT_DENOISE_PREWHITEN, FT_DENOISE_SSP,
+% FT_DENOISE_SSS, FT_DENOISE_TSR
 
-% Copyright (C) 2004-2008, Robert Oostenveld
+% Copyright (C) 2004-2025, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -52,7 +55,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar data
 ft_preamble provenance data
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -60,10 +62,12 @@ if ft_abort
 end
 
 % check if the input cfg is valid for this function
-cfg = ft_checkconfig(cfg, 'required', {'gradient'});
+cfg = ft_checkconfig(cfg, 'forbidden',  {'trial'}); % prevent accidental typos, see issue 1729
+cfg = ft_checkconfig(cfg, 'required',   {'gradient'});
 
 % set the defaults
-cfg.trials = ft_getopt(cfg, 'trials', 'all', 1);
+cfg.trials     = ft_getopt(cfg, 'trials', 'all', 1);
+cfg.updatesens = ft_getopt(cfg, 'updatesens', 'yes');
 
 % store the original type of the input data
 dtype = ft_datatype(data);
@@ -74,17 +78,17 @@ data = ft_checkdata(data, 'datatype', 'raw', 'feedback', 'yes', 'hassampleinfo',
 
 % check whether it is CTF data
 if ~ft_senstype(data, 'ctf')
-  error('synthetic gradients can only be computed for CTF data');
+  ft_error('synthetic gradients can only be computed for CTF data');
 end
 
 % check whether there are reference channels in the input data
 hasref = ~isempty(ft_channelselection('MEGREF', data.label));
 if ~hasref
-  error('ft_denoise_synthetic:nohasref', 'synthetic gradients can only be computed when the input data contains reference channels');
+  ft_warning('synthetic gradients can only be computed when the input data contains reference channels');
 end
 
 % select trials of interest
-tmpcfg = keepfields(cfg, {'trials', 'showcallinfo'});
+tmpcfg = keepfields(cfg, {'trials', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
 data   = ft_selectdata(tmpcfg, data);
 % restore the provenance information
 [cfg, data] = rollback_provenance(cfg, data);
@@ -92,34 +96,34 @@ data   = ft_selectdata(tmpcfg, data);
 % remember the original channel ordering
 labelold = data.label;
 
-% apply the balancing to the MEG data and to the gradiometer definition
-current = data.grad.balance.current;
-desired = cfg.gradient;
+% first undo/invert the previously applied balancing
+while ~isempty(data.grad.balance.current)
+  this_name    = data.grad.balance.current{end};
+  this_montage = ft_inverse_montage(data.grad.balance.(this_name));
+  fprintf('reverting the "%s" projection\n', this_name);
+  data      = ft_apply_montage(data,      this_montage, 'keepunused', 'yes');
+  data.grad = ft_apply_montage(data.grad, this_montage, 'keepunused', 'no');
+  data.grad.balance.current = data.grad.balance.current(1:end-1); % remove this from the list
 
-if ~strcmp(current, 'none')
-  % first undo/invert the previously applied balancing
-  try
-    current_montage = data.grad.balance.(current);
-  catch
-    error('unknown balancing for input data');
+  if strcmp(this_name, 'planar')
+    if isfield(data.grad, 'type') && ~isempty(strfind(data.grad.type, '_planar'))
+      % remove the _planar postfix from the MEG sensor type
+      data.grad.type = sens.type(1:(end-7));
+    end
   end
-  fprintf('converting from "%s" to "none"\n', current);
-  data.grad = ft_apply_montage(data.grad, current_montage, 'keepunused', 'yes', 'inverse', 'yes');
-  data      = ft_apply_montage(data     , current_montage, 'keepunused', 'yes', 'inverse', 'yes');
-  data.grad.balance.current = 'none';
-end % if current
+end
 
-if ~strcmp(desired, 'none')
-  % then apply the desired balancing
-  try
-    desired_montage = data.grad.balance.(desired);
-  catch
-    error('unknown balancing for input data');
+% then apply the desired balancing
+if ~strcmp(cfg.gradient, 'none')
+  bname   = cfg.gradient;
+  montage = data.grad.balance.(bname);
+  fprintf('applying the "%s" projection\n', bname);
+  data = ft_apply_montage(data, montage, 'keepunused', 'yes');
+  if istrue(cfg.updatesens)
+    data.grad = ft_apply_montage(data.grad, montage, 'keepunused', 'no');
+    data.grad.balance.current{end+1} = bname;
   end
-  fprintf('converting from "none" to "%s"\n', desired);
-  data.grad = ft_apply_montage(data.grad, desired_montage, 'keepunused', 'yes', 'balancename', desired);
-  data      = ft_apply_montage(data     , desired_montage, 'keepunused', 'yes', 'balancename', desired);
-end % if desired
+end
 
 % reorder the channels to stay close to the original ordering
 [selold, selnew] = match_str(labelold, data.label);
@@ -129,7 +133,7 @@ if numel(selnew)==numel(labelold)
   end
   data.label = data.label(selnew);
 else
-  warning('channel ordering might have changed');
+  ft_warning('channel ordering might have changed');
 end
 
 % convert back to input type if necessary
@@ -142,7 +146,6 @@ end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   data
 ft_postamble provenance data
 ft_postamble history    data

@@ -2,42 +2,35 @@ function [pipeline] = ft_analysispipeline(cfg, data)
 
 % FT_ANALYSIPIPELINE reconstructs the complete analysis pipeline that was used to create
 % the input FieldTrip data structure. The pipeline will be visualized as a flowchart.
-% In the future it will be possible to output the complete pipeline as a MATLAB script
-% or in a specialized pipeline format (e.g. PSOM, JIST, LONI, Taverna).
+% In the future it might be possible to output the complete pipeline as a MATLAB script
+% or in a specialized pipeline format like PSOM, JIST, LONI, or Taverna.
 %
 % Use as
 %   output = ft_analysispipeline(cfg, data)
 %
-% The first cfg input contains the settings that apply to the behaviour of this
+% The first cfg input contains the settings that apply to the behavior of this
 % particular function and the second data input argument can be the output of any
 % FieldTrip function, e.g. FT_PREPROCESSING, FT_TIMELOCKANALYSIS, FT_SOURCEANALYSIS,
 % FT_FREQSTATISTICS or whatever you like.
 %
-% Alternatively, for the second input argument you can also only give the configuration
-% of the processed data (i.e. "data.cfg") instead of the full data.
+% Alternatively, for the second data input argument you can also only give the
+% configuration of the processed data (for example data.cfg) instead of the full data
+% structure.
 %
-% The configuration options that apply to the behaviour of this function are
-%   cfg.filename   = string, filename without the extension
-%   cfg.filetype   = string, can be 'matlab', 'html' or 'dot'
-%   cfg.feedback   = string, 'no', 'text', 'gui' or 'yes', whether text and/or
-%                    graphical feedback should be presented (default = 'yes')
-%   cfg.showinfo   = string or cell array of strings, information to display
-%                    in the gui boxes, can be any combination of
-%                    'functionname', 'revision', 'matlabversion',
-%                    'computername', 'username', 'calltime', 'timeused',
-%                    'memused', 'workingdir', 'scriptpath' (default =
-%                    'functionname', only display function name). Can also
-%                    be 'all', show all pipeline. Please note that if you want
-%                    to show a lot of information, this will require a lot
-%                    of screen real estate.
-%   cfg.remove     = cell-array with strings, determines which objects will
-%                    be removed from the configuration prior to writing it to
-%                    file. For readibility of the script, you may want to
-%                    remove the large objectssuch as event structure, trial
-%                    definition, source positions
-%  cfg.keepremoved = 'yes' or 'no', determines whether removed fields are
-%                    completely removed, or only replaced by a short textual
-%                    description (default = 'no')
+% The configuration options that apply to the behavior of this function are
+%   cfg.filename    = string, filename without the extension
+%   cfg.filetype    = string, can be 'matlab', 'html', 'dot' or 'prov'
+%   cfg.feedback    = string, 'no', 'text', 'gui' or 'yes', whether text and/or
+%                     graphical feedback should be presented (default = 'yes')
+%   cfg.showinfo    = string or cell-array of strings, information to display
+%                     in the GUI boxes, can be any combination of
+%                     'functionname', 'revision', 'matlabversion',
+%                     'computername', 'username', 'calltime', 'timeused',
+%                     'memused', 'workingdir', 'scriptpath' (default =
+%                     'functionname', only display function name). Can also
+%                     be 'all', show all pipeline. Please note that if you want
+%                     to show a lot of information, this will require a lot
+%                     of screen real estate.
 %
 % This function uses the nested cfg and cfg.previous that are present in
 % the data structure. It will use the configuration and the nested previous
@@ -47,6 +40,12 @@ function [pipeline] = ft_analysispipeline(cfg, data)
 % representation of the steps taken during the pipeline(i). In the flowchart
 % you can click on one of the steps to see the configuration details of
 % that pipeline(i).
+%
+% Example use:
+%   data     = ft_timelocksimulation([]);
+%   data_bl  = ft_timelockbaseline([], data);
+%   data_avg = ft_timelockanalysis([], data_bl);
+%   ft_analysispipeline([], data_avg)
 %
 % Note that the nested cfg and cfg.previous in your data might not contain
 % all details that are required to reconstruct a complete and valid
@@ -60,7 +59,7 @@ function [pipeline] = ft_analysispipeline(cfg, data)
 % See also FT_PREPROCESSING, FT_TIMELOCKANALYSIS, FT_FREQANALYSIS, FT_SOURCEANALYSIS,
 % FT_CONNECTIVITYANALYSIS, FT_NETWORKANALYSIS
 
-% Copyright (C) 2014-2015, Robert Oostenveld
+% Copyright (C) 2014-2024, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -95,7 +94,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar    data
 ft_preamble provenance data
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -111,7 +109,6 @@ cfg.prune       = ft_getopt(cfg, 'prune', 'yes');
 cfg.filetype    = ft_getopt(cfg, 'filetype');
 cfg.fontsize    = ft_getopt(cfg, 'fontsize', 10);
 
-
 if isempty(cfg.filetype) && ~isempty(cfg.filename)
   [p, f, x] = fileparts(cfg.filename);
   switch x
@@ -121,37 +118,11 @@ if isempty(cfg.filetype) && ~isempty(cfg.filename)
       cfg.filetype = 'html';
     case '.dot'
       cfg.filetype = 'dot';
+    case '.prov.jsonld'
+      cfg.filetype = 'prov';
     otherwise
-      error('cannot determine filetype');
+      ft_error('cannot determine filetype');
   end
-end
-
-if ~isfield(cfg, 'remove')
-  % this is the default list of configuration elements to be removed. These
-  % elements would be very large to print and make the script difficult to
-  % read. To get a correctly behaving script, you may have to change this.
-  cfg.remove = {
-    'sgncmb'
-    'channelcmb'
-    'event'
-    'trl'
-    'trlold'
-    'artfctdef.eog.trl'
-    'artfctdef.jump.trl'
-    'artfctdef.muscle.trl'
-    'pos'
-    'inside'
-    'outside'
-    'grid.pos'
-    'grid.inside'
-    'grid.outside'
-    'vol.bnd.pos'
-    'vol.bnd.tri'
-    'headmodel.bnd.pos'
-    'headmodel.bnd.tri'
-    };
-elseif ~iscell(cfg.remove)
-  cfg.remove = {cfg.remove};
 end
 
 if strcmp(cfg.showinfo, 'all')
@@ -176,27 +147,24 @@ elseif ~iscell(cfg.showinfo)
   cfg.showinfo = {cfg.showinfo};
 end
 
-% we are only interested in the cfg-part of the data
-if isfield(data, 'cfg')
-  datacfg = data.cfg;
-else
-  datacfg = data;
+if ~isfield(data, 'cfg')
+  % assume that the user only passed the cfg instead of a complete data structure
+  data = struct('cfg', data);
 end
-clear data
 
 % walk the tree, gather information about each node
 ft_progress('init', cfg.feedback, 'parsing provenance...');
-pipeline = walktree(datacfg);
+pipeline = walktree(data.cfg);
 ft_progress('close');
 
-% convert the cell array into a structure array
+% convert the cell-array into a structure array
 for i=1:length(pipeline)
   tmp(i) = pipeline{i};
 end
 pipeline = tmp;
 
 if istrue(cfg.prune)
-  % prune the double occurences
+  % prune the double occurrences
   [dummy, indx] = unique({pipeline.this});
   pipeline = pipeline(sort(indx));
 end
@@ -246,9 +214,27 @@ else
       pipeline2dotfile(cfg, pipeline);
     case 'html'
       pipeline2htmlfile(cfg, pipeline);
+    case 'prov'
+      pipeline2provfile(cfg, pipeline);
     otherwise
-      error('unsupported filetype');
+      ft_error('unsupported filetype');
   end
+end
+
+% do the general cleanup and bookkeeping at the end of the function
+ft_postamble debug
+ft_postamble previous data
+ft_postamble provenance
+ft_postamble savefig
+
+if isempty(cfg.filename)
+  % add a menu to the figure, note that the menu makes FT_ANALYSISPIPELINE recursive
+  menu_fieldtrip(gcf, cfg);
+end
+
+% do not return an output variable if not requested
+if ~ft_nargout
+  clear pipeline
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -272,12 +258,12 @@ if isfield(cfg, 'previous') && ~isempty(cfg.previous) && iscell(cfg.previous)
 elseif isfield(cfg, 'previous') && ~isempty(cfg.previous) && isstruct(cfg.previous)
   previous = walktree(cfg.previous);
 elseif isfield(cfg, 'previous') && ~isempty(cfg.previous)
-  error('unexpected content in cfg.previous');
+  ft_error('unexpected content in cfg.previous');
 else
   previous = {};
 end
 
-% parse the side branches, e.g. cfg.vol/cfg.headmodel and cfg.layout
+% parse the side branches, such as cfg.headmodel and cfg.layout
 fn = fieldnames(cfg);
 branch = {};
 for i=1:numel(fn)
@@ -292,6 +278,7 @@ drawnow
 
 % the order of the output elements matters for the recursion
 info = [{this} branch previous];
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION for gathering the information about each pipeline
@@ -309,10 +296,11 @@ if isfield(cfg, 'previous') && ~isempty(cfg.previous) && iscell(cfg.previous)
 elseif isfield(cfg, 'previous') && ~isempty(cfg.previous) && isstruct(cfg.previous)
   node.parent   = {ft_hash(cfg.previous)};
 elseif isfield(cfg, 'previous') && ~isempty(cfg.previous)
-  error('unexpected content in cfg.previous');
+  ft_error('unexpected content in cfg.previous');
 else
   node.parent   = {};
 end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
@@ -324,6 +312,7 @@ else
   v = 'unknown';
 end
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -334,6 +323,7 @@ else
   filename(filename=='\') = filesep;
 end
 [p, f, x] = fileparts(filename);
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
@@ -350,12 +340,6 @@ for i=1:numel(pipeline)
     if isfield(cfg, 'previous')
       cfg = rmfield(cfg, 'previous');
     end
-    % use a helper function to remove uninteresting fields
-    cfg = removefields(cfg, ignorefields('pipeline'), 'recursive', 'yes');
-    % use a helper function to remove too large fields
-    cfg.checksize = 3000;
-    cfg = ft_checkconfig(cfg, 'checksize', 'yes');
-    cfg = rmfield(cfg, 'checksize');
     script = printstruct('cfg', cfg);
     uidisplaytext(script, pipeline(i).name);
     break;
@@ -370,7 +354,7 @@ function pipeline2matlabfigure(cfg, pipeline)
 
 fprintf('plotting pipeline as MATLAB figure\n');
 
-layout = cell(numel(pipeline));
+layout = cell(numel(pipeline), numel(pipeline));
 for i=1:length(pipeline)
   % get the vertical and horizontal position in integer values
   % high numbers are towards the begin, low numbers are towards the end of the pipeline
@@ -387,51 +371,51 @@ layout    = layout(1:maxheight,1:maxwidth);
 fig = figure;
 hold on
 axis manual; % the axis should not change during the contruction of the arrows, otherwise the arrowheads will be distorted
-set(gca,'Units','normalized'); % use normalized units
+set(gca, 'Units', 'normalized'); % use normalized units
 set(gcf, 'ToolBar', 'none');
 axis([0 1 0 1])
 axis off;
 axis tight;
 
 for i=1:numel(pipeline)
-  
+
   label = makelabel(pipeline(i), cfg.showinfo);
-  
+
   % dublicate backslashes to escape tex interpreter (in case of windows filenames)
   label = strrep(label, '\', '\\');
   label = strrep(label, '{\\bf', '{\bf'); % undo for bold formatting
-  
+
   % escape underscores
   label = strrep(label, '_', '\_');
-  
+
   % strip blank line if present and not needed
-  if strcmp(label{end},'')
+  if strcmp(label{end}, '')
     label(end) = [];
   end
-  
+
   % compute width and height of each box, note that axis Units are set to Normalized
   boxsize = 1./[maxwidth+1 maxheight+3];
-  
+
   % create the 4 corners for our patch, close the patch by returning to the start point
   x = ([0 1 1 0 0]-0.5) .* boxsize(1);
   y = ([0 0 1 1 0]-0.5) .* boxsize(2);
-  
+
   % position the patch
   location    = pipeline(i).position([2 1]);
   location(1) = (location(1)-0.5)/maxwidth;
   location(2) = (location(2)-0.5)/maxheight;
-  
+
   % the location specifies the center of the patch
   x = x + location(1);
   y = y + location(2);
-  
+
   p = patch(x', y', 0);
   set(p, 'Facecolor', [1 1 0.6])
-  
+
   pipeline(i).x = x;
   pipeline(i).y = y;
   guidata(fig, pipeline);
-  
+
   if length(label)==1
     textloc = location;
     l = text(textloc(1), textloc(2), label);
@@ -444,7 +428,7 @@ for i=1:numel(pipeline)
     textloc = location;
     textloc(1) = textloc(1)-boxsize(1)/2;
     textloc(2) = textloc(2)+boxsize(2)/2;
-    
+
     l = text(textloc(1), textloc(2), label);
     set(l, 'HorizontalAlignment', 'left');
     set(l, 'VerticalAlignment', 'top');
@@ -452,10 +436,10 @@ for i=1:numel(pipeline)
     set(l, 'fontSize', cfg.fontsize);
     set(l, 'interpreter', 'tex');
   end
-  
+
   % draw an arrow if appropriate
   n = length(pipeline(i).parent);
-  
+
   for j=1:n
     [parentlocation(2), parentlocation(1)] = ind2sub([maxheight, maxwidth], find(strcmp(layout(:), pipeline(i).parent{j}), 1, 'first'));
     % parentlocation = info(find(strcmp({pipeline.this}, analysis.parent{j}), 1, 'first')).position;
@@ -473,27 +457,10 @@ for i=1:numel(pipeline)
     end
     arrow(base, tip, 'length', 8, 'lineWidth', 1);
   end
-  
-  
+
 end % for numel(info)
 
 set(fig, 'WindowButtonUpFcn', @button);
-% set(fig, 'KeyPressFcn', @key);
-
-% add a context menu to the figure
-% ftmenu = uicontextmenu; set(gcf, 'uicontextmenu', ftmenu)
-
-% add a regular menu item to the figure
-ftmenu  = uimenu(fig, 'Label', 'FieldTrip');
-% ftmenu1 = uimenu(ftmenu, 'Label', 'Save pipeline');
-% ftmenu2 = uimenu(ftmenu, 'Label', 'Share pipeline');
-uimenu(ftmenu, 'Label', 'About',  'Separator', 'on', 'Callback', @menu_about);
-% uimenu(ftmenu1, 'Label', 'Save as MATLAB script');
-% uimenu(ftmenu1, 'Label', 'Save as PSOM pipeline');
-% uimenu(ftmenu1, 'Label', 'Save as HTML page');
-% uimenu(ftmenu2, 'Label', 'Share within DCCN');
-% uimenu(ftmenu2, 'Label', 'Share on PasteBin.com');
-% uimenu(ftmenu2, 'Label', 'Share on MyExperiment.org');
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -504,77 +471,77 @@ function label = makelabel(pipeline, showinfo)
 label = {};
 for k = 1:numel(showinfo)
   switch showinfo{k}
-    
+
     case 'functionname'
       % label{end+1} = ['{\bf ' pipeline(i).name '}'];
       label{end+1} = pipeline.name;
       if k == 1 % add blank line if function name is on top, looks nice
         label{end+1} = '';
       end
-      
+
     case 'revision'
       if isfield(pipeline.cfg, 'version') && isfield(pipeline.cfg.version, 'id')
         label{end+1} = pipeline.cfg.version.id;
       else
         label{end+1} = '<revision unknown>';
       end
-      
+
     case 'matlabversion'
       if isfield(pipeline.cfg, 'callinfo') && isfield(pipeline.cfg.callinfo, 'matlab')
         label{end+1} = ['MATLAB ' pipeline.cfg.callinfo.matlab];
       else
         label{end+1} = '<MATLAB version unknown>';
       end
-      
+
     case 'computername'
       if isfield(pipeline.cfg, 'callinfo') && isfield(pipeline.cfg.callinfo, 'hostname')
         label{end+1} = ['Hostname: ' pipeline.cfg.callinfo.hostname];
       else
         label{end+1} = '<hostname unknown>';
       end
-      
+
     case 'architecture'
       if isfield(pipeline.cfg, 'callinfo') && isfield(pipeline.cfg.callinfo, 'hostname')
         label{end+1} = ['Architecture: ' pipeline.cfg.callinfo.computer];
       else
         label{end+1} = '<architecture unknown>';
       end
-      
+
     case 'username'
       if isfield(pipeline.cfg, 'callinfo') && isfield(pipeline.cfg.callinfo, 'user')
         label{end+1} = ['Username: ' pipeline.cfg.callinfo.user];
       else
         label{end+1} = '<username unknown>';
       end
-      
+
     case 'calltime'
       if isfield(pipeline.cfg, 'callinfo') && isfield(pipeline.cfg.callinfo, 'calltime')
         label{end+1} = ['Function called at ' datestr(pipeline.cfg.callinfo.calltime)];
       else
         label{end+1} = '<function call time unknown>';
       end
-      
+
     case 'timeused'
       if isfield(pipeline.cfg, 'callinfo') && isfield(pipeline.cfg.callinfo, 'proctime')
         label{end+1} = sprintf('Function call required %d seconds', round(pipeline.cfg.callinfo.proctime));
       else
         label{end+1} = '<processing time unknown>';
       end
-      
+
     case 'memused'
       if isfield(pipeline.cfg, 'callinfo') && isfield(pipeline.cfg.callinfo, 'procmem')
         label{end+1} = sprintf('Function call required %d MB', round(pipeline.cfg.callinfo.procmem/1024/1024));
       else
         label{end+1} = '<memory requirement unknown>';
       end
-      
+
     case 'workingdir'
       if isfield(pipeline.cfg, 'callinfo') && isfield(pipeline.cfg.callinfo, 'pwd')
         label{end+1} = sprintf('Working directory was %s', pipeline.cfg.callinfo.pwd);
       else
         label{end+1} = '<working directory unknown>';
       end
-      
+
     case 'scriptpath'
       if isfield(pipeline.cfg, 'version') && isfield(pipeline.cfg.version, 'name')
         label{end+1} = sprintf('Full path to script was %s', pipeline.cfg.version.name);
@@ -583,6 +550,7 @@ for k = 1:numel(showinfo)
       end
   end
 end % for numel(showinfo)
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
@@ -632,6 +600,7 @@ fid = fopen(filename, 'wb');
 fprintf(fid, '%s', script);
 fclose(fid);
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -673,6 +642,7 @@ fprintf(fid, '}\n');
 
 fclose(fid);
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -680,9 +650,6 @@ function pipeline2htmlfile(cfg, pipeline)
 
 [p, f, x] = fileparts(cfg.filename);
 filename = fullfile(p, [f '.html']);
-
-% skip the data-like fields and the fields that probably were not added by the user himself
-skipfields = {'previous', 'grid', 'headmodel', 'event', 'warning', 'progress', 'trackconfig', 'checkconfig', 'checksize', 'showcallinfo', 'debug', 'outputfilepresent', 'trackcallinfo', 'trackdatainfo', 'trackusage'};
 
 fprintf('exporting HTML file to ''%s''\n', filename);
 
@@ -693,29 +660,29 @@ ft_progress('init', cfg.feedback, 'serialising cfg-structures...');
 
 for k = 1:numel(pipeline)
   ft_progress(k/numel(pipeline), 'serialising cfg-structure %d from %d', k, numel(pipeline));
-  
+
   % strip away the cfg.previous fields, and all data-like fields
-  tmpcfg = removefields(pipeline(k).cfg, skipfields);
-  
+  tmpcfg = removefields(pipeline(k).cfg, ignorefields('html'));
+
   usercfg = [];
-  
+
   % record the usercfg and proctime if present
   if isfield(tmpcfg, 'callinfo')
     if isfield(tmpcfg.callinfo, 'usercfg')
-      usercfg = removefields(tmpcfg.callinfo.usercfg, skipfields);
-      
+      usercfg = removefields(tmpcfg.callinfo.usercfg, ignorefields('html'));
+
       % avoid processing usercfg twice
       tmpcfg.callinfo = rmfield(tmpcfg.callinfo, 'usercfg');
     end
-    
+
     if isfield(tmpcfg.callinfo, 'proctime')
       totalproctime = totalproctime + tmpcfg.callinfo.proctime;
     end
   end
-  
+
   html = [html sprintf('nodes["%s"] = {"id": "%s", "name": "%s", "cfg": "%s", "usercfg": "%s", "parentIds": [',...
     pipeline(k).this, pipeline(k).this, pipeline(k).name, escapestruct(tmpcfg), escapestruct(usercfg))];
-  
+
   if ~isempty(pipeline(k).parent)
     for j = 1:numel(pipeline(k).parent)
       html = [html '"' pipeline(k).parent{j} '"'];
@@ -724,18 +691,18 @@ for k = 1:numel(pipeline)
       end
     end
   end
-  
+
   html = [html sprintf(']};\n')];
-  
+
   if k == numel(pipeline)
     % we are at the single leaf node
     html = [html sprintf('var leafId = "%s";\n', pipeline(k).this)];
   end
-  
+
 end
 ft_progress('close');
 
-html = [html(1:end-2) sprintf('\n')];
+html = [html(1:end-2) newline];
 
 % load the skeleton and put in the html code
 thispath = fileparts(mfilename('fullpath'));
@@ -756,9 +723,90 @@ fclose(fid);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function pipeline2provfile(cfg, pipeline)
+% this tries to follow http://bids.neuroimaging.io/bep028
+
+[p, f, x] = fileparts(cfg.filename);
+filename = fullfile(p, [f '.prov.jsonld']);
+
+fprintf('exporting provenance to ''%s''\n', filename);
+
+prov = [];
+prov.context = 'https://raw.githubusercontent.com/bids-standard/BEP028_BIDSprov/master/context.json';
+prov.BIDSProvVersion = 'dev';
+prov.Records.Software{1}.Id = char(java.util.UUID.randomUUID.toString);
+prov.Records.Software{1}.RRID = 'RRID:SCR_004849';
+prov.Records.Software{1}.Label = 'FieldTrip';
+prov.Records.Software{1}.Type = 'Software';
+prov.Records.Software{1}.Version = ft_version;
+
+prov.Records.Activities = {};
+prov.Records.Entities = {};
+
+% these are used to make random 32-character hexadecimal numbers
+hexchar = '0123456789abcdef';
+
+for i=1:numel(pipeline)
+
+  % extend the provenance with one activity and one entity
+  prov.Records.Activities{end+1} = struct();
+  prov.Records.Entities{end+1} = struct();
+
+  if ~isempty(pipeline(i).this)
+    pipeline(i).this = ['data_' pipeline(i).this];
+  end
+
+  for j=1:numel(pipeline(i).parent)
+    pipeline(i).parent{j} = ['data_' pipeline(i).parent{j}];
+  end
+
+  % append this activity to the provenance
+  prov.Records.Activities{end}.Id = hexchar(randi(16, 1, 32));
+  prov.Records.Activities{end}.Label = pipeline(i).name;
+  prov.Records.Activities{end}.Used = pipeline(i).parent;
+  prov.Records.Activities{end}.AssociatedWith = prov.Records.Software{1}.Id;
+
+  cfg = rmfield(pipeline(i).cfg, 'previous');
+  
+
+  cmd = 'cfg = []; ';
+  cmd = [cmd strrep(printstruct('cfg', cfg), newline, ' ')];
+  cmd = [cmd ' ' pipeline(i).name '(cfg, '];
+  if ~isempty(pipeline(i).parent)
+    for j=1:numel(pipeline(i).parent)
+      cmd = [cmd pipeline(i).parent{j} ', '];
+    end
+  end
+  cmd = cmd(1:end-2); % remove the last ', '
+  cmd = [cmd ');'];
+  prov.Records.Activities{end}.Command = cmd;
+  
+  % append this entity to the provenance
+  prov.Records.Entities{end}.Id = pipeline(i).this;
+  prov.Records.Entities{end}.Label = 'data';
+  prov.Records.Entities{end}.GeneratedBy = prov.Records.Activities{end}.Id;
+
+end
+
+% write the file
+ft_write_json(filename, prov);
+
+% there is one JSON field that needs to be renamed
+fid = fopen(filename, 'rt');
+str = fread(fid, [1 inf], 'char=>char');
+fclose(fid);
+
+str = strrep(str, '"context"', '"@context"');
+
+fid = fopen(filename, 'w');
+fwrite(fid, str);
+fclose(fid);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SUBFUNCTION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function cfghtml = escapestruct(tmpcfg)
-% convert the cfg structure to a suitable string (escape newlines and
-% quotes)
+% convert the cfg structure to a suitable string (escape newlines and quotes)
 
 % strip away big numeric fields
 if isstruct(tmpcfg)

@@ -1,9 +1,9 @@
 function test_bug2518a
 
 % WALLTIME 00:30:00
-% MEM 2500mb
-
-% TEST ft_componentanalysis
+% MEM 1gb
+% DEPENDENCY ft_componentanalysis
+% DATA public
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % for these functions I don't really know whether and how they should work
@@ -23,7 +23,7 @@ function test_bug2518a
 
 % prepare some data
 cfg = [];
-cfg.dataset = dccnpath('/home/common/matlab/fieldtrip/data/Subject01.ds');
+cfg.dataset = dccnpath('/project/3031000.02/external/download/test/ctf/Subject01.ds');
 cfg.demean = 'yes';
 cfg.channel = 'MEG';
 raw = ft_preprocessing(cfg);
@@ -137,11 +137,11 @@ assert(isfield(output, 'topolabel'), 'topolabel is missing');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 try
-  problem = false;
+  passed = false;
   output = ft_megrealign(cfg, comp);
-  problem = true;
+  passed = true;
 end
-assert(~problem, 'this function should fail on component data');
+assert(~passed, 'this function should fail on component data');
 
 
 

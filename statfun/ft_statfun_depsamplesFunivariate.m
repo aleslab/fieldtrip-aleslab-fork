@@ -1,31 +1,22 @@
 function [s, cfg] = ft_statfun_depsamplesFunivariate(cfg, dat, design)
 
-% FT_STATFUN_DEPSAMPLESFUNIIVARIATE calculates the univariate repeated-mesures
-% ANOVA on the biological data in dat (the dependent variable), using the
-% information on the independent variable (ivar) in design.
+% FT_STATFUN_DEPSAMPLESFUNIIVARIATE calculates the univariate repeated-mesures ANOVA
+% on the biological data (the dependent variable), using the information on the
+% independent variable (ivar) in design.
 %
 % Use this function by calling one of the high-level statistics functions as
 %   [stat] = ft_timelockstatistics(cfg, timelock1, timelock2, ...)
 %   [stat] = ft_freqstatistics(cfg, freq1, freq2, ...)
 %   [stat] = ft_sourcestatistics(cfg, source1, source2, ...)
-% with the following configuration option
+% with the following configuration option:
 %   cfg.statistic = 'ft_statfun_depsamplesFunivariate'
-% see FT_TIMELOCKSTATISTICS, FT_FREQSTATISTICS or FT_SOURCESTATISTICS for details.
 %
-% For low-level use, the external interface of this function has to be
-%   [s,cfg] = ft_statfun_depsamplesFunivariate(cfg, dat, design);
-% where
-%   dat    contains the biological data, Nsamples x Nreplications
-%   design contains the independent variable (ivar) and the unit-of-observation (uvar)
-%          factor, Nfac x Nreplications
-%
-% Configuration options
+% You can specify the following configuration options:
 %   cfg.computestat    = 'yes' or 'no', calculate the statistic (default='yes')
 %   cfg.computecritval = 'yes' or 'no', calculate the critical values of the test statistics (default='no')
 %   cfg.computeprob    = 'yes' or 'no', calculate the p-values (default='no')
 %
-% The following options are relevant if cfg.computecritval='yes' and/or
-% cfg.computeprob='yes'.
+% The following options are relevant if cfg.computecritval='yes' and/or cfg.computeprob='yes':
 %   cfg.alpha = critical alpha-level of the statistical test (default=0.05)
 %   cfg.tail  = -1, 0, or 1, left, two-sided, or right (default=1)
 %               cfg.tail in combination with cfg.computecritval='yes'
@@ -35,12 +26,15 @@ function [s, cfg] = ft_statfun_depsamplesFunivariate(cfg, dat, design)
 %               quantile (1-cfg.alpha) (with cfg.tail=1). For the
 %               Fstatistic only cfg.tail = 1 makes sense.
 %
-% Design specification
-%   cfg.ivar  = row number of the design that contains the labels of the conditions that must be
-%               compared (default=1). The labels range from 1 to the number of conditions.
-%   cfg.uvar  = row number of design that contains the labels of the units-of-observation (subjects or trials)
-%               (default=2). The labels are assumed to be integers ranging from 1 to
-%               the number of units-of-observation.
+% The experimental design is specified as:
+%   cfg.ivar  = independent variable, row number of the design that contains the labels of the conditions to be compared (default=1)
+%   cfg.uvar  = unit variable, row number of design that contains the labels of the units-of-observation, i.e. subjects or trials (default=2)
+%
+% The labels for the independent variable should be specified as numbers ranging
+% from 1 to the number of conditions. The labels for the unit of observation should
+% be integers ranging from 1 to the total number of observations (subjects or trials).
+%
+% See also FT_TIMELOCKSTATISTICS, FT_FREQSTATISTICS or FT_SOURCESTATISTICS
 
 % Copyright (C) 2014, Diego Lozano-Soldevilla
 %
@@ -62,42 +56,43 @@ function [s, cfg] = ft_statfun_depsamplesFunivariate(cfg, dat, design)
 %
 % $Id$
 
+% set the defaults
+cfg.computestat    = ft_getopt(cfg, 'computestat', 'yes');
+cfg.computecritval = ft_getopt(cfg, 'computecritval', 'no');
+cfg.computeprob    = ft_getopt(cfg, 'computeprob', 'no');
+cfg.alpha          = ft_getopt(cfg, 'alpha', 0.05);
+cfg.tail           = ft_getopt(cfg, 'tail', 1);
+cfg.ivar           = ft_getopt(cfg, 'ivar', 1);
+cfg.uvar           = ft_getopt(cfg, 'uvar', 2);
 
-% set defaults
-if ~isfield(cfg, 'computestat'),       cfg.computestat='yes';     end;
-if ~isfield(cfg, 'computecritval'),    cfg.computecritval='no';   end;
-if ~isfield(cfg, 'computeprob'),       cfg.computeprob='no';      end;
-if ~isfield(cfg, 'alpha'),             cfg.alpha=0.05;            end;
-if ~isfield(cfg, 'tail'),              cfg.tail=1;                end;
-
-nconds=length(unique(design(cfg.ivar,:)));
+nconds = length(unique(design(cfg.ivar,:)));
 ncontrasts = nconds-1;
 
 % perform some checks on the configuration
-if strcmp(cfg.computeprob,'yes') & strcmp(cfg.computestat,'no')
-  error('P-values can only be calculated if the test statistics are calculated.');
-end;
+if strcmp(cfg.computeprob,'yes') && strcmp(cfg.computestat,'no')
+  ft_error('P-values can only be calculated if the test statistics are calculated.');
+end
 if ~isfield(cfg,'uvar') || isempty(cfg.uvar)
-  error('uvar must be specified for dependent samples statistics');
+  ft_error('uvar must be specified for dependent samples statistics');
 end
 
 % perform some checks on the design
 nuospercond=zeros(nconds,1);
 for condindx=1:nconds
   nuospercond(condindx)=sum(design(cfg.ivar,:)==condindx);
-end;
-if sum(nuospercond)<size(design,2) | nuospercond~=(nuospercond(1)*ones(nconds,1))
-  error('Invalid specification of the design array.');
-end;
+end
+if sum(nuospercond)<size(design,2) || any(nuospercond~=nuospercond(1))
+  ft_error('Invalid specification of the design array.');
+end
 nunits = max(design(cfg.uvar,:));
 dfdenom = nunits - ncontrasts;
 if dfdenom<1
-  error('The data must contain more units-of-observation (usually subjects) than the number of contrasts.')
-end;
+  ft_error('The data must contain more units-of-observation (subjects or trials) than the number of contrasts.')
+end
 nrepl=nunits*nconds;
-if (nrepl~=sum(nuospercond)) | (nrepl~=size(dat,2))
-  error('Invalid specification of the design array.');
-end;
+if (nrepl~=sum(nuospercond)) || (nrepl~=size(dat,2))
+  ft_error('Invalid specification of the design array.');
+end
 nsmpls = size(dat,1);
 
 if strcmp(cfg.computestat,'yes')
@@ -108,7 +103,7 @@ if strcmp(cfg.computestat,'yes')
     poslabel=find(design(cfg.ivar,:)==condindx);
     [dum,i]=sort(design(cfg.uvar,poslabel),'ascend');
     poslabelsperunit(:,condindx)=poslabel(i);
-  end;
+  end
   % reshape poslabelsperunit into a row vector that contains the
   % replications of the first condition on the first nunits positions,
   % the replications of the second condition on the second nunits
@@ -117,59 +112,59 @@ if strcmp(cfg.computestat,'yes')
   %s.stat=zeros(nsmpls,1);
   %for smplindx=1:nsmpls
   %  datonesmpl=reshape(dat(smplindx,poslabelsperunit),nunits,nconds);
-  %  
+  %
   %  Ysub = mean(datonesmpl,2);
   %  Yfac = mean(datonesmpl,1);
-  %  
+  %
   %  % computing sums of squares
   %  meanYsub = mean(Ysub);
   %  SStot = sum((datonesmpl(:)-meanYsub).^2);
   %  SSsub = nconds * sum(sum((Ysub-meanYsub).^2));
   %  SSfac = nunits * sum(sum((Yfac-meanYsub).^2));
   %  SSerr = SStot - SSsub - SSfac;
-  %  
+  %
   %  % mean sum of squares for factor levels
   %  df  = nconds - 1;
   %  dfe = size(datonesmpl(:),1)  - nunits - df;
-  %  
+  %
   %  MSfac = SSfac/df;
   %  MSerr = SSerr/dfe;
-  %  
-  %  s.stat(smplindx) = MSfac/MSerr;% F-statistic
+  %
+  %  s.stat(smplindx) = MSfac/MSerr; % F-statistic
   %end
   dat  = reshape(dat(:,poslabelsperunit),[nsmpls nunits nconds]);
-  Ysub = mean(dat,3);
-  Yfac = mean(dat,2);
-  
-  meanYsub = mean(Ysub,2);
-  SStot    = sum(sum((dat-meanYsub(:,ones(1,nunits),ones(1,nconds))).^2,3),2);
-  SSsub    = nconds * sum((Ysub-meanYsub(:,ones(1,nunits))).^2,2);
-  SSfac    = nunits * sum((Yfac-meanYsub(:,1,ones(1,nconds))).^2,3);
+  Ysub = nanmean(dat,3);
+  Yfac = nanmean(dat,2);
+
+  meanYsub = nanmean(Ysub,2);
+  SStot    = nansum(nansum((dat-meanYsub(:,ones(1,nunits),ones(1,nconds))).^2,3),2);
+  SSsub    = nconds * nansum((Ysub-meanYsub(:,ones(1,nunits))).^2,2);
+  SSfac    = nunits * nansum((Yfac-meanYsub(:,1,ones(1,nconds))).^2,3);
   SSerr    = SStot - SSsub - SSfac;
 
   % mean sum of squares for factor levels
   df  = nconds - 1;
-  dfe = numel(dat(1,:,:)) - nunits - df;
-    
-  MSfac = SSfac/df;
-  MSerr = SSerr/dfe;
-  
+  dfe = sum(isfinite(dat(:,:)),2) - nunits - df;
+
+  MSfac = SSfac./df;
+  MSerr = SSerr./dfe;
+
   s.stat = MSfac./MSerr; % F-statistic;
-end;
+end
 
 if strcmp(cfg.computecritval,'yes')
   % also compute the critical values
   s.dfnum = nconds - 1;
   s.dfdenom = nrepl - nunits - s.dfnum;
   if cfg.tail==-1
-    error('For a dependent samples F-statistic, it does not make sense to calculate a left tail critical value.');
-  end;
+    ft_error('For a dependent samples F-statistic, it does not make sense to calculate a left tail critical value.');
+  end
   if cfg.tail==0
-    error('For a dependent samples F-statistic, it does not make sense to calculate a two-sided critical value.');
-  end;
+    ft_error('For a dependent samples F-statistic, it does not make sense to calculate a two-sided critical value.');
+  end
   if cfg.tail==1
     s.critval = finv(1-cfg.alpha,s.dfnum,s.dfdenom);
-  end;
+  end
 end
 
 if strcmp(cfg.computeprob,'yes')
@@ -177,12 +172,12 @@ if strcmp(cfg.computeprob,'yes')
   s.dfnum = nconds - 1;
   s.dfdenom = nrepl - nunits - s.dfnum;
   if cfg.tail==-1
-    error('For a dependent samples F-statistic, it does not make sense to calculate a left tail p-value.');
-  end;
+    ft_error('For a dependent samples F-statistic, it does not make sense to calculate a left tail p-value.');
+  end
   if cfg.tail==0
-    error('For a dependent samples F-statistic, it does not make sense to calculate a two-sided p-value.');
-  end;
+    ft_error('For a dependent samples F-statistic, it does not make sense to calculate a two-sided p-value.');
+  end
   if cfg.tail==1
     s.prob = 1-fcdf(s.stat,s.dfnum,s.dfdenom);
-  end;
+  end
 end

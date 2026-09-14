@@ -65,7 +65,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance isih
-ft_preamble trackconfig
+
 
 % get the default options
 cfg.spikechannel = ft_getopt(cfg, 'spikechannel', isih.label{1});
@@ -217,7 +217,7 @@ set(get(ax(2),'Xlabel'),'String','isi(n) (sec)')
 set(get(ax(3),'Ylabel'),'String','isi(n+1) (sec)')
 
 % create the colorbar (who doesn't want one)
-caxis([min(dens(:)) max(dens(:))]); 
+clim([min(dens(:)) max(dens(:))]); 
 colormap(cfg.colormap);                  % create the colormap as the user wants  
 colorbarHdl = colorbar;                % create a colorbar  
 
@@ -235,7 +235,7 @@ set(zoom,'ActionPostCallback',{@mypostcallback,ax,[0 max(isih.time)],limIsi});
 set(pan,'ActionPostCallback',{@mypostcallback,ax,[0 max(isih.time)],limIsi});
 
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
+
 ft_postamble previous isih
 ft_postamble provenance
 

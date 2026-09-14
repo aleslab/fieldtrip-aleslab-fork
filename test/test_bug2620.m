@@ -2,10 +2,10 @@ function test_bug2620
 
 % MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_multiplotER ft_multiplotER
+% DATA private
 
-% TEST ft_multiplotER ft_multiplotER
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug2620.mat'));
+load(dccnpath('/project/3031000.02/test/bug2620.mat'));
 
 
 close all

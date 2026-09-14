@@ -1,6 +1,6 @@
 function str = fixname(str, version)
 
-% FIXNAME changes all inappropriate characters in a sting into '_'
+% FIXNAME changes all inappropriate characters in a string into '_'
 % so that it can be used as a filename or as a field name in a structure.
 % If the string begins with a digit, an 'x' is prepended.
 %
@@ -12,7 +12,7 @@ function str = fixname(str, version)
 % identifiers, but this particular implementation also works with
 % older MATLAB versions.
 %
-% See also DEBLANK
+% See also DEBLANK, STRIP, PAD
 
 % Copyright (C) 2012-2017, Robert Oostenveld
 %
@@ -45,8 +45,8 @@ switch version
     end
     str = lower(str);
     str(regexp(str,'\W')) = '_';
-    while(str(1) == '_'),   str = str(2:end); end;   % remove all underscore at the begin of the string
-    while(str(end) == '_'), str = str(1:end-1); end; % remove all underscore at the end of the string
+    while(str(1) == '_'),   str = str(2:end); end   % remove all underscore at the begin of the string
+    while(str(end) == '_'), str = str(1:end-1); end % remove all underscore at the end of the string
     if int8(str(1))<58 && int8(str(1))>47
       % the string begins with a digit, prepend an 'x'
       str = ['x' str];
@@ -54,7 +54,7 @@ switch version
     % truncate the string if it's too long: MATLAB maximizes the string length to 63 characters (and throws a warning when truncating)
     if numel(str)>63
       str = str(1:63);
-      ft_warning(sprintf('%s exceeds MATLAB''s maximum name length of 63 characters and has been truncated to %s', str, str(1:63)));
+      warning('%s exceeds MATLAB''s maximum name length of 63 characters and has been truncated to %s', str, str(1:63));
     end
     
   case '2014a'

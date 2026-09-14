@@ -58,7 +58,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance data
-ft_preamble trackconfig
+
 
 % check input data structure
 data = ft_checkdata(data,'datatype', 'raw', 'feedback', 'yes');
@@ -86,14 +86,12 @@ if strcmp(cfg.method, 'nan'), cfg.interptoi = 0; end
 
 % autodetect the spike channels
 ntrial = length(data.trial);
-nchans  = length(data.label);
-spikechan = zeros(nchans,1);
+nchans = length(data.label);
+sc = zeros(nchans,ntrial);
 for i=1:ntrial
-  for j=1:nchans
-    spikechan(j) = spikechan(j) + all(data.trial{i}(j,:)==0 | data.trial{i}(j,:)==1 | data.trial{i}(j,:)==2);
-  end
+    sc(:,i) = all(mod(data.trial{i},1) == 0,2);
 end
-spikechan = (spikechan==ntrial);
+spikechan = (sum(sc,2)==ntrial);
 
 % determine the channels for interpolation
 cfg.channel = ft_channelselection(cfg.channel, data.label);
@@ -150,7 +148,7 @@ for i=1:ntrial
       % interpolate the data around the spike
       xall  = [begsmp_interp          : endsmp_interp];
       x     = [begsmp_interp:begsmp-1   endsmp+1:endsmp_interp];
-      y     =  data.trial{i}(chansel,x) ;
+      y     =  data.trial{i}(chansel,x);
       if length(chansel) > 1; y = y'; end %our channels are in rows but interp1 need cols
       yi    = interp1(x,y,xall,cfg.method);
       if length(chansel) > 1; yi = yi'; end %get us back to rows
@@ -169,7 +167,7 @@ end % for each trial
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
+
 ft_postamble previous   data
 ft_postamble provenance data
 ft_postamble history    data

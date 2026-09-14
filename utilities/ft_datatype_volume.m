@@ -1,17 +1,17 @@
 function [volume] = ft_datatype_volume(volume, varargin)
 
-% FT_DATATYPE_VOLUME describes the FieldTrip MATLAB structure for volumetric data.
+% FT_DATATYPE_VOLUME describes the FieldTrip MATLAB structure for volumetric data
+% such as an anatomical MRI.
 %
-% The volume data structure represents data on a regular volumetric
-% 3-D grid, like an anatomical MRI, a functional MRI, etc. It can
-% also represent a source reconstructed estimate of the activity
-% measured with MEG. In this case the source reconstruction is estimated
-% or interpolated on the regular 3-D dipole grid (like a box).
+% The volume data structure represents data on a regular volumetric 3-D grid, like an
+% anatomical MRI, a functional MRI, etc. It can also represent a source reconstructed
+% estimate of the activity measured with MEG. In this case the source reconstruction
+% is estimated or interpolated on the regular 3-D dipole grid (like a box).
 %
 % An example volume structure is
 %       anatomy: [181x217x181 double]  the numeric data, in this case anatomical information
 %           dim: [181 217 181]         the dimensionality of the 3D volume
-%     transform: [4x4 double]          affine transformation matrix for mapping the voxel coordinates to the head coordinate system
+%     transform: [4x4 double]          4x4 homogenous transformation matrix, specifying the transformation from voxel coordinates to head or world coordinates
 %          unit: 'mm'                  geometrical units of the coordinate system
 %      coordsys: 'ctf'                 description of the coordinate system
 %
@@ -20,7 +20,7 @@ function [volume] = ft_datatype_volume(volume, varargin)
 %
 % Optional fields:
 %   - anatomy, prob, stat, grey, white, csf, or any other field with dimensions that are consistent with dim
-%   - size, coordsys
+%   - unit, coordsys, fid
 %
 % Deprecated fields:
 %   - dimord
@@ -45,7 +45,7 @@ function [volume] = ft_datatype_volume(volume, varargin)
 % with it here. However, keep this snippet of code for reference.
 %
 % (2011) The dimord field was deprecated and we agreed that volume
-% data should be 3-dimensional and not N-dimensional with arbitary
+% data should be 3-dimensional and not N-dimensional with arbitrary
 % dimensions. In case time-frequency recolved data has to be represented
 % on a 3-d grid, the source representation should be used.
 %
@@ -98,7 +98,7 @@ if isfield(volume, 'pos')
   if ~isfield(volume, 'dim')
     volume.dim = pos2dim(volume.pos);
   end
-  assert(prod(volume.dim)==size(volume.pos,1), 'dimensions are inconsistent with number of grid positions');
+  assert(prod(volume.dim(1:3))==size(volume.pos,1), 'dimensions are inconsistent with number of grid positions');
   if  ~isfield(volume, 'transform')
     volume.transform = pos2transform(volume.pos, volume.dim);
   end
@@ -108,6 +108,21 @@ end
 switch version
   case '2014'
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if isfield(volume, 'inside')
+      % ensure that it is always logical
+      volume = fixinside(volume, 'logical');
+    end 
+    
+    if isfield(volume, 'coordsys')
+      % ensure that it is in lower case
+      volume.coordsys = lower(volume.coordsys);
+    end
+    
+    if isfield(volume, 'unit')
+      % ensure that it is in lower case
+      volume.unit = lower(volume.unit);
+    end
+    
     if isfield(volume, 'dimord')
       volume = rmfield(volume, 'dimord');
     end
@@ -125,15 +140,14 @@ switch version
       volume = rmfield(volume, 'avg');
     end
 
-    % ensure that it is always logical
-    volume = fixinside(volume, 'logical');
-
     fn = getdatfield(volume);
     for i=1:numel(fn)
-      try
-        volume.(fn{i}) = reshape(volume.(fn{i}), volume.dim);
-      catch
-        warning('could not reshape "%s" to the expected dimensions', fn{i});
+      if numel(volume.(fn{i})) == prod(volume.dim)
+        volume.(fn{i}) = reshape(volume.(fn{i}), volume.dim); % this also works for 4D volumes
+      elseif numel(volume.(fn{i})) == prod(volume.dim(1:3))
+        volume.(fn{i}) = reshape(volume.(fn{i}), volume.dim(1:3));
+      else
+        ft_notice('could not reshape "%s" to the dimensions of the volume', fn{i});
       end
     end
 
@@ -179,5 +193,5 @@ switch version
 
   otherwise
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    error('unsupported version "%s" for volume datatype', version);
+    ft_error('unsupported version "%s" for volume datatype', version);
 end

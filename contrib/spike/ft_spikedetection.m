@@ -4,7 +4,7 @@ function [cfg, spike] = ft_spikedetection(cfg)
 % function writes the unsorted spike waveforms to disk in another file.
 %
 % Use as
-%   cfg = ft_spikedetection(cfg)
+%   [cfg] = ft_spikedetection(cfg)
 %
 % The configuration options can contain
 %   cfg.dataset             = string with the input dataset
@@ -88,7 +88,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance
-ft_preamble trackconfig
+
 
 % set the general defaults
 if ~isfield(cfg, 'dataset'),            cfg.dataset = [];             end
@@ -131,7 +131,7 @@ cfg.preproc = ft_checkconfig(cfg.preproc, 'renamed', {'blcwindow', 'baselinewind
 
 status = mkdir(cfg.output);
 if ~status
-  error(sprintf('error creating spike output dataset %s', cfg.output));
+  error('error creating spike output dataset %s', cfg.output);
 end
 
 % read the header of the completete dataset
@@ -231,7 +231,7 @@ for i=chansel(:)'
       end
       % apply preprocessing
       fprintf('applying preprocessing options\n');
-      dat = preproc(org, hdr.label(i), offset2time(0, hdr.Fs, size(org,2)), cfg.preproc);      
+      dat = preproc(org, hdr.label(i), offset2time(0, hdr.Fs, size(org,2)), cfg.preproc);
     end % if newdata
 
     peaks = [];
@@ -288,7 +288,7 @@ for i=chansel(:)'
           end
 
           % prevent thres crossing within mindist samples
-          if ~isempty(peaks) & ~isempty(cfg.flank.mindist)
+          if ~isempty(peaks) && ~isempty(cfg.flank.mindist)
             pd = [inf diff(peaks)];
             peaks = peaks(pd>cfg.flank.mindist);
           end
@@ -323,11 +323,11 @@ for i=chansel(:)'
         if ( (length(peaks) / (length(dat)/hdr.Fs) )  < 4)
           fprintf(', less than avg. rate of 4 spikes per sec. detected.\n');
           adjustValue = 1+(numadjustment*0.1);
-        elseif ~strcmp(cfg.method,'all') & ( (length(peaks) / (length(dat)/hdr.Fs) )  > 600)
+        elseif ~strcmp(cfg.method,'all') && ( (length(peaks) / (length(dat)/hdr.Fs) )  > 600)
           fprintf(', more than avg. rate of 600 spikes per sec. detected.\n');
           adjustValue = 1-(numadjustment*0.1);
         else
-          % the detected spike rate is "reasonable", no further adjustments neccessary
+          % the detected spike rate is "reasonable", no further adjustments necessary
           break;
         end
 
@@ -358,7 +358,7 @@ for i=chansel(:)'
       spike            = [];
       if isempty(cfg.channelprefix)
         % the label should be a cell-array of length one
-        spike.label     = hdr.label(i); 
+        spike.label     = hdr.label(i);
       else
         % add a prefix to the channel name
         spike.label     = {[cfg.channelprefix '_' hdr.label{i}]};
@@ -476,6 +476,5 @@ for i=chansel(:)'
 end % for each file
 
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
-ft_postamble provenance
 
+ft_postamble provenance

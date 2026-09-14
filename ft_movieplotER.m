@@ -7,17 +7,24 @@ function [cfg] = ft_movieplotER(cfg, data)
 %   ft_movieplotER(cfg, timelock)
 % where the input data is from FT_TIMELOCKANALYSIS and the configuration
 % can contain
-%   cfg.parameter    = string, parameter that is color coded (default = 'avg')
-%   cfg.xlim         = 'maxmin' or [xmin xmax] (default = 'maxmin')
-%   cfg.zlim         = plotting limits for color dimension, 'maxmin',
-%                          'maxabs', 'zeromax', 'minzero', or [zmin zmax] (default = 'maxmin')
-%   cfg.samperframe  = number, samples per fram (default = 1)
-%   cfg.framespersec = number, frames per second (default = 5)
-%   cfg.framesfile   = [], no file saved, or 'string', filename of saved frames.mat (default = []);
-%   cfg.layout       = specification of the layout, see below
-%   cfg.baseline     = 'yes','no' or [time1 time2] (default = 'no'), see FT_TIMELOCKBASELINE or FT_FREQBASELINE
-%   cfg.baselinetype = 'absolute' or 'relative' (default = 'absolute')
-%   cfg.colorbar     = 'yes', 'no' (default = 'no')
+%   cfg.parameter       = string, parameter that is color coded (default = 'avg')
+%   cfg.xlim            = 'maxmin' or [xmin xmax] (default = 'maxmin')
+%   cfg.zlim            = plotting limits for color dimension, 'maxmin',
+%                         'maxabs', 'zeromax', 'minzero', or [zmin zmax] (default = 'maxmin')
+%   cfg.speed           = number, initial speed for interactive mode (default = 1)
+%   cfg.samperframe     = number, samples per frame for non-interactive mode (default = 1)
+%   cfg.framespersec    = number, frames per second for non-interactive mode (default = 5)%   cfg.framesfile   = 'string' or empty, filename of saved frames.mat (default = [])
+%   cfg.layout          = specification of the layout, see below
+%   cfg.interpolatenan  = string 'yes', 'no' interpolate over channels containing NaNs (default = 'yes')
+%   cfg.colormap        = string, or Nx3 matrix, see FT_COLORMAP
+%   cfg.baseline        = 'yes','no' or [time1 time2] (default = 'no'), see FT_TIMELOCKBASELINE
+%   cfg.baselinetype    = 'absolute' or 'relative' (default = 'absolute')
+%   cfg.colorbar        = 'yes', 'no' (default = 'no')
+%   cfg.colorbartext    = string indicating the text next to colorbar
+%   cfg.figure          = 'yes' or 'no', whether to open a new figure. You can also specify a figure handle from FIGURE, GCF or SUBPLOT. (default = 'yes')
+%   cfg.figurename      = string, title of the figure window
+%   cfg.position        = location and size of the figure, specified as [left bottom width height] (default is automatic)
+%   cfg.renderer        = string, 'opengl', 'zbuffer', 'painters', see RENDERERINFO (default is automatic, try 'painters' when it crashes)
 %
 % The layout defines how the channels are arranged. You can specify the
 % layout in a variety of ways:
@@ -36,9 +43,10 @@ function [cfg] = ft_movieplotER(cfg, data)
 % If you specify this option the input data will be read from a *.mat
 % file on disk. This mat files should contain only a single variable named 'data',
 % corresponding to the input structure.
+%
+% See also FT_MULTIPLOTER, FT_TOPOPLOTER, FT_SINGLEPLOTER, FT_MOVIEPLOTTFR, FT_SOURCEMOVIE
 
-% Copyright (C) 2009, Ingrid Nieuwenhuis
-% Copyright (C) 2011, Jan-Mathijs Schoffelen, Robert Oostenveld, Cristiano Micheli
+% Copyright (C) 2009-2024, Ingrid Nieuwenhuis, Jan-Mathijs Schoffelen, Robert Oostenveld, Cristiano Micheli
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -66,7 +74,9 @@ ft_nargout  = nargout;
 % do the general setup of the function
 ft_defaults
 ft_preamble init
-ft_preamble provenance
+ft_preamble debug
+ft_preamble loadvar data
+ft_preamble provenance data
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -80,19 +90,30 @@ data = ft_checkdata(data, 'datatype', 'timelock');
 cfg.parameter   = ft_getopt(cfg, 'parameter', 'avg');
 cfg.interactive = ft_getopt(cfg, 'interactive', 'yes');
 cfg.baseline    = ft_getopt(cfg, 'baseline', 'no');
+cfg.visible     = ft_getopt(cfg, 'visible', 'on');
+cfg.renderer    = ft_getopt(cfg, 'renderer'); % let MATLAB decide on the default
 
 % apply optional baseline correction
 if ~strcmp(cfg.baseline, 'no')
-  tmpcfg = keepfields(cfg, {'baseline', 'baselinetype', 'parameter', 'showcallinfo'});
+  tmpcfg = keepfields(cfg, {'baseline', 'baselinetype', 'parameter', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
   data = ft_timelockbaseline(tmpcfg, data);
   [cfg, data] = rollback_provenance(cfg, data);
-  % prevent the baseline correction from happening in ft_movieplotTFR
-  cfg = removefields(cfg, {'baseline', 'baselinetype'});
 end
 
-cfg = ft_movieplotTFR(cfg, data);
+% prevent any further baseline correction from happening in ft_movieplotTFR
+tmpcfg = removefields(cfg, {'baseline', 'baselinetype'});
+tmpcfg = ft_movieplotTFR(tmpcfg, data);
 
 % do the general cleanup and bookkeeping at the end of the function
-% this will replace the ft_movieplotTFR callinfo with that of ft_movieplotER
-ft_postamble provenance
+ft_postamble debug
 ft_postamble previous data
+ft_postamble provenance
+ft_postamble savefig
+
+% add a menu to the figure, but only if the current figure does not have subplots
+menu_fieldtrip(gcf, cfg, false);
+
+if ~ft_nargout
+  % don't return anything
+  clear cfg
+end

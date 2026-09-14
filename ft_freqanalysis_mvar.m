@@ -66,7 +66,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar data
 ft_preamble provenance data
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -80,20 +79,20 @@ cfg.feedback   = ft_getopt(cfg, 'feedback',   'none');
 %cfg.jackknife  = ft_getopt(cfg, 'jackknife',  'no');
 %cfg.keeptapers = ft_getopt(cfg, 'keeptapers', 'yes');
 
-if strcmp(cfg.foi, 'all'),
+if strcmp(cfg.foi, 'all')
   cfg.foi = (0:1:data.fsampleorig/2);
 end
 
 dimtok = tokenize(data.dimord, '_');
-isfull = isfield(data, 'label') && sum(strcmp(dimtok,'chan'))==2;
-isuvar = isfield(data, 'label') && sum(strcmp(dimtok,'chan'))==1;
+isfull = isfield(data, 'label') && sum(strcmp(dimtok, 'chan'))==2;
+isuvar = isfield(data, 'label') && sum(strcmp(dimtok, 'chan'))==1;
 isbvar = isfield(data, 'labelcmb');
 
 if (isfull||isuvar) && isbvar
-  error('data representaion is ambiguous');
+  ft_error('data representation is ambiguous');
 end
 if ~isfull && ~isbvar && ~isuvar
-  error('data representation is unsupported');
+  ft_error('data representation is unsupported');
 end
 
 %keeprpt  = strcmp(cfg.keeptrials, 'yes');
@@ -101,8 +100,8 @@ end
 %dojack   = strcmp(cfg.jackknife,  'yes');
 %dozscore = strcmp(cfg.zscore,     'yes');
 
-%if ~keeptap, error('not keeping tapers is not possible yet'); end
-%if dojack && keeprpt, error('you cannot simultaneously keep trials and do jackknifing'); end
+%if ~keeptap, ft_error('not keeping tapers is not possible yet'); end
+%if dojack && keeprpt, ft_error('you cannot simultaneously keep trials and do jackknifing'); end
 
 nfoi     = length(cfg.foi);
 if isfield(data, 'time')
@@ -190,7 +189,7 @@ freq.transfer  = h;
 %freq.itransfer = a;
 freq.noisecov  = data.noisecov;
 freq.crsspctrm = crsspctrm;
-if isfield(data, 'dof'),
+if isfield(data, 'dof')
   freq.dof       = data.dof;
 end
 if isfull
@@ -213,7 +212,6 @@ end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   data
 ft_postamble provenance freq
 ft_postamble history    freq
@@ -245,6 +243,6 @@ for k = 1:nfoi
   h(:,:,k) = inv(zar(:,:,k));
 end
 h   = sqrt(2).*h; %account for the negative frequencies, normalization necessary for
-%comparison with non-parametric (fft based) results in fieldtrip
+%comparison with non-parametric (fft based) results in FieldTrip
 %FIXME probably the normalization for the zero Hz bin is incorrect
 zar = zar./sqrt(2);

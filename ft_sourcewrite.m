@@ -9,10 +9,10 @@ function ft_sourcewrite(cfg, source)
 % where source is a source structure obtained from FT_SOURCEANALYSIS and
 % cfg is a structure that should contain
 %
-%  cfg.filename  = string, filename without the extension
-%  cfg.filetype  = string, can be 'nifti', 'gifti' or 'cifti' (default is automatic)
-%  cfg.parameter = string, functional parameter to be written to file
-%  cfg.precision = string, can be 'single', 'double', etc.
+%   cfg.filename  = string, filename without the extension
+%   cfg.filetype  = string, can be 'nifti', 'gifti' or 'cifti' (default is automatic)
+%   cfg.parameter = string, functional parameter to be written to file
+%   cfg.precision = string, can be 'single', 'double', etc.
 %
 % To facilitate data-handling and distributed computing you can use
 %   cfg.inputfile   =  ...
@@ -20,7 +20,7 @@ function ft_sourcewrite(cfg, source)
 % file on disk. This mat file should contain only a single variable,
 % corresponding with the input data structure.
 %
-% See also FT_SOURCEANALYSIS FT_SOURCEDESCRIPTIVES FT_VOLUMEWRITE
+% See also FT_SOURCEANALYSIS, FT_SOURCEDESCRIPTIVES, FT_VOLUMEWRITE
 
 % Copyright (C) 2011, Jan-Mathijs Schoffelen
 % Copyright (C) 2011-2014, Jan-Mathijs Schoffelen, Robert Oostenveld
@@ -54,7 +54,7 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar source
 ft_preamble provenance source
-ft_preamble trackconfig
+
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -116,7 +116,7 @@ if isempty(cfg.filetype)
     % there is a specification of a 2D cortical sheet, save as gifti
     cfg.filetype = 'gifti';
   else
-    error('the input data does not look like a 2D sheet, nor as a 3D regular volume');
+    ft_error('the input data does not look like a 2D sheet, nor as a 3D regular volume');
   end
 end
 
@@ -147,14 +147,14 @@ switch (cfg.filetype)
 
   case 'cifti'
     % brainstructure should represent the global anatomical structure, such as CortexLeft, Thalamus, etc.
-    % parcellation should represent the detailled parcellation, such as BA1, BA2, BA3, etc.
+    % parcellation should represent the detailed parcellation, such as BA1, BA2, BA3, etc.
     ft_write_cifti(cfg.filename, source, 'parameter', cfg.parameter, 'brainstructure', cfg.brainstructure, 'parcellation', cfg.parcellation, 'precision', cfg.precision);
 
   otherwise
-    error('unsupported output format (%s)', cfg.filetype);
+    ft_error('unsupported output format "%s"', cfg.filetype);
 end % switch filetype
 
+% do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous source
 ft_postamble provenance

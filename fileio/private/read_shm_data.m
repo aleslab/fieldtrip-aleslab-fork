@@ -28,7 +28,7 @@ function [dat, dimord] = read_shm_data(hdr, chanindx, begtrial, endtrial)
 persistent ctf_shm
 
 % read the data from shared memory, first the meta information only
-[msgType msgId sampleNumber numSamples numChannels] = read_ctf_shm;
+[msgType, msgId, sampleNumber, numSamples, numChannels] = read_ctf_shm;
 
 if isempty(ctf_shm)
   ctf_shm.msgType      = nan(size(msgType));
@@ -93,7 +93,7 @@ for i=1:length(sel)
 end
 
 % if any(isnan(dat(:)))
-%   warning('data has been padded with NaNs');
+%   ft_warning('data has been padded with NaNs');
 %   fprintf('trials present   = %d - %d\n', min(trlNum), max(trlNum));
 %   fprintf('trials requested = %d - %d\n', begtrial, endtrial);
 % end

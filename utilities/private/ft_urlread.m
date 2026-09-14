@@ -6,7 +6,7 @@ function [output, status] = ft_urlread(event_http, varargin)
 % Use webread or webwrite instead.
 
 method  = ft_getopt(varargin, 'method', 'get');
-timeout = ft_getopt(varargin, 'timeout', 15);
+timeout = ft_getopt(varargin, 'timeout', 5);
 
 % the timeout option is only available from MATLAB 2012b onward
 if strcmp(method, 'get')
@@ -16,5 +16,5 @@ if strcmp(method, 'get')
     [output, status] = urlread(event_http);
   end
 else
-  error('method "%s" is not yet implemented', method);
+  ft_error('method "%s" is not yet implemented', method);
 end

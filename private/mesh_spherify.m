@@ -17,6 +17,23 @@ function [pnt, tri] = mesh_spherify(pnt, tri, varargin)
 %   smooth = number (default = 20)
 
 % Copyright (C) 2008, Robert Oostenveld
+%
+% This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
+% for the documentation and details.
+%
+%    FieldTrip is free software: you can redistribute it and/or modify
+%    it under the terms of the GNU General Public License as published by
+%    the Free Software Foundation, either version 3 of the License, or
+%    (at your option) any later version.
+%
+%    FieldTrip is distributed in the hope that it will be useful,
+%    but WITHOUT ANY WARRANTY; without even the implied warranty of
+%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%    GNU General Public License for more details.
+%
+%    You should have received a copy of the GNU General Public License
+%    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
+%
 % $Id$
 
 % give some graphical feedback for debugging
@@ -36,7 +53,7 @@ end
 % the following code is for debugging
 if fb
   figure
-  [sphere_pnt, sphere_tri] = icosahedron162;
+  [sphere_pnt, sphere_tri] = mesh_sphere(162);
   y = vonmisesfischer(5, [0 0 1], sphere_pnt);
   triplot(sphere_pnt, sphere_tri, y);
 end
@@ -111,7 +128,7 @@ pnt = mscale * pnt;
 
 if fb
   figure
-  [sphere_pnt, sphere_tri] = icosahedron162;
+  [sphere_pnt, sphere_tri] = mesh_sphere(162);
   triplot(sphere_pnt, sphere_tri, [], 'faces_skin');
   triplot(pnt, tri, [], 'faces_skin');
   alpha 0.5
@@ -156,38 +173,3 @@ Cpk = 1;
 y = exp(k * u * x') ./ Cpk;
 y = y(:);
 
-
-function [val] = keyval(key, varargin)
-
-% KEYVAL returns the value that corresponds to the requested key in a
-% key-value pair list of variable input arguments
-%
-% Use as
-%   [val] = keyval(key, varargin)
-%
-% See also VARARGIN
-
-% Copyright (C) 2005-2007, Robert Oostenveld
-
-
-if length(varargin)==1 && iscell(varargin{1})
-  varargin = varargin{1};
-end
-
-if mod(length(varargin),2)
-  error('optional input arguments should come in key-value pairs, i.e. there should be an even number');
-end
-
-keys = varargin(1:2:end);
-vals = varargin(2:2:end);
-
-hit = find(strcmp(key, keys));
-if length(hit)==0
-  % the requested key was not found
-  val = [];
-elseif length(hit)==1  
-  % the requested key was  found
-  val = vals{hit};
-else
-  error('multiple input arguments with the same name');
-end

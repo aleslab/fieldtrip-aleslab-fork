@@ -7,13 +7,23 @@ function [l1, l2] = tritrisect(v1, v2, v3, t1, t2, t3)
 
 % Copyright (C) 2002, Robert Oostenveld
 %
-% $Log: tritrisect.m,v $
-% Revision 1.3  2003/03/11 15:35:20  roberto
-% converted all files from DOS to UNIX
+% This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
+% for the documentation and details.
 %
-% Revision 1.2  2003/03/04 21:46:20  roberto
-% added CVS log entry and synchronized all copyright labels
+%    FieldTrip is free software: you can redistribute it and/or modify
+%    it under the terms of the GNU General Public License as published by
+%    the Free Software Foundation, either version 3 of the License, or
+%    (at your option) any later version.
 %
+%    FieldTrip is distributed in the hope that it will be useful,
+%    but WITHOUT ANY WARRANTY; without even the implied warranty of
+%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%    GNU General Public License for more details.
+%
+%    You should have received a copy of the GNU General Public License
+%    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
+%
+% $Id$
 
 % determine on which side of the plane each vertex lies
 p1 = ptriside(v1, v2, v3, t1);
@@ -21,14 +31,14 @@ p2 = ptriside(v1, v2, v3, t2);
 p3 = ptriside(v1, v2, v3, t3);
 
 if all([p1 p2 p3]==0)
-  warning('triangle lies exactly in plane');
+  ft_warning('triangle lies exactly in plane');
   l1 = [nan, nan, nan];
   l2 = [nan, nan, nan];
   return
 end
 
 if abs(sum([p1 p2 p3]))==3
-  warning('triangle lies on one side of plane');
+  ft_warning('triangle lies on one side of plane');
   l1 = [nan, nan, nan];
   l2 = [nan, nan, nan];
   return
@@ -36,21 +46,21 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if p1==0 & p2==0 & p3~=0
+if p1==0 && p2==0 && p3~=0
   % triangle vertex 1 and 2 ly in the plane
   l1 = t1;
   l2 = t2; 
   return
 end
 
-if p1==0 & p2~=0 & p3==0
+if p1==0 && p2~=0 && p3==0
   % triangle vertex 1 and 3 ly in the plane
   l1 = t1;
   l2 = t3; 
   return
 end
 
-if p1~=0 & p2==0 & p3==0
+if p1~=0 && p2==0 && p3==0
   % triangle vertex 2 and 3 ly in the plane
   l1 = t2;
   l2 = t3; 
@@ -59,7 +69,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if p1==0 & p2~=0 & p3~=0
+if p1==0 && p2~=0 && p3~=0
   % triangle vertex 1 lies in the plane
   l1 = t1;
   % triangle edge 2-3 intersects with the plane
@@ -67,7 +77,7 @@ if p1==0 & p2~=0 & p3~=0
   return;
 end
 
-if p1~=0 & p2==0 & p3~=0
+if p1~=0 && p2==0 && p3~=0
   % triangle vertex 2 lies in the plane
   l1 = t2;
   % triangle edge 3-1 intersects with the plane
@@ -75,7 +85,7 @@ if p1~=0 & p2==0 & p3~=0
   return;
 end
 
-if p1~=0 & p2~=0 & p3==0
+if p1~=0 && p2~=0 && p3==0
   % triangle vertex 3 lies in the plane
   l1 = t3;
   % triangle edge 1-2 intersects with the plane

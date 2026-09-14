@@ -1,42 +1,40 @@
-function [warped] = ft_warp_apply(M, input, method, tol)
+function [output] = ft_warp_apply(M, input, method, tol)
 
 % FT_WARP_APPLY performs a 3D linear or nonlinear transformation on the input
-% coordinates, similar to those in AIR 3.08. You can find technical
-% documentation on warping in general at http://bishopw.loni.ucla.edu/AIR3
+% coordinates, similar to those in AIR. You can find technical documentation
+% on warping in general at http://air.bmap.ucla.edu/AIR5
 %
 % Use as
-%   [warped] = ft_warp_apply(M, input, method, tol)
+%   [output] = ft_warp_apply(transform, input, method, tol)
 % where
-%   M        vector or matrix with warping parameters
-%   input    Nx3 matrix with coordinates
-%   warped   Nx3 matrix with coordinates
-%   method   string describing the warping method
-%   tol      (optional) value determining the numerical precision of the
-%             output, to deal with numerical round off imprecisions due to
-%             the warping
+%   transform   vector or matrix with warping parameters
+%   input       Nx3 matrix with input coordinates
+%   output      Nx3 matrix with the transformed or warped output coordinates
+%   method      string describing the transformation or warping method
+%   tol         (optional) value determining the numerical precision of the
+%                 output, to deal with numerical round-off imprecisions due to
+%                 the warping
 %
-% The methods 'nonlin0', 'nonlin2' ... 'nonlin5' specify a
-% polynomial transformation. The size of the transformation matrix
-% depends on the order of the warp
+% The methods 'nonlin0', 'nonlin2' ... 'nonlin5' specify a polynomial transformation.
+% The size of the specified transform depends on the order of the warp
 %   zeroth order :  1 parameter  per coordinate (translation)
 %   first  order :  4 parameters per coordinate (total 12, affine)
 %   second order : 10 parameters per coordinate
 %   third  order : 20 parameters per coordinate
 %   fourth order : 35 parameters per coordinate
 %   fifth  order : 56 parameters per coordinate (total 168)
-% The size of M should be 3xP, where P is the number of parameters
-% per coordinate. Alternatively, you can specify the method to be
-% 'nonlinear', where the order will be determined from the size of
-% the matrix M.
+% The size of the specified transform should be 3xP, where P is the number of
+% parameters per coordinate. Alternatively, you can specify the method to be
+% 'nonlinear', in which case the order will be determined from the size of the
+% specified transform.
 %
-% If the method 'homogeneous' is selected, the input matrix M should be
-% a 4x4 homogenous transformation matrix.
+% If the method 'homogeneous' is selected, the specified transform should be a 4x4
+% homogenous transformation matrix.
 %
-% If the method 'sn2individual' or 'individual2sn' is selected, the input
-% M should be a structure based on nonlinear (warping) normalisation parameters
-% created by SPM8 for alignment between an individual structural MRI and the
-% template MNI brain.  These options call private functions of the same name.
-% M will have subfields like this:
+% If the method 'sn2individual' or 'individual2sn' is selected, the specified
+% transform should be a structure with the nonlinear spatial normalisation (warping)
+% parameters created by SPM8 or SPM12 for alignment between an individual subject and
+% a template brain. The specified transform is a structure with fields like this:
 %     Affine: [4x4 double]
 %         Tr: [4-D double]
 %         VF: [1x1 struct]
@@ -44,14 +42,15 @@ function [warped] = ft_warp_apply(M, input, method, tol)
 %      flags: [1x1 struct]
 %
 % If any other method is selected, it is assumed that it specifies the name of an
-% auxiliary function that will, when given the input parameter vector M, return an
+% auxiliary function that will, when given the specified transform vector, return an
 % 4x4 homogenous transformation matrix. Supplied functions are 'translate', 'rotate',
 % 'scale', 'rigidbody', 'globalrescale', 'traditional', 'affine', 'perspective',
 % 'quaternion'.
 %
-% See also FT_WARP_OPTIM, FT_WARP_ERROR
+% See also FT_AFFINECOORDINATES, FT_HEADCOORDINATES, FT_WARP_OPTIM, FT_WARP_ERROR, 
+% MAKETFORM, AFFINE2D, AFFINE3D
 
-% Copyright (C) 2000-2016, Robert Oostenveld
+% Copyright (C) 2000-2025, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -92,6 +91,11 @@ else
   input3d = true;
 end
 
+if isequal(size(input), [3 1])
+    % transpose the input
+    input = input';
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % nonlinear warping
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -102,19 +106,19 @@ if any(strcmp(method, {'nonlinear', 'nonlin0', 'nonlin1', 'nonlin2', 'nonlin3', 
   s = size(M);
 
   if s(1)~=3
-    error('invalid size of nonlinear transformation matrix');
+    ft_error('invalid size of nonlinear transformation matrix');
   elseif strcmp(method, 'nonlin0') && s(2)~=1
-    error('invalid size of nonlinear transformation matrix');
+    ft_error('invalid size of nonlinear transformation matrix');
   elseif strcmp(method, 'nonlin1') && s(2)~=4
-    error('invalid size of nonlinear transformation matrix');
+    ft_error('invalid size of nonlinear transformation matrix');
   elseif strcmp(method, 'nonlin2') && s(2)~=10
-    error('invalid size of nonlinear transformation matrix');
+    ft_error('invalid size of nonlinear transformation matrix');
   elseif strcmp(method, 'nonlin3') && s(2)~=20
-    error('invalid size of nonlinear transformation matrix');
+    ft_error('invalid size of nonlinear transformation matrix');
   elseif strcmp(method, 'nonlin4') && s(2)~=35
-    error('invalid size of nonlinear transformation matrix');
+    ft_error('invalid size of nonlinear transformation matrix');
   elseif strcmp(method, 'nonlin5') && s(2)~=56
-    error('invalid size of nonlinear transformation matrix');
+    ft_error('invalid size of nonlinear transformation matrix');
   end
 
   if s(2)==1
@@ -143,10 +147,10 @@ if any(strcmp(method, {'nonlinear', 'nonlin0', 'nonlin1', 'nonlin2', 'nonlin3', 
     yy = M(2,1) + M(2,2)*x + M(2,3)*y + M(2,4)*z + M(2,5)*x.*x + M(2,6)*x.*y + M(2,7)*x.*z + M(2,8)*y.*y + M(2,9)*y.*z + M(2,10)*z.*z + M(2,11)*x.*x.*x + M(2,12)*x.*x.*y + M(2,13)*x.*x.*z + M(2,14)*x.*y.*y + M(2,15)*x.*y.*z + M(2,16)*x.*z.*z + M(2,17)*y.*y.*y + M(2,18)*y.*y.*z + M(2,19)*y.*z.*z + M(2,20)*z.*z.*z + M(2,21)*x.*x.*x.*x + M(2,22)*x.*x.*x.*y + M(2,23)*x.*x.*x.*z + M(2,24)*x.*x.*y.*y + M(2,25)*x.*x.*y.*z + M(2,26)*x.*x.*z.*z + M(2,27)*x.*y.*y.*y + M(2,28)*x.*y.*y.*z + M(2,29)*x.*y.*z.*z + M(2,30)*x.*z.*z.*z + M(2,31)*y.*y.*y.*y + M(2,32)*y.*y.*y.*z + M(2,33)*y.*y.*z.*z + M(2,34)*y.*z.*z.*z + M(2,35)*z.*z.*z.*z + M(2,36)*x.*x.*x.*x.*x + M(2,37)*x.*x.*x.*x.*y + M(2,38)*x.*x.*x.*x.*z + M(2,39)*x.*x.*x.*y.*y + M(2,40)*x.*x.*x.*y.*z + M(2,41)*x.*x.*x.*z.*z + M(2,42)*x.*x.*y.*y.*y + M(2,43)*x.*x.*y.*y.*z + M(2,44)*x.*x.*y.*z.*z + M(2,45)*x.*x.*z.*z.*z + M(2,46)*x.*y.*y.*y.*y + M(2,47)*x.*y.*y.*y.*z + M(2,48)*x.*y.*y.*z.*z + M(2,49)*x.*y.*z.*z.*z + M(2,50)*x.*z.*z.*z.*z + M(2,51)*y.*y.*y.*y.*y + M(2,52)*y.*y.*y.*y.*z + M(2,53)*y.*y.*y.*z.*z + M(2,54)*y.*y.*z.*z.*z + M(2,55)*y.*z.*z.*z.*z + M(2,56)*z.*z.*z.*z.*z;
     zz = M(3,1) + M(3,2)*x + M(3,3)*y + M(3,4)*z + M(3,5)*x.*x + M(3,6)*x.*y + M(3,7)*x.*z + M(3,8)*y.*y + M(3,9)*y.*z + M(3,10)*z.*z + M(3,11)*x.*x.*x + M(3,12)*x.*x.*y + M(3,13)*x.*x.*z + M(3,14)*x.*y.*y + M(3,15)*x.*y.*z + M(3,16)*x.*z.*z + M(3,17)*y.*y.*y + M(3,18)*y.*y.*z + M(3,19)*y.*z.*z + M(3,20)*z.*z.*z + M(3,21)*x.*x.*x.*x + M(3,22)*x.*x.*x.*y + M(3,23)*x.*x.*x.*z + M(3,24)*x.*x.*y.*y + M(3,25)*x.*x.*y.*z + M(3,26)*x.*x.*z.*z + M(3,27)*x.*y.*y.*y + M(3,28)*x.*y.*y.*z + M(3,29)*x.*y.*z.*z + M(3,30)*x.*z.*z.*z + M(3,31)*y.*y.*y.*y + M(3,32)*y.*y.*y.*z + M(3,33)*y.*y.*z.*z + M(3,34)*y.*z.*z.*z + M(3,35)*z.*z.*z.*z + M(3,36)*x.*x.*x.*x.*x + M(3,37)*x.*x.*x.*x.*y + M(3,38)*x.*x.*x.*x.*z + M(3,39)*x.*x.*x.*y.*y + M(3,40)*x.*x.*x.*y.*z + M(3,41)*x.*x.*x.*z.*z + M(3,42)*x.*x.*y.*y.*y + M(3,43)*x.*x.*y.*y.*z + M(3,44)*x.*x.*y.*z.*z + M(3,45)*x.*x.*z.*z.*z + M(3,46)*x.*y.*y.*y.*y + M(3,47)*x.*y.*y.*y.*z + M(3,48)*x.*y.*y.*z.*z + M(3,49)*x.*y.*z.*z.*z + M(3,50)*x.*z.*z.*z.*z + M(3,51)*y.*y.*y.*y.*y + M(3,52)*y.*y.*y.*y.*z + M(3,53)*y.*y.*y.*z.*z + M(3,54)*y.*y.*z.*z.*z + M(3,55)*y.*z.*z.*z.*z + M(3,56)*z.*z.*z.*z.*z;
   else
-    error('invalid size of nonlinear transformation matrix');
+    ft_error('invalid size of nonlinear transformation matrix');
   end
 
-  warped = [xx yy zz];
+  output = [xx yy zz];
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % linear warping using homogenous coordinate transformation matrix
@@ -167,7 +171,7 @@ elseif strcmp(method, 'homogenous') || strcmp(method, 'homogeneous')
   %warped = warped(1:3,:)';
 
   % below achieves the same as lines 154-155
-  warped = [input ones(size(input, 1),1)]*M(1:3,:)';
+  output = [input ones(size(input, 1),1)]*M(1:3,:)';
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % using external function that returns a homogeneous transformation matrix
@@ -175,29 +179,29 @@ elseif strcmp(method, 'homogenous') || strcmp(method, 'homogeneous')
 elseif exist(method, 'file') && ~isa(M, 'struct')
   % get the homogenous transformation matrix
   H = feval(method, M);
-  warped = ft_warp_apply(H, input, 'homogeneous');
+  output = ft_warp_apply(H, input, 'homogeneous');
 
 elseif strcmp(method, 'sn2individual') && isa(M, 'struct')
   % use SPM structure with parameters for an inverse warp
   % from normalized space to individual, can be non-linear
-  warped = sn2individual(M, input);
+  output = sn2individual(M, input);
 
 elseif strcmp(method, 'individual2sn') && isa(M, 'struct')
   % use SPM structure with parameters for a warp from
   % individual space to normalized space, can be non-linear
   %error('individual2sn is not yet implemented');
-  warped = individual2sn(M, input);
+  output = individual2sn(M, input);
 else
-  error('unrecognized transformation method');
+  ft_error('unrecognized transformation method');
 end
 
 if ~input3d
   % convert from 3D back to 2D representation
-  warped = warped(:,1:2);
+  output = output(:,1:2);
 end
 
 if ~isempty(tol)
   if tol>0
-    warped = fix(warped./tol)*tol;
+    output = fix(output./tol)*tol;
   end
 end

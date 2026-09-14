@@ -1,4 +1,4 @@
-function ft_sourceplot(cfg, functional, anatomical)
+function [cfg] = ft_sourceplot(cfg, functional, anatomical)
 
 % FT_SOURCEPLOT plots functional source reconstruction data on slices or on a surface,
 % optionally as an overlay on anatomical MRI data, where statistical data can be used to
@@ -25,14 +25,13 @@ function ft_sourceplot(cfg, functional, anatomical)
 % coordinate system, you can reslice the data using FT_VOLUMERESLICE. See http://bit.ly/1OkDlVF
 %
 % The configuration should contain:
-%   cfg.method        = 'slice',      plots the data on a number of slices in the same plane
-%                       'ortho',      plots the data on three orthogonal slices
+%   cfg.method        = 'ortho',      plots the data on three orthogonal slices
+%                       'slice',      plots the data on a number of slices in the same plane
 %                       'surface',    plots the data on a 3D brain surface
 %                       'glassbrain', plots a max-projection through the brain
 %                       'vertex',     plots the grid points or vertices scaled according to the functional value
-%                       'cloud',      plot the data as point clouds scaled according to the functional value
-%
-%
+%                       'cloud',      plot the data as clouds, spheres, or points scaled according to the functional value
+% and
 %   cfg.anaparameter  = string, field in data with the anatomical data (default = 'anatomy' if present in data)
 %   cfg.funparameter  = string, field in data with the functional parameter of interest (default = [])
 %   cfg.maskparameter = string, field in the data to be used for opacity masking of fun data (default = [])
@@ -50,7 +49,10 @@ function ft_sourceplot(cfg, functional, anatomical)
 %   cfg.downsample    = downsampling for resolution reduction, integer value (default = 1) (orig: from surface)
 %   cfg.atlas         = string, filename of atlas to use (default = []) see FT_READ_ATLAS
 %                        for ROI masking (see 'masking' below) or for orthogonal plots (see method='ortho' below)
-%   cfg.visible       = string, 'on' or 'off', whether figure will be visible (default = 'on')
+%   cfg.visible       = string, 'on' or 'off' whether figure will be visible (default = 'on')
+%   cfg.figure        = 'yes' or 'no', whether to open a new figure. You can also specify a figure handle from FIGURE, GCF or SUBPLOT. (default = 'yes')
+%   cfg.position      = location and size of the figure, specified as [left bottom width height] (default is automatic)
+%   cfg.renderer      = string, 'opengl', 'zbuffer', 'painters', see RENDERERINFO. The OpenGL renderer is required when using opacity (default = 'opengl')
 %
 % The following parameters can be used for the functional data:
 %   cfg.funcolormap   = colormap for functional data, see COLORMAP (default = 'auto')
@@ -67,6 +69,7 @@ function ft_sourceplot(cfg, functional, anatomical)
 %                        'auto', if funparameter values are all positive: 'zeromax',
 %                          all negative: 'minzero', both possitive and negative: 'maxabs'
 %   cfg.colorbar      = 'yes' or 'no' (default = 'yes')
+%   cfg.colorbartext  =  string indicating the text next to colorbar
 %
 % The 'ortho' method can also plot time and/or frequency, the other methods can not.
 % If your functional data has a time and/or frequency dimension, you can use
@@ -76,6 +79,12 @@ function ft_sourceplot(cfg, functional, anatomical)
 %   cfg.avgoverfreq   = string, can be 'yes' or 'no' (default = 'no')
 %
 % The following parameters can be used for the masking data:
+%   cfg.maskstyle     = 'opacity', or 'colormix'. If 'opacity', low-level
+%                         graphics opacity masking is applied, if
+%                         'colormix', the color data is explicitly
+%                         expressed as a single RGB value, incorporating
+%                         the opacitymask. Yields faster and more robust
+%                         rendering in general.
 %   cfg.opacitymap    = opacitymap for mask data, see ALPHAMAP (default = 'auto')
 %                       'auto', depends structure maskparameter, or on opacitylim
 %                         - maskparameter: only positive values, or opacitylim:'zeromax' -> 'rampup'
@@ -110,7 +119,8 @@ function ft_sourceplot(cfg, functional, anatomical)
 %                              'voxel', voxelcoordinates as indices
 %   cfg.crosshair     = 'yes' or 'no' (default = 'yes')
 %   cfg.axis          = 'on' or 'off' (default = 'on')
-%   cfg.queryrange    = number, in atlas voxels (default 3)
+%   cfg.queryrange    = number, in atlas voxels (default = 1)
+%   cfg.clim          = lower and upper anatomical MRI limits (default = [0 1])
 %
 % When cfg.method='slice', a NxM montage with a large number of slices will be rendered.
 % All slices are evenly spaced and along the same dimension.
@@ -121,7 +131,8 @@ function ft_sourceplot(cfg, functional, anatomical)
 %                       'auto', full range of data
 %                       [min max], coordinates of first and last slice in voxels
 %   cfg.slicedim      = dimension to slice 1 (x-axis) 2(y-axis) 3(z-axis) (default = 3)
-%   cfg.title         = string, title of the figure window
+%   cfg.title         = string, title of the plot
+%   cfg.figurename    = string, title of the figure window
 %
 % When cfg.method='surface', the functional data will be rendered onto a cortical mesh
 % (can be an inflated mesh). If the input source data contains a tri-field (i.e. a
@@ -151,21 +162,22 @@ function ft_sourceplot(cfg, functional, anatomical)
 %
 % The following parameters apply to cfg.method='surface' irrespective of whether an interpolation is required
 %   cfg.camlight       = 'yes' or 'no' (default = 'yes')
-%   cfg.renderer       = 'painters', 'zbuffer', ' opengl' or 'none' (default = 'opengl')
-%                        note that when using opacity the OpenGL renderer is required.
-%   cfg.facecolor      = [r g b] values or string, for example 'brain', 'cortex', 'skin', 'black', 'red', 'r',
+%   cfg.facecolor      = [r g b] values or string, for example 'skin', 'skull', 'brain', 'black', 'red', 'r',
 %                        or an Nx3 or Nx1 array where N is the number of faces
-%   cfg.vertexcolor    = [r g b] values or string, for example 'brain', 'cortex', 'skin', 'black', 'red', 'r',
+%   cfg.vertexcolor    = [r g b] values or string, for example 'skin', 'skull', 'brain', 'black', 'red', 'r',
 %                        or an Nx3 or Nx1 array where N is the number of vertices
-%   cfg.edgecolor      = [r g b] values or string, for example 'brain', 'cortex', 'skin', 'black', 'red', 'r'
+%   cfg.edgecolor      = [r g b] values or string, for example 'skin', 'skull', 'brain', 'black', 'red', 'r'
 %
-% When cfg.method = 'cloud', the functional data will be rendered as
-% point clouds around the sensor positions. These point clouds can either
-% be viewed in 3D or as 2D slices. The 'anatomical' input may also consist of 
-% a single or multiple triangulated surface mesh(es) in an Nx1 cell-array
-% to be plotted with the interpolated functional data (see FT_PLOT_CLOUD)
+% When cfg.method = 'cloud', the functional data will be rendered as as clouds (groups of points), 
+% spheres, or single points at each sensor position. These spheres or point clouds can either be 
+% viewed in 3D or as 2D slices. The 'anatomical' input may also consist of a single or multiple 
+% triangulated surface meshes in an Nx1 cell-array to be plotted with the interpolated functional 
+% data (see FT_PLOT_CLOUD).
 %
-% The following parameters apply to cfg.method='cloud' 
+% The following parameters apply to cfg.method='cloud'
+%   cfg.cloudtype       = 'point' plots a single point at each sensor position
+%                         'cloud' (default) plots each a group of spherically arranged points at each sensor position
+%                         'surf' plots a single spherical surface mesh at each sensor position
 %   cfg.radius          = scalar, maximum radius of cloud (default = 4)
 %   cfg.colorgrad       = 'white' or a scalar (e.g. 1), degree to which color of points in cloud
 %                         changes from its center
@@ -185,8 +197,8 @@ function ft_sourceplot(cfg, functional, anatomical)
 % disk. This mat files should contain only a single variable corresponding to the
 % input structure.
 %
-% See also FT_SOURCEMOVIE, FT_SOURCEANALYSIS, FT_SOURCEGRANDAVERAGE,
-% FT_SOURCESTATISTICS, FT_VOLUMELOOKUP, FT_READ_ATLAS, FT_READ_MRI
+% See also FT_SOURCEMOVIE, FT_SOURCEANALYSIS, FT_SOURCEGRANDAVERAGE, FT_SOURCESTATISTICS,
+% FT_VOLUMELOOKUP, FT_READ_ATLAS, FT_READ_MRI
 
 % TODO have to be built in:
 %   cfg.marker        = [Nx3] array defining N marker positions to display (orig: from sliceinterp)
@@ -198,8 +210,14 @@ function ft_sourceplot(cfg, functional, anatomical)
 %   slice in all directions
 %   surface also optimal when inside present
 %   come up with a good glass brain projection
+%
+% undocumented option
+%   cfg.intersectmesh = cell-array of mesh(es) to be plotted along with the
+%                       anatomy, useful for evaluating coregistration. Does
+%                       at present not check for coordinate system
 
-% Copyright (C) 2007-2016, Robert Oostenveld, Ingrid Nieuwenhuis
+% Copyright (C) 2007-2022, Robert Oostenveld, Ingrid Nieuwenhuis, J.M.
+% Schoffelen
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -230,7 +248,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar functional anatomical
 ft_preamble provenance functional anatomical
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -239,7 +256,7 @@ end
 
 % this is not supported any more as of 26/10/2011
 if ischar(functional)
-  error('please use cfg.inputfile instead of specifying the input variable as a sting');
+  ft_error('please use cfg.inputfile instead of specifying the input variable as a sting');
 end
 
 % ensure that old and unsupported options are not being relied on by the end-user's script
@@ -250,11 +267,11 @@ cfg = ft_checkconfig(cfg, 'renamedval', {'maskparameter', 'avg.pow', 'pow'});
 cfg = ft_checkconfig(cfg, 'renamedval', {'maskparameter', 'avg.coh', 'coh'});
 cfg = ft_checkconfig(cfg, 'renamedval', {'maskparameter', 'avg.mom', 'mom'});
 cfg = ft_checkconfig(cfg, 'renamedval', {'location', 'interactive', 'auto'});
-% instead of specifying cfg.coordsys, the user should specify the coordsys in the functional data
-cfg = ft_checkconfig(cfg, 'forbidden', {'units', 'inputcoordsys', 'coordinates', 'TTlookup'});
-cfg = ft_checkconfig(cfg, 'deprecated', 'coordsys');
+% instead of specifying cfg.coordsys, the user should specify the coordsys in the data
+cfg = ft_checkconfig(cfg, 'forbidden', {'units', 'coordsys', 'inputcoord', 'inputcoordsys', 'coordinates'});
 % see http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=2837
 cfg = ft_checkconfig(cfg, 'renamed', {'viewdim', 'axisratio'});
+cfg = ft_checkconfig(cfg, 'renamed', {'newfigure', 'figure'});
 
 if isfield(cfg, 'atlas') && ~isempty(cfg.atlas)
   % the atlas lookup requires the specification of the coordsys
@@ -268,17 +285,50 @@ end
 cfg.method        = ft_getopt(cfg, 'method',        'ortho');
 cfg.funparameter  = ft_getopt(cfg, 'funparameter',  []);
 cfg.maskparameter = ft_getopt(cfg, 'maskparameter', []);
+cfg.maskstyle     = ft_getopt(cfg, 'maskstyle',     'opacity');
 cfg.downsample    = ft_getopt(cfg, 'downsample',    1);
-cfg.title         = ft_getopt(cfg, 'title',         '');
+cfg.flip          = ft_getopt(cfg, 'flip',          []); % the default is set below
+cfg.title         = ft_getopt(cfg, 'title',         []);
+cfg.figurename    = ft_getopt(cfg, 'figurename',    []);
 cfg.atlas         = ft_getopt(cfg, 'atlas',         []);
 cfg.marker        = ft_getopt(cfg, 'marker',        []);
 cfg.markersize    = ft_getopt(cfg, 'markersize',    5);
 cfg.markercolor   = ft_getopt(cfg, 'markercolor',   [1 1 1]);
-cfg.renderer      = ft_getopt(cfg, 'renderer',      'opengl');
 cfg.colorbar      = ft_getopt(cfg, 'colorbar',      'yes');
+cfg.colorbartext  = ft_getopt(cfg, 'colorbartext',  '');
 cfg.voxelratio    = ft_getopt(cfg, 'voxelratio',    'data'); % display size of the voxel, 'data' or 'square'
 cfg.axisratio     = ft_getopt(cfg, 'axisratio',     'data'); % size of the axes of the three orthoplots, 'square', 'voxel', or 'data'
 cfg.visible       = ft_getopt(cfg, 'visible',       'on');
+cfg.clim          = ft_getopt(cfg, 'clim',          [0 1]); % this is used to scale the orthoplot
+cfg.intersectmesh = ft_getopt(cfg, 'intersectmesh');
+cfg.renderer      = ft_getopt(cfg, 'renderer',      'opengl');
+cfg.interactive   = ft_getopt(cfg, 'interactive',   'yes'); % used to disable interaction for method=glassbrain
+
+% this is needed for the figure title
+if isfield(cfg, 'dataname') && ~isempty(cfg.dataname)
+  dataname = cfg.dataname;
+elseif isfield(cfg, 'inputfile') && ~isempty(cfg.inputfile)
+  dataname = cfg.inputfile;
+elseif nargin>1
+  dataname = arrayfun(@inputname, 2:nargin, 'UniformOutput', false);
+else
+  dataname = {};
+end
+
+% set the figure window title, if not defined by user
+if isempty(cfg.figurename) && ~isempty(dataname)
+  cfg.figurename = sprintf('%s: %s', mfilename, join_str(', ', dataname));
+else
+  cfg.figurename = sprintf('%s:', mfilename);
+end
+
+if isempty(cfg.flip)
+  if strcmp(cfg.method, 'ortho')
+    cfg.flip = 'yes';
+  else
+    cfg.flip = 'no';
+  end
+end
 
 if ~isfield(cfg, 'anaparameter')
   if isfield(functional, 'anatomy')
@@ -296,6 +346,7 @@ cfg.funcolorlim   = ft_getopt(cfg, 'funcolorlim',   'auto');
 cfg.opacitymap    = ft_getopt(cfg, 'opacitymap',    'auto');
 cfg.opacitylim    = ft_getopt(cfg, 'opacitylim',    'auto');
 cfg.roi           = ft_getopt(cfg, 'roi',           []);
+cfg.maskstyle     = ft_getopt(cfg, 'maskstyle',     'opacity');
 
 % select the functional and the mask parameter
 cfg.funparameter  = parameterselection(cfg.funparameter, functional);
@@ -306,7 +357,7 @@ try, cfg.maskparameter = cfg.maskparameter{1}; end
 
 if isfield(functional, 'time') || isfield(functional, 'freq')
   % make a selection of the time and/or frequency dimension
-  tmpcfg = keepfields(cfg, {'frequency', 'avgoverfreq', 'keepfreqdim', 'latency', 'avgovertime', 'keeptimedim', 'showcallinfo'});
+  tmpcfg = keepfields(cfg, {'frequency', 'avgoverfreq', 'keepfreqdim', 'latency', 'avgovertime', 'keeptimedim', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
   functional = ft_selectdata(tmpcfg, functional);
   % restore the provenance information
   [cfg, functional] = rollback_provenance(cfg, functional);
@@ -317,13 +368,14 @@ hasanatomical = exist('anatomical', 'var');
 
 if hasanatomical && ~strcmp(cfg.method, 'cloud') % cloud method should be able to take multiple surfaces and does not require interpolation
   % interpolate on the fly, this also does the downsampling if requested
-  tmpcfg = keepfields(cfg, {'downsample', 'interpmethod', 'sphereradius', 'showcallinfo'});
+  tmpcfg = keepfields(cfg, {'downsample', 'interpmethod', 'sphereradius', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
   tmpcfg.parameter = cfg.funparameter;
   functional = ft_sourceinterpolate(tmpcfg, functional, anatomical);
   [cfg, functional] = rollback_provenance(cfg, functional);
+  cfg.anaparameter = 'anatomy';
 elseif ~hasanatomical && cfg.downsample~=1
   % optionally downsample the functional volume
-  tmpcfg = keepfields(cfg, {'downsample', 'showcallinfo'});
+  tmpcfg = keepfields(cfg, {'downsample', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
   tmpcfg.parameter = {cfg.funparameter, cfg.maskparameter, cfg.anaparameter};
   functional = ft_volumedownsample(tmpcfg, functional);
   [cfg, functional] = rollback_provenance(cfg, functional);
@@ -332,14 +384,27 @@ end
 if isfield(functional, 'dim') && isfield(functional, 'transform')
   % this is a regular 3D functional volume
   isUnstructuredFun = false;
+
 elseif isfield(functional, 'dim') && isfield(functional, 'pos')
   % these are positions that can be mapped onto a 3D regular grid
   isUnstructuredFun  = false;
-  % contstruct the transformation matrix from the positions
+  % construct the transformation matrix from the positions
   functional.transform = pos2transform(functional.pos, functional.dim);
 else
   % this is functional data on irregular positions, such as a cortical sheet
   isUnstructuredFun = true;
+end
+
+if ~isUnstructuredFun && strcmp(cfg.flip, 'yes')
+  % align the anatomical volume approximately to coordinate system, this puts it upright
+  origmethod = cfg.method;
+  tmpcfg = [];
+  tmpcfg.method = 'flip';
+  tmpcfg.trackcallinfo = 'no';
+  tmpcfg.showcallinfo = 'no';
+  functional = ft_volumereslice(tmpcfg, functional);
+  [cfg, functional] = rollback_provenance(cfg, functional);
+  cfg.method = origmethod;
 end
 
 % this only relates to the dimensions of the geometry, which is npos*1 or nx*ny*nz
@@ -353,39 +418,17 @@ end
 %% get the elements that will be plotted
 hasatlas = ~isempty(cfg.atlas);
 if hasatlas
-  if ischar(cfg.atlas)
-    % initialize the atlas
-    [p, f, x] = fileparts(cfg.atlas);
-    fprintf(['reading ', f, ' atlas coordinates and labels\n']);
-    atlas = ft_read_atlas(cfg.atlas);
-  else
-    atlas = cfg.atlas;
-  end
-  % ensure that the atlas is formatted properly
-  atlas = ft_checkdata(atlas, 'hasunit', isfield(functional, 'unit'), 'hascoordsys', isfield(functional, 'coordsys'));
-  if isfield(functional, 'unit')
-    % ensure that the units are consistent, convert the units if required
-    atlas = ft_convert_units(atlas, functional.unit);
-  end
-  if isfield(functional, 'coordsys')
-    % ensure that the coordinate systems match
-    functional = fixcoordsys(functional);
-    atlas      = fixcoordsys(atlas);
-    assert(isequal(functional.coordsys, atlas.coordsys), 'coordinate systems do not match');
-  end
+  [atlas, functional] = handle_atlas_input(cfg.atlas, functional);
 end
 
 hasroi = ~isempty(cfg.roi);
 if hasroi
   if ~hasatlas
-    error('specify cfg.atlas which specifies cfg.roi')
+    ft_error('specify cfg.atlas which specifies cfg.roi')
   else
     % get the mask
-    tmpcfg          = [];
-    tmpcfg.roi      = cfg.roi;
-    tmpcfg.atlas    = cfg.atlas;
-    tmpcfg.inputcoord = functional.coordsys;
-    roi = ft_volumelookup(tmpcfg,functional);
+    tmpcfg = keepfields(cfg, {'roi', 'atlas'});
+    roi = ft_volumelookup(tmpcfg, functional);
   end
 end
 
@@ -406,12 +449,12 @@ end
 hasfun = isfield(functional, cfg.funparameter);
 if hasfun
   fun = getsubfield(functional, cfg.funparameter);
-  
+
   dimord = getdimord(functional, cfg.funparameter);
   dimtok = tokenize(dimord, '_');
-  
+
   % replace the cell-array functional with a normal array
-  if strcmp(dimtok{1}, '{pos}')
+  if startsWith(dimord, '{pos}')
     tmpdim = getdimsiz(functional, cfg.funparameter);
     tmpfun = nan(tmpdim);
     insideindx = find(functional.inside);
@@ -420,17 +463,38 @@ if hasfun
     end
     fun = tmpfun;
     clear tmpfun
-    dimtok{1} = 'pos';  % update the description of the dimensions
-    dimord([1 5]) = []; % remove the { and }
+    dimord = ['pos' dimord(6:end)]; % update the description of the dimensions
+    dimtok = tokenize(dimord, '_');
+  elseif startsWith(dimord, '{dim1_dim2_dim3}')
+    tmpdim = getdimsiz(functional, cfg.funparameter);
+    tmpfun = nan(tmpdim);
+    for i1=1:functional.dim(1)
+      for i2=1:functional.dim(2)
+        for i3=1:functional.dim(3)
+          if functional.inside(i1, i2, i3)
+            tmpfun(i1,i2,i3,:) = fun{i1, i2, i3};
+          end
+        end
+      end
+    end
+    fun = tmpfun;
+    clear tmpfun
+    dimord = ['dim1_dim2_dim3' dimord(17:end)]; % update the description of the dimensions
+    dimtok = tokenize(dimord, '_');
   end
   
   % ensure that the functional data is real
   if ~isreal(fun)
-    warning('functional data is complex, taking absolute value');
+    ft_warning('functional data is complex, taking absolute value');
     fun = abs(fun);
   end
   
-  if strcmp(dimord, 'pos_rgb')
+  if ~isa(fun, 'double')
+    ft_warning('converting functional data to double precision');
+    fun = double(fun);
+  end
+  
+  if strcmp(dimord, 'pos_rgb') || (ndims(fun)>3 && size(fun,4)==3)
     % treat functional data as rgb values
     if any(fun(:)>1 | fun(:)<0)
       % scale
@@ -451,6 +515,7 @@ if hasfun
     fcolmin = 0;
     fcolmax = 1;
     
+    cfg.funcolormap = 'rgb';
   else
     % determine scaling min and max (fcolmin fcolmax) and funcolormap
     if ~isa(fun, 'logical')
@@ -475,17 +540,17 @@ if hasfun
       if isequal(cfg.funcolorlim, 'maxabs')
         fcolmin = -max(abs([funmin,funmax]));
         fcolmax =  max(abs([funmin,funmax]));
-        if isequal(cfg.funcolormap, 'auto'); cfg.funcolormap = 'default'; end;
+        if isequal(cfg.funcolormap, 'auto'); cfg.funcolormap = 'default'; end
       elseif isequal(cfg.funcolorlim, 'zeromax')
         fcolmin = 0;
         fcolmax = funmax;
-        if isequal(cfg.funcolormap, 'auto'); cfg.funcolormap = 'hot'; end;
+        if isequal(cfg.funcolormap, 'auto'); cfg.funcolormap = 'hot'; end
       elseif isequal(cfg.funcolorlim, 'minzero')
         fcolmin = funmin;
         fcolmax = 0;
-        if isequal(cfg.funcolormap, 'auto'); cfg.funcolormap = 'cool'; end;
+        if isequal(cfg.funcolormap, 'auto'); cfg.funcolormap = 'cool'; end
       else
-        error('do not understand cfg.funcolorlim');
+        ft_error('do not understand cfg.funcolorlim');
       end
     else
       % limits are numeric
@@ -519,6 +584,13 @@ if hasfun
         qi      = 1;
         hasfreq = 0;
         hastime = numel(functional.time)>1;
+        fun     = reshape(fun, [dim numel(functional.time)]);
+      elseif strcmp(dimord, 'pos_ori_time') || strcmp(dimord, 'dim1_dim2_dim3_ori_time')
+        % functional contains evoked field
+        qi      = 1;
+        hasfreq = 0;
+        hastime = numel(functional.time)>1;
+        % the following will fail if the number of orientations is larger than 1
         fun     = reshape(fun, [dim numel(functional.time)]);
       elseif strcmp(dimord, 'pos_freq') || strcmp(dimord, 'dim1_dim2_dim3_freq')
         % functional contains frequency spectra
@@ -556,7 +628,7 @@ end
 hasmsk = issubfield(functional, cfg.maskparameter);
 if hasmsk
   if ~hasfun
-    error('you can not have a mask without functional data')
+    ft_error('you can not have a mask without functional data')
   else
     msk = getsubfield(functional, cfg.maskparameter);
     if islogical(msk) % otherwise sign() not posible
@@ -601,17 +673,17 @@ if hasmsk
       case 'zeromax'
         opacmin = 0;
         opacmax = mskmax;
-        if isequal(cfg.opacitymap, 'auto'), cfg.opacitymap = 'rampup'; end;
+        if isequal(cfg.opacitymap, 'auto'), cfg.opacitymap = 'rampup'; end
       case 'minzero'
         opacmin = mskmin;
         opacmax = 0;
-        if isequal(cfg.opacitymap, 'auto'), cfg.opacitymap = 'rampdown'; end;
+        if isequal(cfg.opacitymap, 'auto'), cfg.opacitymap = 'rampdown'; end
       case 'maxabs'
         opacmin = -max(abs([mskmin, mskmax]));
         opacmax =  max(abs([mskmin, mskmax]));
-        if isequal(cfg.opacitymap, 'auto'), cfg.opacitymap = 'vdown'; end;
+        if isequal(cfg.opacitymap, 'auto'), cfg.opacitymap = 'vdown'; end
       otherwise
-        error('incorrect specification of cfg.opacitylim');
+        ft_error('incorrect specification of cfg.opacitylim');
     end % switch opacitylim
   else
     % limits are numeric
@@ -642,7 +714,10 @@ if hasfun && ~hasmsk && isfield(functional, 'inside')
   opacmax = 1;
   % make intelligent mask
   if isequal(cfg.method, 'surface')
-    msk(functional.inside) = 1;
+    msk(functional.inside&isfinite(functional.(cfg.funparameter))) = 1;
+    if any(functional.inside&~isfinite(functional.(cfg.funparameter)))
+      ft_warning('functional data contains %d NaNs labeled as inside', sum(functional.inside&~isfinite(functional.(cfg.funparameter))));
+    end
   else
     if hasana
       msk(functional.inside) = 0.5; % so anatomy is visible
@@ -664,13 +739,13 @@ elseif hasfun && hasroi && hasmsk
   opacmin = [];
   opacmax = []; % has to be defined
 elseif hasroi
-  error('you can not have a roi without functional data')
+  ft_error('you can not have a roi without functional data')
 end
 
 %% give some feedback
 if ~hasfun && ~hasana
   % this seems to be a problem that people often have due to incorrect specification of the cfg
-  error('no anatomy is present and no functional data is selected, please check your cfg.funparameter');
+  ft_error('no anatomy is present and no functional data is selected, please check your cfg.funparameter');
 end
 if ~hasana
   fprintf('not plotting anatomy\n');
@@ -689,22 +764,23 @@ if ~hasroi
 end
 
 %% start building the figure
-h = figure('visible', cfg.visible);
+
+% open a new figure with the specified settings
+h = open_figure(keepfields(cfg, {'figure', 'position', 'visible', 'renderer', 'figurename', 'title'}));
 set(h, 'color', [1 1 1]);
-set(h, 'renderer', cfg.renderer);
-if ~isempty(cfg.title)
-  title(cfg.title);
-end
 
 %% set color and opacity mapping for this figure
 if hasfun
-  colormap(cfg.funcolormap);
-  cfg.funcolormap = colormap;
+  if ischar(cfg.funcolormap) && ~strcmp(cfg.funcolormap, 'rgb')
+    cfg.funcolormap = ft_colormap(cfg.funcolormap);
+  elseif iscell(cfg.funcolormap)
+    cfg.funcolormap = ft_colormap(cfg.funcolormap{:});
+  end
 end
 if hasmsk
   cfg.opacitymap = alphamap(cfg.opacitymap);
   alphamap(cfg.opacitymap);
-  if ndims(fun)>3 && ndims(msk)==3
+  if ndims(fun)>3 && ndims(msk)==3 && ~isequal(cfg.funcolormap, 'rgb')
     siz = size(fun);
     msk = repmat(msk, [1 1 1 siz(4:end)]);
   end
@@ -720,24 +796,14 @@ switch cfg.method
     cfg.slicedim   = ft_getopt(cfg, 'slicedim',   3);
     cfg.slicerange = ft_getopt(cfg, 'slicerange', 'auto');
     
-    % white BG => mskana
-    
-    % TODO: HERE THE FUNCTION THAT MAKES TO SLICE DIMENSION ALWAYS THE THIRD DIMENSION, AND ALSO KEEP TRANSFORMATION MATRIX UP TO DATE
-    % zoiets
-    % if hasana; ana = shiftdim(ana,cfg.slicedim-1); end;
-    % if hasfun; fun = shiftdim(fun,cfg.slicedim-1); end;
-    % if hasmsk; msk = shiftdim(msk,cfg.slicedim-1); end;
-    
     % ADDED BY JM: allow for slicedim different than 3
     switch cfg.slicedim
       case 1
-        dim = dim([2 3 1]);
         if hasana, ana = permute(ana,[2 3 1]); end
         if hasfun, fun = permute(fun,[2 3 1]); end
         if hasmsk, msk = permute(msk,[2 3 1]); end
         cfg.slicedim=3;
       case 2
-        dim = dim([3 1 2]);
         if hasana, ana = permute(ana,[3 1 2]); end
         if hasfun, fun = permute(fun,[3 1 2]); end
         if hasmsk, msk = permute(msk,[3 1 2]); end
@@ -757,31 +823,34 @@ switch cfg.method
           insideMask = false(size(fun));
           insideMask(functional.inside) = true;
           
-          ind_fslice = min(find(max(max(insideMask,[],1),[],2)));
-          ind_lslice = max(find(max(max(insideMask,[],1),[],2)));
+          ind_fslice = find(max(max(insideMask,[],1),[],2), 1, 'first');
+          ind_lslice = find(max(max(insideMask,[],1),[],2), 1, 'last');
         else
-          ind_fslice = min(find(~isnan(max(max(fun,[],1),[],2))));
-          ind_lslice = max(find(~isnan(max(max(fun,[],1),[],2))));
+          ind_fslice = find(~isnan(max(max(fun,[],1),[],2)), 1, 'first');
+          ind_lslice = find(~isnan(max(max(fun,[],1),[],2)), 1, 'last');
         end
       elseif hasana % if only ana, no fun
-        ind_fslice = min(find(max(max(ana,[],1),[],2)));
-        ind_lslice = max(find(max(max(ana,[],1),[],2)));
+        ind_fslice = find(max(max(ana,[],1),[],2), 1, 'first');
+        ind_lslice = find(max(max(ana,[],1),[],2), 1, 'last');
       else
-        error('no functional parameter and no anatomical parameter, can not plot');
+        ft_error('no functional parameter and no anatomical parameter, can not plot');
       end
     else
-      error('do not understand cfg.slicerange');
+      ft_error('do not understand cfg.slicerange');
     end
     ind_allslice = linspace(ind_fslice,ind_lslice,cfg.nslices);
     ind_allslice = round(ind_allslice);
     % make new ana, fun, msk, mskana with only the slices that will be plotted (slice dim is always third dimension)
-    if hasana; new_ana = ana(:,:,ind_allslice); clear ana; ana=new_ana; clear new_ana; end;
-    if hasfun; new_fun = fun(:,:,ind_allslice); clear fun; fun=new_fun; clear new_fun; end;
-    if hasmsk; new_msk = msk(:,:,ind_allslice); clear msk; msk=new_msk; clear new_msk; end;
-    % if hasmskana; new_mskana = mskana(:,:,ind_allslice); clear mskana; mskana=new_mskana; clear new_mskana; end;
+    if hasana; new_ana = ana(:,:,ind_allslice); clear ana; ana=new_ana; clear new_ana; end
+    if hasfun; new_fun = fun(:,:,ind_allslice); clear fun; fun=new_fun; clear new_fun; end
+    if hasmsk; new_msk = msk(:,:,ind_allslice); clear msk; msk=new_msk; clear new_msk; end
     
     % update the dimensions of the volume
-    if hasana; dim=size(ana); else dim=size(fun); end;
+    if hasana
+      dim=size(ana);
+    else
+      dim=size(fun);
+    end
     
     %%%%% make a "quilt", that contain all slices on 2D patched sheet
     % Number of patches along sides of Quilt (M and N)
@@ -792,24 +861,18 @@ switch cfg.method
       dim(end+1:3) = 1;
     end
     
-    %if cfg.slicedim~=3
-    %  error('only supported for slicedim=3');
-    %end
-    
-    
     m = dim(1);
     n = dim(2);
     M = ceil(sqrt(dim(3)));
     N = ceil(sqrt(dim(3)));
-    num_patch = N*M;
     
+    num_patch = N*M;
     num_slice = (dim(cfg.slicedim));
-    num_empt = num_patch-num_slice;
     % put empty slides on ana, fun, msk, mskana to fill Quilt up
-    if hasana; ana(:,:,end+1:num_patch)=0; end;
-    if hasfun; fun(:,:,end+1:num_patch)=0; end;
-    if hasmsk; msk(:,:,end+1:num_patch)=0; end;
-    % if hasmskana; mskana(:,:,end:num_patch)=0; end;
+    if hasana; ana(:,:,end+1:num_patch)=0; end
+    if hasfun; fun(:,:,end+1:num_patch)=0; end
+    if hasmsk; msk(:,:,end+1:num_patch)=0; end
+    % if hasmskana; mskana(:,:,end:num_patch)=0; end
     % put the slices in the quilt
     for iSlice = 1:num_slice
       xbeg = floor((iSlice-1)./M);
@@ -821,22 +884,19 @@ switch cfg.method
         quilt_fun(ybeg*m+1:(ybeg+1)*m, xbeg*n+1:(xbeg+1)*n)=fun(:,:,iSlice);
       end
       if hasmsk
-        quilt_msk(ybeg.*m+1:(ybeg+1)*m, xbeg*n+1:(xbeg+1)*n)=msk(:,:,iSlice);
+        quilt_msk(ybeg*m+1:(ybeg+1)*m, xbeg*n+1:(xbeg+1)*n)=msk(:,:,iSlice);
       end
-      %     if hasmskana
-      %       quilt_mskana(ybeg.*m+1:(ybeg+1).*m, xbeg.*n+1:(xbeg+1).*n)=mskana(:,:,iSlice);
-      %     end
     end
     % make vols and scales, containes volumes to be plotted (fun, ana, msk), added by ingnie
-    if hasana; vols2D{1} = quilt_ana; scales{1} = []; end; % needed when only plotting ana
-    if hasfun; vols2D{2} = quilt_fun; scales{2} = [fcolmin fcolmax]; end;
-    if hasmsk; vols2D{3} = quilt_msk; scales{3} = [opacmin opacmax]; end;
+    if hasana; vols2D{1} = quilt_ana; scales{1} = []; end % needed when only plotting ana
+    if hasfun; vols2D{2} = quilt_fun; scales{2} = [fcolmin fcolmax]; end
+    if hasmsk; vols2D{3} = quilt_msk; scales{3} = [opacmin opacmax]; end
     
     % the transpose is needed for displaying the matrix using the MATLAB image() function
-    if hasana;             ana = vols2D{1}'; end;
-    if hasfun && ~doimage; fun = vols2D{2}'; end;
-    if hasfun &&  doimage; fun = permute(vols2D{2},[2 1 3]); end;
-    if hasmsk;             msk = vols2D{3}'; end;
+    if hasana;             ana = vols2D{1}'; end
+    if hasfun && ~doimage; fun = vols2D{2}'; end
+    if hasfun &&  doimage; fun = permute(vols2D{2},[2 1 3]); end
+    if hasmsk;             msk = vols2D{3}'; end
     
     if hasana
       % scale anatomy between 0 and 1
@@ -882,11 +942,13 @@ switch cfg.method
     
     if istrue(cfg.colorbar)
       if hasfun
-        % use a normal MATLAB coorbar
+        % use a normal MATLAB colorbar
         hc = colorbar;
         set(hc, 'YLim', [fcolmin fcolmax]);
+        ylabel(hc, cfg.colorbartext);
       else
-        warning('no colorbar possible without functional data')
+        ft_warning('no colorbar possible without functional data');
+        cfg.colorbar = 'no'; % prevent the warning from apearing twice
       end
     end
     
@@ -896,7 +958,7 @@ switch cfg.method
     cfg.locationcoordinates = ft_getopt(cfg, 'locationcoordinates', 'head');
     cfg.crosshair           = ft_getopt(cfg, 'crosshair',           'yes');
     cfg.axis                = ft_getopt(cfg, 'axis',                'on');
-    cfg.queryrange          = ft_getopt(cfg, 'queryrange',          3);
+    cfg.queryrange          = ft_getopt(cfg, 'queryrange',          1);
     
     if ~ischar(cfg.location)
       if strcmp(cfg.locationcoordinates, 'head')
@@ -907,7 +969,7 @@ switch cfg.method
         % the location is already in voxel coordinates
         loc = round(cfg.location(1:3));
       else
-        error('you should specify cfg.locationcoordinates');
+        ft_error('you should specify cfg.locationcoordinates');
       end
     else
       if isequal(cfg.location, 'auto')
@@ -923,7 +985,7 @@ switch cfg.method
           end
         else
           loc = 'center';
-        end;
+        end
       else
         loc = cfg.location;
       end
@@ -932,13 +994,13 @@ switch cfg.method
     % determine the initial intersection of the cursor (xi yi zi)
     if ischar(loc) && strcmp(loc, 'min')
       if isempty(cfg.funparameter)
-        error('cfg.location is min, but no functional parameter specified');
+        ft_error('cfg.location is min, but no functional parameter specified');
       end
       [dummy, minindx] = min(fun(:));
       [xi, yi, zi] = ind2sub(dim, minindx);
     elseif ischar(loc) && strcmp(loc, 'max')
       if isempty(cfg.funparameter)
-        error('cfg.location is max, but no functional parameter specified');
+        ft_error('cfg.location is max, but no functional parameter specified');
       end
       [dummy, maxindx] = max(fun(:));
       [xi, yi, zi] = ind2sub(dim, maxindx);
@@ -951,6 +1013,10 @@ switch cfg.method
       xi = nearest(1:dim(1), loc(1));
       yi = nearest(1:dim(2), loc(2));
       zi = nearest(1:dim(3), loc(3));
+    end
+    
+    if numel(dim)<3
+      ft_error('the input source structure cannot be reshaped into a volumetric 3D representation');
     end
     
     xi = round(xi); xi = max(xi, 1); xi = min(xi, dim(1));
@@ -1000,10 +1066,7 @@ switch cfg.method
     set(h, 'windowbuttondownfcn', @cb_buttonpress);
     set(h, 'windowbuttonupfcn',   @cb_buttonrelease);
     set(h, 'windowkeypressfcn',   @cb_keyboard);
-    set(h, 'CloseRequestFcn',     @cb_cleanup);
-    
-    % ensure that this is done in interactive mode
-    set(h, 'renderer', cfg.renderer);
+    set(h, 'CloseRequestFcn',     @cb_quit);
     
     %% create figure handles
     
@@ -1023,18 +1086,25 @@ switch cfg.method
     % create structure to be passed to gui
     opt               = [];
     opt.dim           = dim;
+    opt.zoom          = 0;
     opt.ijk           = [xi yi zi];
     opt.h1size        = h1size;
     opt.h2size        = h2size;
     opt.h3size        = h3size;
     opt.handlesaxes   = [h1 h2 h3];
     opt.handlesfigure = h;
-    opt.axis          = cfg.axis;
+    opt.showaxis      = cfg.axis;
     if hasatlas
       opt.atlas = atlas;
     end
-    if hasana
+    if hasana && ~strcmp(cfg.maskstyle, 'colormix')
       opt.ana = ana;
+    elseif hasana && strcmp(cfg.maskstyle, 'colormix')
+      opt.background = ana;
+    elseif ~hasana && ~strcmp(cfg.maskstyle, 'colormix')
+      % nothing needed
+    elseif ~hasana && strcmp(cfg.maskstyle, 'colormix')
+      opt.background = zeros(size(fun));
     end
     if hasfun
       opt.fun = fun;
@@ -1051,7 +1121,8 @@ switch cfg.method
     opt.hastime       = hastime;
     opt.hasmsk        = hasmsk;
     opt.hasfun        = hasfun;
-    opt.hasana        = hasana;
+    opt.hasana        = isfield(opt, 'ana');
+    opt.hasbackground = isfield(opt, 'background');
     opt.qi            = qi;
     opt.tag           = 'ik';
     opt.functional    = functional;
@@ -1059,21 +1130,34 @@ switch cfg.method
     opt.fcolmax       = fcolmax;
     opt.opacmin       = opacmin;
     opt.opacmax       = opacmax;
-    opt.clim          = []; % contrast limits for the anatomy, see ft_volumenormalise
+    opt.clim          = cfg.clim; % contrast limits for the anatomy, see ft_volumenormalise
     opt.colorbar      = cfg.colorbar;
+    opt.colorbartext  = cfg.colorbartext;
     opt.queryrange    = cfg.queryrange;
     opt.funcolormap   = cfg.funcolormap;
     opt.crosshair     = istrue(cfg.crosshair);
+    opt.interactive   = istrue(cfg.interactive);
+    if ~isempty(cfg.intersectmesh)
+      if isstruct(cfg.intersectmesh)
+        tmp = cfg.intersectmesh;
+        cfg.intersectmesh = cell(size(tmp));
+        for i=1:numel(tmp)
+          cfg.intersectmesh{i} = tmp(i);
+        end
+      end
+      % the data will be plotted in voxel space, so transform the meshes
+      % accordingly, assuming the same coordinate system as the anatomical
+      for m = 1:numel(cfg.intersectmesh)
+        opt.intersectmesh{m} = ft_transform_geometry(inv(functional.transform), cfg.intersectmesh{m});
+      end
+    else
+      opt.intersectmesh = [];
+    end
     
     %% do the actual plotting
     setappdata(h, 'opt', opt);
     cb_redraw(h);
-    
-    fprintf('\n');
-    fprintf('click left mouse button to reposition the cursor\n');
-    fprintf('click and hold right mouse button to update the position while moving the mouse\n');
-    fprintf('use the arrowkeys to navigate in the current axis\n');
-    
+    cb_help(h);
     
   case 'surface'
     assert(~hastime, 'method "%s" does not support time', cfg.method);
@@ -1127,17 +1211,19 @@ switch cfg.method
         % ensure that the units are consistent, convert the units if required
         surf = ft_convert_units(surf, functional.unit);
       end
-      if isfield(functional, 'coordsys')
+      if isfield(functional, 'coordsys') && isfield(surf, 'coordsys')
         % ensure that the coordinate systems match
         functional = fixcoordsys(functional);
         surf       = fixcoordsys(surf);
         assert(isequal(functional.coordsys, surf.coordsys), 'coordinate systems do not match');
+      else
+        ft_notice('assuming that the coordinate systems match');
       end
       
       % downsample the cortical surface
       if cfg.surfdownsample > 1
         if ~isempty(cfg.surfinflated)
-          error('downsampling the surface is not possible in combination with an inflated surface');
+          ft_error('downsampling the surface is not possible in combination with an inflated surface');
         end
         fprintf('downsampling surface from %d vertices\n', size(surf.pos,1));
         [temp.tri, temp.pos] = reducepatch(surf.tri, surf.pos, 1/cfg.surfdownsample);
@@ -1151,6 +1237,7 @@ switch cfg.method
         if isfield(surf, 'curv'),       surf.curv       = surf.curv(idx);       end
         if isfield(surf, 'sulc'),       surf.sulc       = surf.sulc(idx);       end
         if isfield(surf, 'hemisphere'), surf.hemisphere = surf.hemisphere(idx); end
+        if isfield(surf, 'inside'),     surf.inside     = surf.inside(idx);     end
       end
       
       % these are required
@@ -1164,11 +1251,13 @@ switch cfg.method
       tmpcfg = [];
       tmpcfg.parameter = {cfg.funparameter};
       if ~isempty(cfg.maskparameter)
+        % it was specified by the user
         tmpcfg.parameter = [tmpcfg.parameter {cfg.maskparameter}];
         maskparameter    = cfg.maskparameter;
-      else
-        tmpcfg.parameter = [tmpcfg.parameter {'mask'}];
+      elseif hasmsk
+        % it was constructed on the fly
         functional.mask  = msk;
+        tmpcfg.parameter = [tmpcfg.parameter {'mask'}];
         maskparameter    = 'mask'; % temporary variable
       end
       tmpcfg.interpmethod = cfg.projmethod;
@@ -1183,7 +1272,7 @@ switch cfg.method
       if hasfun, val      = getsubfield(tmpdata, cfg.funparameter);  val     = val(:);     end
       if hasmsk, maskval  = getsubfield(tmpdata, maskparameter);     maskval = maskval(:); end
       
-      if ~isempty(cfg.projthresh),
+      if ~isempty(cfg.projthresh) && hasmsk
         maskval(abs(val) < cfg.projthresh*max(abs(val(:)))) = 0;
       end
       
@@ -1205,7 +1294,7 @@ switch cfg.method
         surf = ft_read_headshape(cfg.surfinflated);
       else
         surf = cfg.surfinflated;
-        if isfield(surf, 'transform'),
+        if isfield(surf, 'transform')
           % compute the surface vertices in head coordinates
           surf.pos = ft_warp_apply(surf.transform, surf.pos);
         end
@@ -1213,26 +1302,30 @@ switch cfg.method
     end
     
     %------do the plotting
-    ft_plot_mesh(surf,'edgecolor', cfg.edgecolor, 'facecolor', cfg.facecolor, 'vertexcolor', cfg.vertexcolor);
-    axis   off;
-    axis vis3d;
-    axis equal;
-    
-    if hasfun
-      if ~hasmsk || all(maskval(:)==1)
-        ft_plot_mesh(surf, 'edgecolor', cfg.edgecolor, 'facecolor', cfg.facecolor, 'vertexcolor', val);
-      elseif hasmsk
-        ft_plot_mesh(surf, 'edgecolor', cfg.edgecolor, 'facecolor', cfg.facecolor, 'vertexcolor', val, 'facealpha', maskval);
-        try
-          alim(gca, [opacmin opacmax]);
-        end
-        alphamap(cfg.opacitymap);
-      end
+    if ~hasfun
+      ft_plot_mesh(surf,'edgecolor', cfg.edgecolor, 'facecolor', cfg.facecolor, 'vertexcolor', cfg.vertexcolor);
       
-      try
-        caxis(gca,[fcolmin fcolmax]);
+    elseif hasfun
+      if ~hasmsk || all(maskval(:)==1)
+        ft_plot_mesh(surf,'edgecolor', cfg.edgecolor, 'facecolor', cfg.facecolor, 'vertexcolor', val, 'clim', [fcolmin fcolmax], 'colormap', cfg.funcolormap);
+        
+      elseif hasmsk
+        switch cfg.maskstyle
+          case 'opacity'
+            % this needs to be handled here, rather than in ft_plot_mesh,
+            % because the latter function needs to be called twice: once
+            % for drawing the background, with possibly a user-specified
+            % background color, and the second time for the functional data
+            ft_plot_mesh(surf, 'edgecolor', cfg.edgecolor, 'facecolor', cfg.facecolor, 'vertexcolor', cfg.vertexcolor);
+            ft_plot_mesh(surf, 'edgecolor', cfg.edgecolor, 'facecolor', cfg.facecolor, 'vertexcolor', val, 'facealpha', maskval, 'clim', [fcolmin fcolmax], 'alphalim', [opacmin opacmax], 'alphamap', cfg.opacitymap, 'colormap', cfg.funcolormap, 'maskstyle', 'opacity');
+            
+          case 'colormix'
+            % convert the specification of the background color + functional
+            % color + opacity into a single rgb value to speed up the rendering
+            ft_plot_mesh(surf, 'edgecolor', cfg.edgecolor, 'facecolor', cfg.facecolor, 'vertexcolor', val, 'facealpha', maskval, 'clim', [fcolmin fcolmax], 'alphalim', [opacmin opacmax], 'alphamap', cfg.opacitymap, 'colormap', cfg.funcolormap, 'maskstyle', 'colormix');
+            
+        end
       end
-      colormap(cfg.funcolormap);
     end
     
     lighting gouraud
@@ -1245,9 +1338,16 @@ switch cfg.method
       if hasfun
         % use a normal MATLAB colorbar
         hc = colorbar;
-        set(hc, 'YLim', [fcolmin fcolmax]);
+        if strcmp(cfg.maskstyle, 'opacity')
+          % functional values are according to original input values
+          set(hc, 'YLim', [fcolmin fcolmax]);
+          ylabel(hc, cfg.colorbartext);
+        else
+          % functional values have been transformed to be scaled
+        end
       else
-        warning('no colorbar possible without functional data')
+        ft_warning('no colorbar possible without functional data');
+        cfg.colorbar = 'no'; % prevent the warning from apearing twice
       end
     end
     
@@ -1259,7 +1359,7 @@ switch cfg.method
     % structure. The functional volume is replaced by a volume in which the maxima
     % are projected to the "edge" of the volume.
     
-    tmpfunctional = keepfields(functional, {'dim', 'transform'});
+    tmpfunctional = keepfields(functional, {'dim', 'transform', 'unit', 'coordsys'});
     
     if hasfun
       if isfield(functional, 'inside')
@@ -1281,10 +1381,11 @@ switch cfg.method
       tmpfunctional.(cfg.anaparameter) = ana;
     end
     
-    tmpcfg                      = keepfields(cfg, {'anaparameter', 'funparameter', 'funcolorlim', 'funcolormap', 'opacitylim', 'axis', 'renderer', 'showcallinfo'});
+    tmpcfg                      = keepfields(cfg, {'anaparameter', 'funparameter', 'funcolorlim', 'funcolormap', 'opacitylim', 'axis', 'renderer', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
     tmpcfg.method               = 'ortho';
     tmpcfg.location             = [1 1 1];
     tmpcfg.locationcoordinates  = 'voxel';
+    tmpcfg.interactive          = 'no';
     ft_sourceplot(tmpcfg, tmpfunctional);
     
   case 'vertex'
@@ -1308,7 +1409,7 @@ switch cfg.method
     % scale the functional data between -30 and 30
     fun = 30*fun/max(abs(fun(:)));
     if any(fun<=0)
-      warning('using red for positive and blue for negative functional values')
+      ft_warning('using red for positive and blue for negative functional values')
       col = zeros(numel(fun), 3); % RGB
       col(fun>0,1) = 1;  % red
       col(fun<0,3) = 1;  % blue
@@ -1327,16 +1428,16 @@ switch cfg.method
     
     % some defaults depend on the geometrical units
     scale = ft_scalingfactor('mm', functional.unit);
+    
     % set the defaults for method=cloud
-    cfg.radius             = ft_getopt(cfg, 'radius', 4*scale);
-    cfg.rmin               = ft_getopt(cfg, 'rmin', 1*scale);
+    cfg.cloudtype          = ft_getopt(cfg, 'cloudtype', 'cloud');
     cfg.scalerad           = ft_getopt(cfg, 'scalerad', 'yes');
     cfg.ptsize             = ft_getopt(cfg, 'ptsize', 1);
     cfg.ptdensity          = ft_getopt(cfg, 'ptdensity', 20);
     cfg.ptgradient         = ft_getopt(cfg, 'ptgradient', .5);
     cfg.colorgrad          = ft_getopt(cfg, 'colorgrad', 'white');
+    cfg.marker             = ft_getopt(cfg, 'marker', '.');
     cfg.slice              = ft_getopt(cfg, 'slice', 'none');
-    cfg.slicetype          = ft_getopt(cfg, 'slicetype', 'point');
     cfg.ori                = ft_getopt(cfg, 'ori', 'y');
     cfg.slicepos           = ft_getopt(cfg, 'slicepos', 'auto');
     cfg.nslices            = ft_getopt(cfg, 'nslices', 1);
@@ -1350,6 +1451,7 @@ switch cfg.method
     cfg.edgecolor          = ft_getopt(cfg, 'edgecolor', 'none');
     cfg.facealpha          = ft_getopt(cfg, 'facealpha', 1);
     cfg.edgealpha          = ft_getopt(cfg, 'edgealpha', 0);
+    cfg.vertexcolor        = ft_getopt(cfg, 'vertexcolor', 'curv'); % curvature-dependent mix of cortex_light and cortex_dark
     if ~hasanatomical; anatomical = {}; end
     
     if isUnstructuredFun
@@ -1366,40 +1468,95 @@ switch cfg.method
       end
     end
     
-    ft_plot_cloud(pos, fun, 'mesh', anatomical,...
-      'radius', cfg.radius, 'rmin', cfg.rmin, 'scalerad', cfg.scalerad, ...
-      'ptsize', cfg.ptsize, 'ptdensity', cfg.ptdensity, 'ptgradient', cfg.ptgradient,...
-      'colorgrad', cfg.colorgrad, 'colormap', cfg.funcolormap, 'clim', [fcolmin fcolmax], ...
-      'unit', functional.unit, 'slice', cfg.slice, 'slicetype', cfg.slicetype, ...
-      'ori', cfg.ori, 'slicepos', cfg.slicepos, 'nslices', cfg.nslices, 'minspace', cfg.minspace,...
-      'intersectcolor', cfg.intersectcolor, 'intersectlinestyle', cfg.intersectlinestyle, ...
-      'intersectlinewidth', cfg.intersectlinewidth, 'ncirc', cfg.ncirc, ...
-      'scalealpha', cfg.scalealpha, 'facecolor', cfg.facecolor, 'edgecolor', cfg.edgecolor,...
-      'facealpha', cfg.facealpha, 'edgealpha', cfg.edgealpha);
-    
-    if istrue(cfg.colorbar) && ~strcmp(cfg.slice, '2d')
-      colorbar;
-    else % position the colorbar so that it does not change the axis of the last subplot
-      subplotpos = get(subplot(cfg.nslices,1,cfg.nslices), 'Position'); % position of the bottom or rightmost subplot
-      colorbar('Position', [subplotpos(1)+subplotpos(3)+0.01 subplotpos(2) .05 subplotpos(2)+subplotpos(4)*(cfg.nslices+.1)]);
+    if strcmp(cfg.cloudtype, 'cloud') || strcmp(cfg.cloudtype, 'surf')
+      % set the defaults for cloudtype=cloud & cloudtype=surf
+      cfg.radius = ft_getopt(cfg, 'radius', 4*scale);
+      cfg.rmin   = ft_getopt(cfg, 'rmin', 1*scale);
+      
+      ft_plot_cloud(pos, fun, 'mesh', anatomical,...
+        'radius', cfg.radius, 'rmin', cfg.rmin, 'scalerad', cfg.scalerad, ...
+        'ptsize', cfg.ptsize, 'ptdensity', cfg.ptdensity, 'ptgradient', cfg.ptgradient,...
+        'colorgrad', cfg.colorgrad, 'colormap', cfg.funcolormap, 'clim', [fcolmin fcolmax], ...
+        'unit', functional.unit, 'slice', cfg.slice, 'cloudtype', cfg.cloudtype, ...
+        'ori', cfg.ori, 'slicepos', cfg.slicepos, 'nslices', cfg.nslices, 'minspace', cfg.minspace,...
+        'intersectcolor', cfg.intersectcolor, 'intersectlinestyle', cfg.intersectlinestyle, ...
+        'intersectlinewidth', cfg.intersectlinewidth, 'ncirc', cfg.ncirc, ...
+        'scalealpha', cfg.scalealpha, 'facecolor', cfg.facecolor, 'edgecolor', cfg.edgecolor,...
+        'facealpha', cfg.facealpha, 'edgealpha', cfg.edgealpha, 'marker', cfg.marker,...
+        'vertexcolor', cfg.vertexcolor);
+      
+    elseif strcmp(cfg.cloudtype, 'point')
+      if strcmp(cfg.slice, '2d') || strcmp(cfg.slice, '3d')
+        error('slices are not supported for cloudtype=''point''')
+      end
+      
+      % set the defaults for cloudtype=point
+      cfg.radius = ft_getopt(cfg, 'radius', 40*scale);
+      cfg.rmin   = ft_getopt(cfg, 'rmin', 10*scale);
+      
+      % functional scaling
+      cmap    = cfg.funcolormap;
+      cmid    = size(cmap,1)/2;                            % colorbar middle
+      clim    = [fcolmin fcolmax];                         % color limits
+      colscf  = 2*( (fun-clim(1)) / (clim(2)-clim(1)) )-1; % color between -1 and 1, bottom vs. top colorbar
+      colscf(colscf>1)=1; colscf(colscf<-1)=-1;            % clip values outside the [-1 1] range
+      radscf  = fun-(min(abs(fun)) * sign(max(fun)));      % radius between 0 and 1, small vs. large pos/neg effect
+      radscf  = abs( radscf / max(abs(radscf)) );
+      
+      if strcmp(cfg.scalerad, 'yes')
+        rmax = cfg.rmin+(cfg.radius-cfg.rmin)*radscf; % maximum radius of the clouds
+      else
+        rmax = ones(length(pos), 1)*cfg.radius; % each cloud has the same radius
+      end
+      
+      % plot functional
+      for n = 1:size(pos,1) % sensor loop
+        indx  = ceil(cmid) + sign(colscf(n))*floor(abs(colscf(n)*cmid));
+        indx  = max(min(indx,size(cmap,1)),1);  % index should fall within the colormap
+        fcol  = cmap(indx,:);                   % color [Nx3]
+        hold on; plot3(pos(n,1), pos(n,2), pos(n,3), 'Marker', cfg.marker, 'MarkerSize', rmax(n), 'Color', fcol, 'Linestyle', 'none');
+      end
+      
+      % plot anatomical
+      if hasanatomical
+        ft_plot_mesh(anatomical, 'facecolor', cfg.facecolor, 'EdgeColor', cfg.edgecolor, 'facealpha', cfg.facealpha, 'edgealpha', cfg.edgealpha, 'vertexcolor', cfg.vertexcolor);
+        material dull
+      end
+      
+      % color settings
+      ft_colormap(cmap);
+      if ~isempty(clim) && clim(2)>clim(1)
+        caxis(gca, clim);
+      end
     end
     
+    if istrue(cfg.colorbar)
+      if ~strcmp(cfg.slice, '2d')
+        c = colorbar;
+      else % position the colorbar so that it does not change the axis of the last subplot
+        subplotpos = get(subplot(cfg.nslices,1,cfg.nslices), 'Position'); % position of the bottom or rightmost subplot
+        c = colorbar('Position', [subplotpos(1)+subplotpos(3)+0.01 subplotpos(2) .03 subplotpos(2)+subplotpos(4)*(cfg.nslices+.1)]);
+      end
+      ylabel(c, cfg.colorbartext);
+    end
     
   otherwise
-    error('unsupported method "%s"', cfg.method);
+    ft_error('unsupported method "%s"', cfg.method);
 end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous functional
 ft_postamble provenance
+ft_postamble savefig
 
-% add a menu to the figure
-% also, delete any possibly existing previous menu, this is safe because delete([]) does nothing
-ftmenu = uimenu(gcf, 'Label', 'FieldTrip');
-uimenu(ftmenu, 'Label', 'Show pipeline',  'Callback', {@menu_pipeline, cfg});
-uimenu(ftmenu, 'Label', 'About',  'Callback', @menu_about);
+% add a menu to the figure, the subplots are well-controlled in this case
+menu_fieldtrip(gcf, cfg, true);
+
+if ~ft_nargout
+  % don't return anything
+  clear cfg
+end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1410,7 +1567,12 @@ function cb_redraw(h, eventdata)
 h   = getparent(h);
 opt = getappdata(h, 'opt');
 
-curr_ax = get(h,       'currentaxes');
+if ~opt.interactive && ~opt.init
+  % this applies with method=glassbrain when calling cb_redraw for the 2nd time
+  return
+end
+
+curr_ax = get(h, 'currentaxes');
 tag = get(curr_ax, 'tag');
 
 functional = opt.functional;
@@ -1424,7 +1586,8 @@ yi = opt.ijk(2);
 zi = opt.ijk(3);
 qi = opt.qi;
 
-if any([xi yi zi] > functional.dim) || any([xi yi zi] <= 0)
+if any([xi yi zi] > functional.dim(1:3)) || any([xi yi zi] < 1)
+  % do not redraw the functional data when the user clicked outside the volume
   return;
 end
 
@@ -1437,29 +1600,40 @@ elseif opt.usepos
 end
 opt.ijk = opt.ijk(1:3);
 
-% construct a string with user feedback
-str1 = sprintf('voxel %d, indices [%d %d %d]', sub2ind(functional.dim(1:3), xi, yi, zi), opt.ijk);
+% construct a number of strings that will be shown in the lower right panel
+str0 = sprintf('voxel number %d', sub2ind(functional.dim(1:3), xi, yi, zi));
+str1 = sprintf('voxel indices [%d %d %d]', opt.ijk);
 
-if isfield(functional, 'coordsys') && isfield(functional, 'unit')
-  str2 = sprintf('%s coordinates [%.1f %.1f %.1f] %s', functional.coordsys, xyz(1:3), functional.unit);
-elseif ~isfield(functional, 'coordsys') && isfield(functional, 'unit')
-  str2 = sprintf('location [%.1f %.1f %.1f] %s', xyz(1:3), functional.unit);
-elseif isfield(functional, 'coordsys') && ~isfield(functional, 'unit')
-  str2 = sprintf('%s coordinates [%.1f %.1f %.1f]', functional.coordsys, xyz(1:3));
-elseif ~isfield(functional, 'coordsys') && ~isfield(functional, 'unit')
-  str2 = sprintf('location [%.1f %.1f %.1f]', xyz(1:3));
+if isfield(functional, 'unit')
+  if isfield(functional, 'coordsys') && ~isempty(functional.coordsys) && ~isequal(functional.coordsys, 'unknown')
+    switch functional.unit
+      case 'm'
+        str2 = sprintf('location in %s coordinates : [%.3f %.3f %.3f] m', functional.coordsys, xyz(1:3));
+      case 'cm'
+        str2 = sprintf('location in %s coordinates : [%.1f %.1f %.1f] cm', functional.coordsys, xyz(1:3));
+      case 'mm'
+        str2 = sprintf('location in %s coordinates : [%.0f %.0f %.0f] mm', functional.coordsys, xyz(1:3));
+      otherwise
+        str2 = sprintf('location in %s coordinates : [%f %f %f] %s', functional.coordsys, xyz(1:3), functional.unit);
+    end
+  else
+    switch functional.unit
+      case 'm'
+        str2 = sprintf('location : [%.3f %.3f %.3f] m', xyz(1:3));
+      case 'cm'
+        str2 = sprintf('location : [%.1f %.1f %.1f] cm', xyz(1:3));
+      case 'mm'
+        str2 = sprintf('location : [%.0f %.0f %.0f] mm', xyz(1:3));
+      otherwise
+        str2 = sprintf('location : [%f %f %f] %s', xyz(1:3), functional.unit);
+    end
+  end
 else
-  str2 = '';
-end
-
-if opt.hasfreq && opt.hastime
-  str3 = sprintf('%.1f s, %.1f Hz', functional.time(opt.qi(2)), functional.freq(opt.qi(1)));
-elseif ~opt.hasfreq && opt.hastime
-  str3 = sprintf('%.1f s', functional.time(opt.qi(1)));
-elseif opt.hasfreq && ~opt.hastime
-  str3 = sprintf('%.1f Hz', functional.freq(opt.qi(1)));
-else
-  str3 = '';
+  if isfield(functional, 'coordsys') && ~isempty(functional.coordsys) && ~isequal(functional.coordsys, 'unknown')
+    str2 = sprintf('location in %s coordinates : [%f %f %f]', functional.coordsys, xyz(1:3));
+  else
+    str2 = sprintf('location : [%f %f %f]', xyz(1:3));
+  end
 end
 
 if opt.hasfun
@@ -1472,36 +1646,57 @@ if opt.hasfun
   elseif opt.hasfreq && opt.hastime
     val = opt.fun(xi, yi, zi, opt.qi(1), opt.qi(2));
   end
-  str4 = sprintf('value %f', val);
+  str3 = sprintf('value %f', val);
+else
+  str3 = '';
+end
+
+if opt.hasfreq && opt.hastime
+  str4 = sprintf('%.1f s, %.1f Hz', functional.time(opt.qi(2)), functional.freq(opt.qi(1)));
+elseif ~opt.hasfreq && opt.hastime
+  str4 = sprintf('%.1f s', functional.time(opt.qi(1)));
+elseif opt.hasfreq && ~opt.hastime
+  str4 = sprintf('%.1f Hz', functional.freq(opt.qi(1)));
 else
   str4 = '';
 end
 
-%fprintf('%s %s %s %s\n', str1, str2, str3, str4);
-
 if opt.hasatlas
-  %tmp = [opt.ijk(:)' 1] * opt.atlas.transform; % atlas and functional might have different transformation matrices, so xyz cannot be used here anymore
   % determine the anatomical label of the current position
-  lab = atlas_lookup(opt.atlas, (xyz(1:3)), 'inputcoord', functional.coordsys, 'queryrange', opt.queryrange);
+  lab = atlas_lookup(opt.atlas, (xyz(1:3)), 'coordsys', functional.coordsys, 'queryrange', opt.queryrange);
   if isempty(lab)
-    lab = 'NA';
-    %fprintf('atlas labels: not found\n');
+    str5 = sprintf('atlas label: n/a');
   else
+    lab = unique(lab);
     tmp = sprintf('%s', strrep(lab{1}, '_', ' '));
     for i=2:length(lab)
       tmp = [tmp sprintf(', %s', strrep(lab{i}, '_', ' '))];
     end
-    lab = tmp;
+    str5 = sprintf('atlas label: %s', tmp);
   end
 else
-  lab = 'NA';
+  str5 = '';
 end
 
-
 if opt.hasana
+  plotopt = {};
+  plotopt = ft_setopt(plotopt, 'transform', eye(4)); % use an identity transform
+  plotopt = ft_setopt(plotopt, 'location', opt.ijk); % the position is expressed in voxels
+  plotopt = ft_setopt(plotopt, 'style', 'subplot');
+  plotopt = ft_setopt(plotopt, 'update', opt.update);
+  plotopt = ft_setopt(plotopt, 'doscale', false);
+  plotopt = ft_setopt(plotopt, 'clim', opt.clim);
+  plotopt = ft_setopt(plotopt, 'intersectmesh', opt.intersectmesh);
+
+  if isfield(functional, 'coordsys')
+    % determine the coordsys that matches the volume with an (approximate) identity transform
+    dum = align_xyz2ijk(functional);
+    plotopt = ft_setopt(plotopt, 'coordsys', dum.coordsys);
+  end
+
   if opt.init
-    tmph  = [h1 h2 h3];
-    ft_plot_ortho(opt.ana, 'transform', eye(4), 'location', opt.ijk, 'style', 'subplot', 'parents', tmph, 'update', opt.update, 'doscale', false, 'clim', opt.clim);
+    plotopt = ft_setopt(plotopt, 'parents', [h1 h2 h3]);
+    ft_plot_ortho(opt.ana, plotopt{:});
     
     opt.anahandles = findobj(opt.handlesfigure, 'type', 'surface')';
     for i=1:length(opt.anahandles)
@@ -1511,28 +1706,62 @@ if opt.hasana
     opt.anahandles = opt.anahandles(i3(i2)); % seems like swapping the order
     opt.anahandles = opt.anahandles(:)';
     set(opt.anahandles, 'tag', 'ana');
+    if ~isempty(opt.intersectmesh)
+      opt.patchhandles = findobj(opt.handlesfigure, 'type', 'patch');
+      opt.patchhandles = opt.patchhandles(i3(i2));
+      opt.patchhandles = opt.patchhandles(:)';
+      set(opt.patchhandles, 'tag', 'patch');
+    end
   else
-    ft_plot_ortho(opt.ana, 'transform', eye(4), 'location', opt.ijk, 'style', 'subplot', 'surfhandle', opt.anahandles, 'update', opt.update, 'doscale', false, 'clim', opt.clim);
+    plotopt = cat(2, plotopt, {'surfhandle', opt.anahandles});
+    if ~isempty(opt.intersectmesh)
+      plotopt = cat(2, plotopt, {'patchhandle', opt.patchhandles});
+    end
+    ft_plot_ortho(opt.ana, plotopt{:});
   end
 end
 
 if opt.hasfun
+  plotopt = {};
+  plotopt = ft_setopt(plotopt, 'transform', eye(4));
+  plotopt = ft_setopt(plotopt, 'location', opt.ijk);
+  plotopt = ft_setopt(plotopt, 'style', 'subplot');
+  plotopt = ft_setopt(plotopt, 'update', opt.update);
+  plotopt = ft_setopt(plotopt, 'clim', [opt.fcolmin opt.fcolmax]);
+  plotopt = ft_setopt(plotopt, 'colormap', opt.funcolormap);
+  plotopt = ft_setopt(plotopt, 'intersectmesh', opt.intersectmesh);
+
   if opt.init
-    if opt.hasmsk
-      tmpqi = [opt.qi 1];
-      tmph  = [h1 h2 h3];
-      ft_plot_ortho(opt.fun(:,:,:,tmpqi(1),tmpqi(2)), 'datmask', opt.msk(:,:,:,tmpqi(1),tmpqi(2)), 'transform', eye(4), 'location', opt.ijk, ...
-        'style', 'subplot', 'parents', tmph, 'update', opt.update, ...
-        'colormap', opt.funcolormap, 'clim', [opt.fcolmin opt.fcolmax], ...
-        'opacitylim', [opt.opacmin opt.opacmax]);
-      
+    if isequal(opt.funcolormap, 'rgb')
+      tmpfun = opt.fun;
+      if opt.hasmsk
+        tmpmask = opt.msk;
+      end
     else
-      tmpqi = [opt.qi 1];
-      tmph  = [h1 h2 h3];
-      ft_plot_ortho(opt.fun(:,:,:,tmpqi(1),tmpqi(2)), 'transform', eye(4), 'location', opt.ijk, ...
-        'style', 'subplot', 'parents', tmph, 'update', opt.update, ...
-        'colormap', opt.funcolormap, 'clim', [opt.fcolmin opt.fcolmax]);
+      tmpqi  = [opt.qi 1];
+      tmpfun = opt.fun(:,:,:,tmpqi(1),tmpqi(2));
+      if opt.hasmsk
+        tmpmask = opt.msk(:,:,:,tmpqi(1),tmpqi(2));
+      end
     end
+    
+    if opt.hasmsk
+      plotopt = ft_setopt(plotopt, 'datmask', tmpmask);
+      plotopt = ft_setopt(plotopt, 'opacitylim', [opt.opacmin opt.opacmax]);
+    elseif opt.hasbackground
+      % there's a background, in the absence of the mask, the fun should be plotted with an opacity value of 0.5
+      plotopt = ft_setopt(plotopt, 'datmask', ones(size(tmpfun))./2);
+      plotopt = ft_setopt(plotopt, 'opacitylim', [0 1]);
+    end
+    if opt.hasbackground
+      % the background should always be added, independent of the mask
+      plotopt = ft_setopt(plotopt, 'background', opt.background);
+      plotopt = ft_setopt(plotopt, 'maskstyle', 'colormix');
+    end
+
+    plotopt = ft_setopt(plotopt, 'parents', [h1 h2 h3]);
+    ft_plot_ortho(tmpfun, plotopt{:});
+
     % After the first call, the handles to the functional surfaces exist.
     % Create a variable containing these, and sort according to the parents.
     opt.funhandles = findobj(opt.handlesfigure, 'type', 'surface');
@@ -1547,39 +1776,95 @@ if opt.hasfun
     set(opt.funhandles, 'tag', 'fun');
     
     if ~opt.hasmsk && opt.hasfun && opt.hasana
-      set(opt.funhandles(1), 'facealpha',0.5);
-      set(opt.funhandles(2), 'facealpha',0.5);
-      set(opt.funhandles(3), 'facealpha',0.5);
+      set(opt.funhandles(1), 'facealpha', 0.5);
+      set(opt.funhandles(2), 'facealpha', 0.5);
+      set(opt.funhandles(3), 'facealpha', 0.5);
     end
-    
+
   else
-    if opt.hasmsk
-      tmpqi = [opt.qi 1];
-      tmph  = opt.funhandles;
-      ft_plot_ortho(opt.fun(:,:,:,tmpqi(1),tmpqi(2)), 'datmask', opt.msk(:,:,:,tmpqi(1),tmpqi(2)), 'transform', eye(4), 'location', opt.ijk, ...
-        'style', 'subplot', 'surfhandle', tmph, 'update', opt.update, ...
-        'colormap', opt.funcolormap, 'clim', [opt.fcolmin opt.fcolmax], ...
-        'opacitylim', [opt.opacmin opt.opacmax]);
+    if isequal(opt.funcolormap, 'rgb')
+      tmpfun = opt.fun;
+      if opt.hasmsk
+        tmpmask = opt.msk;
+      end
     else
-      tmpqi = [opt.qi 1];
-      tmph  = opt.funhandles;
-      ft_plot_ortho(opt.fun(:,:,:,tmpqi(1),tmpqi(2)), 'transform', eye(4), 'location', opt.ijk, ...
-        'style', 'subplot', 'surfhandle', tmph, 'update', opt.update, ...
-        'colormap', opt.funcolormap, 'clim', [opt.fcolmin opt.fcolmax]);
+      tmpqi  = [opt.qi 1];
+      tmpfun = opt.fun(:,:,:,tmpqi(1),tmpqi(2));
+      if opt.hasmsk
+        tmpmask = opt.msk(:,:,:,tmpqi(1),tmpqi(2));
+      end
+    end
+
+    if opt.hasmsk
+      plotopt = ft_setopt(plotopt, 'datmask', tmpmask);
+      plotopt = ft_setopt(plotopt, 'opacitylim', [opt.opacmin opt.opacmax]);
+    elseif opt.hasbackground
+      % there's a background, in the absence of the mask, the fun should be plotted with an opacity value of 0.5
+      plotopt = ft_setopt(plotopt, 'datmask', ones(size(tmpfun))./2);
+      plotopt = ft_setopt(plotopt, 'opacitylim', [0 1]);
+    end
+    if opt.hasbackground
+      % the background should always be added, independent of the mask
+      plotopt = ft_setopt(plotopt, 'background', opt.background);
+      plotopt = ft_setopt(plotopt, 'maskstyle', 'colormix');
+    end
+
+    plotopt = ft_setopt(plotopt, 'surfhandle', opt.funhandles);
+    ft_plot_ortho(tmpfun, plotopt{:});
+
+    if ~opt.hasmsk && opt.hasfun && opt.hasana
+      set(opt.funhandles(1), 'facealpha', 0.5);
+      set(opt.funhandles(2), 'facealpha', 0.5);
+      set(opt.funhandles(3), 'facealpha', 0.5);
     end
   end
 end
-set(opt.handlesaxes(1), 'Visible',opt.axis);
-set(opt.handlesaxes(2), 'Visible',opt.axis);
-set(opt.handlesaxes(3), 'Visible',opt.axis);
+
+% zoom 
+limits = [0.5 opt.dim(1)+0.5 0.5 opt.dim(2)+0.5 0.5 opt.dim(3)+0.5];
+xloadj = ((xi-limits(1))-(xi-limits(1))*opt.zoom);
+xhiadj = ((limits(2)-xi)-(limits(2)-xi)*opt.zoom);
+yloadj = ((yi-limits(3))-(yi-limits(3))*opt.zoom);
+yhiadj = ((limits(4)-yi)-(limits(4)-yi)*opt.zoom);
+zloadj = ((zi-limits(5))-(zi-limits(5))*opt.zoom);
+zhiadj = ((limits(6)-zi)-(limits(6)-zi)*opt.zoom);
+axis(h1, [xi-xloadj xi+xhiadj yi-yloadj yi+yhiadj zi-zloadj zi+zhiadj]);
+axis(h2, [xi-xloadj xi+xhiadj yi-yloadj yi+yhiadj zi-zloadj zi+zhiadj]);
+axis(h3, [xi-xloadj xi+xhiadj yi-yloadj yi+yhiadj]);
+
+if opt.zoom>0
+  % the coordsys labels fall outside the subplots when zoomed in
+  delete(findall(h, 'Type', 'text', 'Tag', 'coordsyslabel_x'));
+  delete(findall(h, 'Type', 'text', 'Tag', 'coordsyslabel_y'));
+  delete(findall(h, 'Type', 'text', 'Tag', 'coordsyslabel_z'));
+end
+
+if opt.crosshair
+  if opt.init
+    hch1 = ft_plot_crosshair([xi        yi-yloadj zi], 'parent', h1); % was [xi 1 zi], now corrected for zoom
+    hch2 = ft_plot_crosshair([xi+xhiadj yi        zi], 'parent', h2); % was [opt.dim(1) yi zi], now corrected for zoom
+    hch3 = ft_plot_crosshair([xi        yi        zi], 'parent', h3); % was [xi yi opt.dim(3)], now corrected for zoom
+    opt.handlescross  = [hch1(:)';hch2(:)';hch3(:)'];
+  else
+  ft_plot_crosshair([xi        yi-yloadj zi], 'handle', opt.handlescross(1, :));
+  ft_plot_crosshair([xi+xhiadj yi        zi], 'handle', opt.handlescross(2, :));
+  ft_plot_crosshair([xi        yi        zi], 'handle', opt.handlescross(3, :));
+  end
+end
+
+set(opt.handlesaxes(1), 'Visible', opt.showaxis);
+set(opt.handlesaxes(2), 'Visible', opt.showaxis);
+set(opt.handlesaxes(3), 'Visible', opt.showaxis);
 
 if opt.hasfreq && opt.hastime && opt.hasfun
   h4 = subplot(2,2,4);
   tmpdat = double(shiftdim(opt.fun(xi,yi,zi,:,:),3));
+  % uimagesc is in external/fileexchange
+  ft_hastoolbox('fileexchange', 1);
   uimagesc(double(functional.time), double(functional.freq), tmpdat); axis xy;
   xlabel('time'); ylabel('freq');
   set(h4, 'tag', 'TF1');
-  caxis([opt.fcolmin opt.fcolmax]);
+  clim([opt.fcolmin opt.fcolmax]);
 elseif opt.hasfreq && opt.hasfun
   h4 = subplot(2,2,4);
   plot(functional.freq, shiftdim(opt.fun(xi,yi,zi,:),3)); xlabel('freq');
@@ -1592,38 +1877,42 @@ elseif opt.hastime && opt.hasfun
 elseif strcmp(opt.colorbar,  'yes') && ~isfield(opt, 'hc')
   if opt.hasfun
     % vectorcolorbar = linspace(fscolmin, fcolmax,length(cfg.funcolormap));
-    % imagesc(vectorcolorbar,1,vectorcolorbar);colormap(cfg.funcolormap);
+    % imagesc(vectorcolorbar,1,vectorcolorbar);ft_colormap(cfg.funcolormap);
     % use a normal MATLAB colorbar, attach it to the invisible 4th subplot
     try
-      caxis([opt.fcolmin opt.fcolmax]);
+      clim([opt.fcolmin opt.fcolmax]);
     end
+    
     opt.hc = colorbar;
     set(opt.hc, 'location', 'southoutside');
     set(opt.hc, 'position',[0.06+0.06+opt.h1size(1) 0.06-0.06+opt.h3size(2) opt.h2size(1) 0.06]);
-    
+    ylabel(opt.hc, opt.colorbartext);
     try
       set(opt.hc, 'XLim', [opt.fcolmin opt.fcolmax]);
     end
   else
     ft_warning('no colorbar possible without functional data');
+    opt.colorbar = 'no'; % prevent the warning from apearing twice
   end
 end
 
 if ~((opt.hasfreq && numel(functional.freq)>1) || opt.hastime)
+  ht = subplot('position',[0.06+0.06+opt.h1size(1) 0.06 opt.h2size(1) opt.h3size(2)]);
+  set(ht, 'visible', 'off');
   if opt.init
-    ht = subplot('position',[0.06+0.06+opt.h1size(1) 0.06 opt.h2size(1) opt.h3size(2)]);
-    set(ht, 'visible', 'off');
-    opt.ht1=text(0,0.6,str1);
-    opt.ht2=text(0,0.5,str2);
-    opt.ht3=text(0,0.4,str4);
-    opt.ht4=text(0,0.3,str3);
-    opt.ht5=text(0,0.2,['atlas label: ' lab]);
+    opt.ht0 = text(ht, 0, 0.7, str0);
+    opt.ht1 = text(ht, 0, 0.6, str1);
+    opt.ht2 = text(ht, 0, 0.5, str2);
+    opt.ht3 = text(ht, 0, 0.4, str3);
+    opt.ht4 = text(ht, 0, 0.3, str4);
+    opt.ht5 = text(ht, 0, 0.2, str5);
   else
-    set(opt.ht1, 'string',str1);
-    set(opt.ht2, 'string',str2);
-    set(opt.ht3, 'string',str4);
-    set(opt.ht4, 'string',str3);
-    set(opt.ht5, 'string',['atlas label: ' lab]);
+    set(opt.ht0, 'String', str0);
+    set(opt.ht1, 'String', str1);
+    set(opt.ht2, 'String', str2);
+    set(opt.ht3, 'String', str3);
+    set(opt.ht4, 'String', str4);
+    set(opt.ht5, 'String', str5);
   end
 end
 
@@ -1631,18 +1920,6 @@ end
 sel = findobj('type', 'axes', 'tag',tag);
 if ~isempty(sel)
   set(opt.handlesfigure, 'currentaxes', sel(1));
-end
-if opt.crosshair
-  if opt.init
-    hch1 = crosshair([xi 1 zi], 'parent', opt.handlesaxes(1));
-    hch3 = crosshair([xi yi opt.dim(3)], 'parent', opt.handlesaxes(3));
-    hch2 = crosshair([opt.dim(1) yi zi], 'parent', opt.handlesaxes(2));
-    opt.handlescross  = [hch1(:)';hch2(:)';hch3(:)'];
-  else
-    crosshair([xi 1 zi], 'handle', opt.handlescross(1, :));
-    crosshair([opt.dim(1) yi zi], 'handle', opt.handlescross(2, :));
-    crosshair([xi yi opt.dim(3)], 'handle', opt.handlescross(3, :));
-  end
 end
 
 if opt.init
@@ -1655,6 +1932,26 @@ set(h, 'currentaxes', curr_ax);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function cb_help(h, eventdata)
+
+h   = getparent(h);
+opt = getappdata(h, 'opt');
+
+if opt.interactive
+  fprintf('\n');
+  fprintf('==================================================================================\n');
+  fprintf('Press "h" to show this help.\n');
+  fprintf('Press "1", "2", or "3" to switch to the corresponding subplot.\n');
+  fprintf('Press "PageUp" and "PageDown" to zoom in or out.\n');
+  fprintf('Press "+" and "-" to increase or decrease the brightness.\n');
+  fprintf('Use the arrow keys to navigate in the current axis.\n');
+  fprintf('Click left mouse button to reposition the cursor.\n');
+  fprintf('Click and hold right mouse button to update the position while moving the mouse.\n');
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SUBFUNCTION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function cb_keyboard(h, eventdata)
 
 if isempty(eventdata)
@@ -1662,8 +1959,9 @@ if isempty(eventdata)
   key = get(h, 'userdata');
 else
   % determine the key that was pressed on the keyboard
-  key = parseKeyboardEvent(eventdata);
+  key = parsekeyboardevent(eventdata);
 end
+
 % get focus back to figure
 if ~strcmp(get(h, 'type'), 'figure')
   set(h, 'enable', 'off');
@@ -1682,7 +1980,7 @@ if isempty(key)
   key = '';
 end
 
-% the following code is largely shared with FT_VOLUMEREALIGN
+% the following code is largely shared by FT_SOURCEPLOT, FT_VOLUMEREALIGN, FT_INTERACTIVEREALIGN, FT_MESHREALIGN, FT_ELECTRODEPLACEMENT
 switch key
   case {'' 'shift+shift' 'alt-alt' 'control+control' 'command-0'}
     % do nothing
@@ -1695,10 +1993,13 @@ switch key
     
   case '3'
     subplot(opt.handlesaxes(3));
-    
+
+  case 'h'
+    cb_help(h);
+
   case 'q'
     setappdata(h, 'opt', opt);
-    cb_cleanup(h);
+    cb_quit(h);
     
   case {'i' 'j' 'k' 'm' 28 29 30 31 'leftarrow' 'rightarrow' 'uparrow' 'downarrow'} % TODO FIXME use leftarrow rightarrow uparrow downarrow
     % update the view to a new position
@@ -1716,12 +2017,12 @@ switch key
     elseif strcmp(tag, 'jk') && (strcmp(key, 'm') || strcmp(key, 'downarrow')  || isequal(key, 31)), opt.ijk(3) = opt.ijk(3)-1; opt.update = [0 0 1];
     else
       % do nothing
-    end;
+    end
     setappdata(h, 'opt', opt);
     cb_redraw(h);
     
+  case {43 'add' 'shift+equal'}  % + or numpad +
     % contrast scaling
-  case {43 'shift+equal'}  % numpad +
     if isempty(opt.clim)
       opt.clim = [min(opt.ana(:)) max(opt.ana(:))];
     end
@@ -1732,7 +2033,8 @@ switch key
     setappdata(h, 'opt', opt);
     cb_redraw(h);
     
-  case {45 'shift+hyphen'} % numpad -
+  case {45 'subtract' 'hyphen' 'shift+hyphen'} % - or numpad -
+    % contrast scaling
     if isempty(opt.clim)
       opt.clim = [min(opt.ana(:)) max(opt.ana(:))];
     end
@@ -1742,8 +2044,23 @@ switch key
     opt.clim(2) = opt.clim(2)+cscalefactor;
     setappdata(h, 'opt', opt);
     cb_redraw(h);
-    
+
+  case 'pageup'
+    opt.zoom = opt.zoom + 0.1;
+    opt.zoom = min(opt.zoom, 0.9); % between 0 and 0.9
+    fprintf('increasing zoom to %f\n', opt.zoom);
+    setappdata(h, 'opt', opt);
+    cb_redraw(h);
+  
+  case 'pagedown'
+    opt.zoom = opt.zoom - 0.1;
+    opt.zoom = max(opt.zoom, 0); % between 0 and 0.9
+    fprintf('decreasing zoom to %f\n', opt.zoom);
+    setappdata(h, 'opt', opt);
+    cb_redraw(h);
+
   otherwise
+    % do nothing
     
 end % switch key
 
@@ -1819,15 +2136,15 @@ if ~isempty(tag) && ~opt.init
     opt.update = [1 1 1];
   end
 end
-opt.ijk = min(opt.ijk(:)', opt.dim);
-opt.ijk = max(opt.ijk(:)', [1 1 1]);
+opt.ijk = min(opt.ijk(:)', opt.dim(1:3)+0.01);
+opt.ijk = max(opt.ijk(:)', [1 1 1]-0.01);
 
 setappdata(h, 'opt', opt);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function cb_cleanup(h, eventdata)
+function cb_quit(h, eventdata)
 
 % opt = getappdata(h, 'opt');
 % opt.quit = true;
@@ -1843,32 +2160,4 @@ p = h;
 while p~=0
   h = p;
   p = get(h, 'parent');
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% SUBFUNCTION
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function key = parseKeyboardEvent(eventdata)
-
-key = eventdata.Key;
-
-% handle possible numpad events (different for Windows and UNIX systems)
-% NOTE: shift+numpad number does not work on UNIX, since the shift
-% modifier is always sent for numpad events
-if isunix()
-  shiftInd = match_str(eventdata.Modifier, 'shift');
-  if ~isnan(str2double(eventdata.Character)) && ~isempty(shiftInd)
-    % now we now it was a numpad keystroke (numeric character sent AND
-    % shift modifier present)
-    key = eventdata.Character;
-    eventdata.Modifier(shiftInd) = []; % strip the shift modifier
-  end
-elseif ispc()
-  if strfind(eventdata.Key, 'numpad')
-    key = eventdata.Character;
-  end
-end
-
-if ~isempty(eventdata.Modifier)
-  key = [eventdata.Modifier{1} '+' key];
 end

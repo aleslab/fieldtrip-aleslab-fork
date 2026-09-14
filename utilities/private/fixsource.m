@@ -57,7 +57,7 @@ if isfield(source, 'avg')
   end
 end
 
-% convering the trials has precedence over the average
+% converging that the trials has precedence over the average
 if isfield(source, 'trial')
   trial  = source.trial;
   source = rmfield(source,  'trial');
@@ -84,7 +84,7 @@ else
 end
 
 
-% FIXME the code bellow should be repatterned
+% FIXME the code below should be repatterned
 % first get the dimord string
 % then determine the data dimensions
 % then determine the dimensions according to the dimord
@@ -133,7 +133,7 @@ for i=1:length(fn)
     end
     
     if prod(dim)~=prod(descr)
-      error('the dimensions of the source data are not consistent with the dimord (%s)', fn{i})
+      ft_error('the dimensions of the source data are not consistent with the dimord (%s)', fn{i})
     end
     
     if iscell(element)
@@ -415,7 +415,7 @@ end
 %       nrpt = nrpt(nrpt==round(nrpt));
 %       dim(i) = max(nrpt);
 %     end
-%     if numel(dim)==1, dim(1,2) = 1; end;
+%     if numel(dim)==1, dim(1,2) = 1; end
 %   end
 %
 % end

@@ -1,26 +1,29 @@
-function [spectrum,ntaper,freqoi] = ft_specest_mtmfft(dat, time, varargin)
+function [spectrum, ntaper, freqoi, se] = ft_specest_mtmfft(dat, time, varargin)
 
 % FT_SPECEST_MTMFFT computes a fast Fourier transform using multitapering with
 % multiple tapers from the DPSS sequence or using a variety of single tapers.
 %
 % Use as
-%   [spectrum,ntaper,freqoi] = ft_specest_mtmfft(dat,time...)
-% where
+%   [spectrum, ntaper, freqoi, se] = ft_specest_mtmfft(dat, time, ...)
+% where the input arguments are
 %   dat        = matrix of chan*sample
 %   time       = vector, containing time in seconds for each sample
-%   spectrum   = matrix of taper*chan*freqoi of fourier coefficients
+% and the output arguments are
+%   spectrum   = matrix of ntaper*nchan*nfreq of fourier coefficients
 %   ntaper     = vector containing number of tapers per element of freqoi
 %   freqoi     = vector of frequencies in spectrum
+%   se         = (only with dpss-tapers) effective degrees of freedom
 %
 % Optional arguments should be specified in key-value pairs and can include
-%   taper      = 'dpss', 'hanning' or many others, see WINDOW (default = 'dpss')
-%   pad        = number, total length of data after zero padding (in seconds)
-%   padtype    = string, indicating type of padding to be used (see ft_preproc_padding, default: zero)
 %   freqoi     = vector, containing frequencies of interest
-%   tapsmofrq  = the amount of spectral smoothing through multi-tapering. Note: 4 Hz smoothing means plus-minus 4 Hz, i.e. a 8 Hz smoothing box
-%   dimord     = 'tap_chan_freq' (default) or 'chan_time_freqtap' for memory efficiency (only when use variable number slepian tapers)
-%   polyorder  = number, the order of the polynomial to fitted to and removed from the data prior to the fourier transform (default = 0 -> remove DC-component)
+%   taper      = 'dpss', 'hanning' or many others, see WINDOW (default = 'dpss')
 %   taperopt   = additional taper options to be used in the WINDOW function, see WINDOW
+%   weightopt  = 'mean', 'eig', 'adapt' (default = 'mean'), taper weights for dpss tapers, see ADAPTSPEC_DPSS
+%   tapsmofrq  = the amount of spectral smoothing through multi-tapering. Note: 4 Hz smoothing means plus-minus 4 Hz, i.e. a 8 Hz smoothing box
+%   pad        = number, total length of data after zero padding (in seconds)
+%   padtype    = string, indicating type of padding to be used, can be 'zero', 'mean', 'localmean', 'edge', or 'mirror' (default = 'zero')
+%   dimord     = 'tap_chan_freq' (default) or 'chan_time_freqtap' for memory efficiency (only when using variable number of slepian tapers)
+%   polyorder  = number, the order of the polynomial to fitted to and removed from the data prior to the fourier transform (default = 0 -> remove DC-component)
 %   verbose    = output progress to console (0 or 1, default 1)
 %
 % See also FT_FREQANALYSIS, FT_SPECEST_MTMCONVOL, FT_SPECEST_TFR, FT_SPECEST_HILBERT, FT_SPECEST_WAVELET
@@ -46,10 +49,10 @@ function [spectrum,ntaper,freqoi] = ft_specest_mtmfft(dat, time, varargin)
 % $Id$
 
 % these are for speeding up computation of tapers on subsequent calls
-persistent previous_argin previous_tap
+persistent previous_argin previous_tap previous_w
 
 % get the optional input arguments
-taper     = ft_getopt(varargin, 'taper'); if isempty(taper), error('You must specify a taper'); end
+taper     = ft_getopt(varargin, 'taper'); if isempty(taper), ft_error('You must specify a taper'); end
 pad       = ft_getopt(varargin, 'pad');
 padtype   = ft_getopt(varargin, 'padtype', 'zero');
 freqoi    = ft_getopt(varargin, 'freqoi', 'all');
@@ -59,15 +62,33 @@ fbopt     = ft_getopt(varargin, 'feedback');
 verbose   = ft_getopt(varargin, 'verbose', true);
 polyorder = ft_getopt(varargin, 'polyorder', 0);
 tapopt    = ft_getopt(varargin, 'taperopt');
+weightopt = ft_getopt(varargin, 'weightopt', 'mean');
 
-if isempty(fbopt),
+if isempty(fbopt)
   fbopt.i = 1;
   fbopt.n = 1;
 end
 
+verbose = istrue(verbose); % if the calling function has 'yes'/'no'/etc
+
 % throw errors for required input
 if isempty(tapsmofrq) && (strcmp(taper, 'dpss') || strcmp(taper, 'sine'))
-  error('you need to specify tapsmofrq when using dpss or sine tapers')
+  ft_error('you need to specify tapsmofrq when using dpss or sine tapers')
+end
+
+if strcmp(taper, 'dpss')
+  switch weightopt
+    case 'mean'
+      adaptflag = 0;
+    case 'eig'
+      adaptflag = 1;
+    case 'adapt'
+      adaptflag = 2;
+    otherwise
+      ft_error('unknown weightopt specified for dpss-tapering');
+  end
+elseif ~strcmp(weightopt, 'mean')
+  ft_warning('no dpss tapers are specified, so the value %s of weightopt does not have an effect', weightopt);
 end
 
 % this does not work on integer data
@@ -77,8 +98,7 @@ dat = cast(dat, 'double');
 [nchan,ndatsample] = size(dat);
 
 % This does not work on integer data
-typ = class(dat);
-if ~strcmp(typ, 'double') && ~strcmp(typ, 'single')
+if ~isa(dat, 'double') && ~isa(dat, 'single')
   dat = cast(dat, 'double');
 end
 
@@ -93,14 +113,14 @@ dattime = ndatsample / fsample; % total time in seconds of input data
 
 % Zero padding
 if round(pad * fsample) < ndatsample
-  error('the padding that you specified is shorter than the data');
+  ft_error('the padding that you specified is shorter than the data');
 end
 if isempty(pad) % if no padding is specified padding is equal to current data length
   pad = dattime;
 end
-postpad    = ceil((pad - dattime) * fsample);
-endnsample = round(pad * fsample);  % total number of samples of padded data
-endtime    = pad;                   % total time in seconds of padded data
+endnsample = round(pad * fsample);    % total number of samples of padded data
+postpad    = endnsample - ndatsample; % number of samples for zero padding
+endtime    = pad;                     % total time in seconds of padded data
 
 % Set freqboi and freqoi
 freqoiinput = freqoi;
@@ -116,7 +136,7 @@ end
 nfreqboi = length(freqboi);
 nfreqoi  = length(freqoi);
 if (strcmp(taper, 'dpss') || strcmp(taper, 'sine')) && numel(tapsmofrq)~=1 && (numel(tapsmofrq)~=nfreqoi)
-  error('tapsmofrq needs to contain a smoothing parameter for every frequency when requesting variable number of slepian tapers')
+  ft_error('tapsmofrq needs to contain a smoothing parameter for every frequency when requesting variable number of slepian tapers')
 end
 
 % throw a warning if input freqoi is different from output freqoi
@@ -129,7 +149,7 @@ if isnumeric(freqoiinput)
   if numel(freqoiinput) ~= numel(freqoi) % freqoi will not contain double frequency bins when requested
     ft_warning('output frequencies are different from input frequencies, multiples of the same bin were requested but not given');
   else
-    if any(abs(freqoiinput-freqoi) >= eps*1e6)
+    if any(abs(freqoiinput-freqoi) >= eps*1e9)
       ft_warning('output frequencies are different from input frequencies');
     end
   end
@@ -140,23 +160,26 @@ current_argin = {time, postpad, taper, tapsmofrq, freqoi, tapopt, dimord}; % rea
 if isequal(current_argin, previous_argin)
   % don't recompute tapers
   tap = previous_tap;
-  
+  w   = previous_w;
 else
   % recompute tapers
+  w = [];
   switch taper
     
     case 'dpss'
-      if numel(tapsmofrq)==1
+      if isscalar(tapsmofrq)
         % create a sequence of DPSS tapers, ensure that the input arguments are double precision
-        tap = double_dpss(ndatsample,ndatsample*(tapsmofrq./fsample))';
-        % remove the last taper because the last slepian taper is always messy
-        tap = tap(1:(end-1), :);
-        
+        [tap, w] = double_dpss(ndatsample,ndatsample*(tapsmofrq./fsample));
+
+        % remove the last taper because the last slepian taper has poor spectral concentration properties
+        tap = tap(:, 1:(end-1))';
+        w   = w(1:(end-1));
+
         % give error/warning about number of tapers
         if isempty(tap)
-          error('datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',ndatsample/fsample,tapsmofrq,fsample/ndatsample);
+          ft_error('datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',ndatsample/fsample,tapsmofrq,fsample/ndatsample);
         elseif size(tap,1) == 1
-          ft_warning('using only one taper for specified smoothing');
+          ft_warning('using only the first Slepian taper for the requested smoothing');
         end
       elseif numel(tapsmofrq)>1
         tap = cell(1,nfreqoi);
@@ -168,16 +191,16 @@ else
           
           % give error/warning about number of tapers
           if isempty(currtap)
-            error('%.3f Hz: datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',freqoi(ifreqoi), ndatsample/fsample,tapsmofrq(ifreqoi),fsample/ndatsample(ifreqoi));
+            ft_error('%.3f Hz: datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',freqoi(ifreqoi), ndatsample/fsample,tapsmofrq(ifreqoi),fsample/ndatsample(ifreqoi));
           elseif size(currtap,1) == 1
-            disp([num2str(freqoi(ifreqoi)) ' Hz: WARNING: using only one taper for specified smoothing'])
+            disp([num2str(freqoi(ifreqoi)) ' Hz: WARNING: using only the first Slepian taper for the requested smoothing'])
           end
           tap{ifreqoi} = currtap;
         end
       end
       
     case 'sine'
-      if numel(tapsmofrq)==1
+      if isscalar(tapsmofrq)
         % create a sequence of sine tapers, 
         tap = sine_taper(ndatsample, ndatsample*(tapsmofrq./fsample))';
         % remove the last taper 
@@ -185,7 +208,7 @@ else
         
         % give error/warning about number of tapers
         if isempty(tap)
-          error('datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',ndatsample/fsample,tapsmofrq,fsample/ndatsample);
+          ft_error('datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',ndatsample/fsample,tapsmofrq,fsample/ndatsample);
         elseif size(tap,1) == 1
           ft_warning('using only one taper for specified smoothing');
         end
@@ -199,7 +222,7 @@ else
           
           % give error/warning about number of tapers
           if isempty(currtap)
-            error('%.3f Hz: datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',freqoi(ifreqoi), ndatsample/fsample,tapsmofrq(ifreqoi),fsample/ndatsample(ifreqoi));
+            ft_error('%.3f Hz: datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',freqoi(ifreqoi), ndatsample/fsample,tapsmofrq(ifreqoi),fsample/ndatsample(ifreqoi));
           elseif size(currtap,1) == 1
             disp([num2str(freqoi(ifreqoi)) ' Hz: WARNING: using only one taper for specified smoothing'])
           end
@@ -215,8 +238,12 @@ else
       tap = tap(1:(end-1), :); % remove the last taper
       
     case 'alpha'
-      error('not yet implemented');
-      
+      tap = cell(1,nfreqoi);
+      for ifreqoi = 1:nfreqoi
+        tap{ifreqoi} = alpha_taper(ndatsample, freqoi(ifreqoi)./ fsample)';
+        tap{ifreqoi} = tap{ifreqoi}./norm(tap{ifreqoi}, 'fro');
+      end
+
     case 'hanning'
       tap = hanning(ndatsample)';
       tap = tap./norm(tap, 'fro');
@@ -235,7 +262,7 @@ end % isequal currargin
 
 % set ntaper
 if ~((strcmp(taper,'dpss') || strcmp(taper,'sine')) && numel(tapsmofrq)>1) % variable number of slepian tapers not requested
-  ntaper = repmat(size(tap,1),nfreqoi,1);
+  ntaper = repmat(size(tap,1),1,nfreqoi);
 else % variable number of slepian tapers requested
   ntaper = cellfun(@size,tap,repmat({1},[1 nfreqoi]));
 end
@@ -257,62 +284,104 @@ if timedelay ~= 0
 end
 
 % compute fft
-if ~((strcmp(taper,'dpss') || strcmp(taper,'sine')) && numel(tapsmofrq)>1) % ariable number of slepian tapers not requested
+st = dbstack;
+if ~(ismember(taper, {'dpss' 'sine'}) && numel(tapsmofrq)>1)  && ~isequal(taper, 'alpha') % variable number of slepian/sine tapers not requested, or alpha taper
   str = sprintf('nfft: %d samples, datalength: %d samples, %d tapers',endnsample,ndatsample,ntaper(1));
-  [st, cws] = dbstack;
   if length(st)>1 && strcmp(st(2).name, 'ft_freqanalysis')
-    % specest_mtmfft has been called by ft_freqanalysis, meaning that ft_progress has been initialised
+    % ft_specest_mtmfft has been called by ft_freqanalysis, meaning that ft_progress has been initialised
     ft_progress(fbopt.i./fbopt.n, ['processing trial %d/%d ',str,'\n'], fbopt.i, fbopt.n);
   elseif verbose
     fprintf([str, '\n']);
   end
-  spectrum = cell(ntaper(1),1);
   
+  siz = [size(dat,1), size(dat,2)+postpad, ntaper(1)];
+  dum = complex(zeros(siz), zeros(siz));
   for itap = 1:ntaper(1)
-    dum = fft(ft_preproc_padding(bsxfun(@times,dat,tap(itap,:)), padtype, 0, postpad),[], 2);
-    dum = dum(:,freqboi);
-    % phase-shift according to above angles
-    if timedelay ~= 0
-      dum = dum .* exp(-1i*angletransform);
+    % fft of zero-padded tapered data segment
+    dum(:,:,itap) = fft(ft_preproc_padding(bsxfun(@times,dat,tap(itap,:)), padtype, 0, postpad),[], 2);
+  end 
+  
+  if strcmp(taper, 'dpss')
+    % compute taper weights
+    [spec, se, wt] = adaptspec_dpss(dum, w, adaptflag);
+    wt  = wt(:,freqboi,:);
+    se  = se(:,freqboi);
+    if all(se==se(1))
+      se = se(1,:);
     end
-    dum = dum .* sqrt(2 ./ endnsample);
-    spectrum{itap} = dum;
+  else
+    wt = 1;
+    se = 2;
   end
+  dum = dum(:,freqboi,:);
   
-  spectrum = reshape(vertcat(spectrum{:}),[nchan ntaper(1) nfreqboi]);% collecting in a cell-array and later reshaping provides significant speedups
-  spectrum = permute(spectrum, [2 1 3]);
+  % weight the spectra
+  dum = dum .* (wt./sqrt(mean(wt.^2,3)));
+
+  % phase-shift according to above angles
+  if timedelay ~= 0
+    dum = dum .* exp(-1i*angletransform(:,:,ones(1,ntaper(1))));
+  end
+  dum = dum .* sqrt(2 ./ endnsample);
+  spectrum = permute(dum, [3 1 2]);
+  wt       = permute(wt,  [3 1 2]);
   
+  %spectrum{itap} = dum;
+  %spectrum = reshape(vertcat(spectrum{:}),[nchan ntaper(1) nfreqboi]); % collecting in a cell-array and later reshaping provides significant speedups
+  %spectrum = permute(spectrum, [2 1 3]);
   
 else % variable number of slepian tapers requested
   switch dimord
     
     case 'tap_chan_freq' % default
       % start fft'ing
-      spectrum = complex(NaN([max(ntaper) nchan nfreqoi]));
+      spectrum = complex(nan([max(ntaper) nchan nfreqoi]));
       for ifreqoi = 1:nfreqoi
         str = sprintf('nfft: %d samples, datalength: %d samples, frequency %d (%.2f Hz), %d tapers',endnsample,ndatsample,ifreqoi,freqoi(ifreqoi),ntaper(ifreqoi));
-        [st, cws] = dbstack;
         if length(st)>1 && strcmp(st(2).name, 'ft_freqanalysis') && verbose
-          % specest_mtmconvol has been called by ft_freqanalysis, meaning that ft_progress has been initialised
+          % ft_specest_mtmfft has been called by ft_freqanalysis, meaning that ft_progress has been initialised
           ft_progress(fbopt.i./fbopt.n, ['processing trial %d, ',str,'\n'], fbopt.i);
         elseif verbose
           fprintf([str, '\n']);
         end
+
+        siz = [size(dat,1), size(dat,2)+postpad, ntaper(1)];
+        dum = complex(zeros(siz), zeros(siz));
         for itap = 1:ntaper(ifreqoi)
-          
-          dum = fft(ft_preproc_padding(bsxfun(@times,dat,tap{ifreqoi}(itap,:)), padtype, 0, postpad), [], 2);
-          
-          dum = dum(:,freqboi(ifreqoi));
-          % phase-shift according to above angles
-          if timedelay ~= 0
-            dum = dum .* exp(-1i*angletransform(:,ifreqoi));
-          end
-          dum = dum .* sqrt(2 ./ endnsample);
-          spectrum(itap,:,ifreqoi) = dum;
+          dum(:,:,itap) = fft(ft_preproc_padding(bsxfun(@times,dat,tap{ifreqoi}(itap,:)), padtype, 0, postpad), [], 2);
         end
+
+        if strcmp(taper, 'dpss')
+          if adaptflag~=0
+            ft_warning('adaptively weighted multitapering with variable numbers of tapers across frequencies is performed at your own risk');
+          end
+          [spec, se, wt] = adaptspec_dpss(dum, w, adaptflag);
+          wt  = wt(:,freqboi(ifreqoi),:);
+          se  = se(:,freqboi(ifreqoi));
+        else
+          wt = 1;
+          se = 2;
+        end
+        dum = dum(:,freqboi(ifreqoi),:);
+
+        % weight the spectra
+        dum = dum .* (wt./sqrt(mean(wt.^2,3)));
+
+        % phase-shift according to above angles
+        if timedelay ~= 0
+          dum = dum .* exp(-1i*angletransform(:,ifreqoi,ones(1,ntaper(ifreqoi))));
+        end
+        dum = dum .* sqrt(2 ./ endnsample);
+
+        spectrum(:,:,ifreqoi) = permute(dum, [3 1 2]); 
+
       end % for nfreqoi
       
     case 'chan_freqtap' % memory efficient representation
+      if strcmp(taper, 'dpss') && adaptflag~=0
+        ft_error('adaptively weighted multitapering is not possible with the specified requested dimord');
+      end
+      
       % create tapfreqind
       freqtapind = cell(1,nfreqoi);
       tempntaper = [0; cumsum(ntaper(:))];
@@ -324,7 +393,6 @@ else % variable number of slepian tapers requested
       spectrum = complex(zeros([nchan sum(ntaper)]));
       for ifreqoi = 1:nfreqoi
         str = sprintf('nfft: %d samples, datalength: %d samples, frequency %d (%.2f Hz), %d tapers',endnsample,ndatsample,ifreqoi,freqoi(ifreqoi),ntaper(ifreqoi));
-        [st, cws] = dbstack;
         if length(st)>1 && strcmp(st(2).name, 'ft_freqanalysis') && verbose
           % specest_mtmconvol has been called by ft_freqanalysis, meaning that ft_progress has been initialised
           ft_progress(fbopt.i./fbopt.n, ['processing trial %d, ',str,'\n'], fbopt.i);
@@ -351,12 +419,12 @@ end
 % reused on a subsequent call in case the same input argument is given
 previous_argin = current_argin;
 previous_tap   = tap;
-
+previous_w     = w;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION ensure that the first two input arguments are of double
 % precision this prevents an instability (bug) in the computation of the
 % tapers for MATLAB 6.5 and 7.0
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [tap] = double_dpss(a, b, varargin)
-tap = dpss(double(a), double(b), varargin{:});
+function [tap, w] = double_dpss(a, b, varargin)
+[tap, w] = dpss(double(a), double(b), varargin{:});

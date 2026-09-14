@@ -4,15 +4,15 @@ function ft_select_range(handle, eventdata, varargin)
 % in a figure. It allows the user to select a horizontal or a vertical
 % range, or one or multiple boxes.
 %
-% The callback function (and it's arguments) specified in callback is called 
-% on a left-click inside a selection, or using the right-click context-menu. 
+% The callback function (and it's arguments) specified in callback is called
+% on a left-click inside a selection, or using the right-click context-menu.
 % The callback function will have as its first-to-last input argument the range of
 % all selections. The last input argument is either empty, or, when using the context
 % menu, a label of the item clicked.
 % Context menus are shown as the labels presented in the input. When activated,
 % the callback function is called, with the last input argument being the label of
 % the selection option.
-% 
+%
 % Input arguments:
 %   'event'       = string, event used as hook.
 %   'callback'    = function handle or cell-array containing function handle and additional input arguments
@@ -42,9 +42,9 @@ function ft_select_range(handle, eventdata, varargin)
 %   set(gcf, 'WindowButtonMotionFcn', {@ft_select_range, 'event', 'WindowButtonMotionFcn', 'multiple', false, 'xrange', false, 'yrange', false, 'callback', @disp});
 %   set(gcf, 'WindowButtonUpFcn',     {@ft_select_range, 'event', 'WindowButtonUpFcn',     'multiple', false, 'xrange', false, 'yrange', false, 'callback', @disp});
 %
-% See also FT_SELECT_BOX, FT_SELECT_CHANNEL, FT_SELECT_POINT, FT_SELECT_POINT3D, FT_SELECT_VOXEL 
+% See also FT_SELECT_BOX, FT_SELECT_CHANNEL, FT_SELECT_POINT, FT_SELECT_POINT3D, FT_SELECT_VOXEL
 
-% Copyright (C) 2009-2012, Robert Oostenveld
+% Copyright (C) 2009-2021, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -64,6 +64,8 @@ function ft_select_range(handle, eventdata, varargin)
 %
 % $Id$
 
+persistent previous_cmhandle
+
 % get the optional arguments
 event       = ft_getopt(varargin, 'event');
 callback    = ft_getopt(varargin, 'callback');
@@ -72,6 +74,9 @@ xrange      = ft_getopt(varargin, 'xrange',   true);
 yrange      = ft_getopt(varargin, 'yrange',   true);
 clear       = ft_getopt(varargin, 'clear',    false);
 contextmenu = ft_getopt(varargin, 'contextmenu'); % this will be displayed following a right mouse click
+linecolor   = ft_getopt(varargin, 'linecolor', [0 0 0]);
+linestyle   = ft_getopt(varargin, 'linestyle', '--');
+linewidth   = ft_getopt(varargin, 'linewidth', 1.5);
 
 % convert 'yes/no' string to boolean value
 multiple  = istrue(multiple);
@@ -81,16 +86,13 @@ clear     = istrue(clear);
 
 % get the figure handle, dependent on MATLAB version
 if ft_platform_supports('graphics_objects')
- while ~isa(handle, 'matlab.ui.Figure')
-    handle = p;
-    p = get(handle, 'parent');
- end
+  while ~isa(handle, 'matlab.ui.Figure')
+    handle = get(handle, 'parent');
+  end
 else
-    p = handle;
-    while ~isequal(p, 0) 
-      handle = p;
-      p = get(handle, 'parent');
-    end
+  while ~isequal(handle, 0)
+    handle = get(handle, 'parent');
+  end
 end
 
 if ishandle(handle)
@@ -107,55 +109,56 @@ end
 p = get(gca, 'CurrentPoint');
 p = p(1,1:2);
 
-abc = axis;
-xLim = abc(1:2);
-yLim = abc(3:4);
+xLim = get(gca, 'XLim');
+yLim = get(gca, 'YLim');
 
 % limit cursor coordinates
-if p(1)<xLim(1), p(1)=xLim(1); end;
-if p(1)>xLim(2), p(1)=xLim(2); end;
-if p(2)<yLim(1), p(2)=yLim(1); end;
-if p(2)>yLim(2), p(2)=yLim(2); end;
+if p(1)<xLim(1), p(1)=xLim(1); end
+if p(1)>xLim(2), p(1)=xLim(2); end
+if p(2)<yLim(1), p(2)=yLim(1); end
+if p(2)>yLim(2), p(2)=yLim(2); end
 
 % determine whether the user is currently making a selection
 selecting = numel(userData.range)>0 && any(isnan(userData.range(end,:)));
 pointonly = ~xrange && ~yrange;
 
 if pointonly && multiple
-  warning('multiple selections are not possible for a point');
+  ft_warning('multiple selections are not possible for a point');
   multiple = false;
 end
 
 % setup contextmenu
 if ~isempty(contextmenu)
-  if isempty(get(handle,'uicontextmenu'))
-    hcmenu    = uicontextmenu;
-    hcmenuopt = nan(1,numel(contextmenu));
+  if isempty(get(handle, 'uicontextmenu'))
+    cm    = uicontextmenu(handle);
+    cmopt = repmat(uimenu, size(contextmenu)); % start with an empty array of objects
     for icmenu = 1:numel(contextmenu)
-      hcmenuopt(icmenu) = uimenu(hcmenu, 'label', contextmenu{icmenu}, 'callback', {@evalcontextcallback, callback{:}, []}); % empty matrix is placeholder, will be updated to userdata.range
+      % the empty array at the end is a placeholder, it will be updated to userdata.range
+      cmopt(icmenu) = uimenu(cm, 'label', contextmenu{icmenu}, 'callback', [{@evalcontextcallback} callback {[]}]);
     end
+  else
+    cm = get(handle, 'uicontextmenu');
+    cmopt = get(cm, 'children');
   end
-  if ~exist('hcmenuopt','var')
-    hcmenuopt = get(get(handle,'uicontextmenu'),'children'); % uimenu handles, used for switchen on/off and updating
+
+  % add the contextmenu to all clickable objects
+  cmhandle = findobj(handle, 'hittest', 'on');
+
+  % the above should be fast enough, otherwise we might want to return to the following
+  % % add the contextmenu to all clickable children of the axes
+  % hchandle = findobj(findobj(handle, 'type', 'Axes'), 'hittest', 'on');
+  % % add the contextmenu to specific objects
+  % hchandle = [findobj(handle, 'type', 'text'); findobj(handle, 'type', 'patch'); findobj(handle, 'type', 'line')];
+
+  if ~isequal(previous_cmhandle, cmhandle)
+    % only set the context menu when needed
+    set(cmhandle, 'uicontextmenu', cm);
+    previous_cmhandle = cmhandle;
   end
-  
-  % setting associations for all clickable objects
-  % this out to be pretty fast, if this is still to slow in some cases, the code below has to be reused
-  if ~exist('hcmenu','var')
-    hcmenu = get(handle,'uicontextmenu');
-  end
-  set(findobj(handle,'hittest','on'), 'uicontextmenu',hcmenu);
-  % to be used if above is too slow
-  % associations only done once. this might be an issue in some cases, cause when a redraw is performed in the original figure (e.g. databrowser), a specific assocations are lost (lines/patches/text)
-  %   set(get(handle,'children'),'uicontextmenu',hcmenu);
-  %   set(findobj(handle,'type','text'), 'uicontextmenu',hcmenu);
-  %   set(findobj(handle,'type','patch'),'uicontextmenu',hcmenu);
-  %   set(findobj(handle,'type','line'), 'uicontextmenu',hcmenu); % fixme: add other often used object types that ft_select_range is called upon
 end
 
 % get last-used-mouse-button
-lastmousebttn = get(gcf,'selectiontype');
-
+lastmousebttn = get(gcf, 'selectiontype');
 
 switch lower(event)
   
@@ -172,7 +175,7 @@ switch lower(event)
             userData.box   = [];
             set(handle, 'Pointer', 'crosshair');
             if ~isempty(contextmenu) && ~pointonly
-              set(hcmenuopt,'enable','off')
+              set(cmopt, 'enable', 'off')
             end
           end
           
@@ -200,7 +203,7 @@ switch lower(event)
   case lower('WindowButtonUpFcn')
     switch lastmousebttn
       case 'normal' % left click
-
+        
         if selecting
           % select the other corner of the box
           userData.range(end,2) = p(1);
@@ -235,7 +238,7 @@ switch lower(event)
           end
           % update contextmenu callbacks
           if ~isempty(contextmenu)
-            updateContextCallback(hcmenuopt, callback, userData.range)
+            updateContextCallback(cmopt, callback, userData.range)
           end
         end
         
@@ -273,33 +276,33 @@ switch lower(event)
       yData = [y1 y1 y2 y2 y1];
       set(userData.box(end), 'xData', xData);
       set(userData.box(end), 'yData', yData);
-      set(userData.box(end), 'Color', [0 0 0]);
+      set(userData.box(end), 'Color', linecolor);
       %set(userData.box(end), 'EraseMode', 'xor');
-      set(userData.box(end), 'LineStyle', '--');
-      set(userData.box(end), 'LineWidth', 1.5);
+      set(userData.box(end), 'LineStyle', linestyle);
+      set(userData.box(end), 'LineWidth', linewidth);
       set(userData.box(end), 'Visible', 'on');
+      set(userData.box(end), 'tag', 'selectedrange');
       
     else
       % update the cursor
       if inSelection(p, userData.range)
         set(handle, 'Pointer', 'hand');
         if ~isempty(contextmenu)
-          set(hcmenuopt,'enable','on')
+          set(cmopt, 'enable', 'on')
         end
       else
         set(handle, 'Pointer', 'crosshair');
         if ~isempty(contextmenu)
-          set(hcmenuopt,'enable','off')
+          set(cmopt, 'enable', 'off')
         end
       end
     end
     
     
   otherwise
-    error('unexpected event "%s"', event);
+    ft_error('unexpected event "%s"', event);
     
 end % switch event
-
 
 % put the modified selections back into the figure
 if ishandle(handle)
@@ -355,7 +358,7 @@ if ~isempty(callback)
     callback  = {funhandle, val};
   end
   for icmenu = 1:numel(hcmenuopt)
-    set(hcmenuopt(icmenu),'callback',{@evalcontextcallback, callback{:}})
+    set(hcmenuopt(icmenu), 'callback',{@evalcontextcallback, callback{:}})
   end
 end
 
@@ -366,10 +369,10 @@ function evalcontextcallback(hcmenuopt, eventdata, varargin)
 
 % delete selection box if present
 % get parent (uimenu -> uicontextmenu -> parent)
-parent = get(get(hcmenuopt,'parent'),'parent'); % fixme: isn't the parent handle always input provided in the callback?
+parent = get(get(hcmenuopt, 'parent'), 'parent'); % fixme: isn't the parent handle always input provided in the callback?
 userData = getappdata(parent, 'select_range_m');
 if ishandle(userData.box)
-  if any(~isnan([get(userData.box,'ydata') get(userData.box,'xdata')]))
+  if any(~isnan([get(userData.box, 'ydata') get(userData.box, 'xdata')]))
     delete(userData.box(ishandle(userData.box)));
     userData.range = [];
     userData.box   = [];
@@ -379,7 +382,7 @@ if ishandle(userData.box)
 end
 
 % get contextmenu name
-cmenulab = get(hcmenuopt,'label');
+cmenulab = get(hcmenuopt, 'label');
 if numel(varargin)>1
   % the callback specifies a function and additional arguments
   funhandle = varargin{1};
@@ -390,7 +393,3 @@ else
   funhandle = varargin{1};
   feval(funhandle, val, cmenulab);
 end
-
-
-
-

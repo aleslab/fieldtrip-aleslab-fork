@@ -25,9 +25,11 @@ function [stat] = ft_freqstatistics(cfg, varargin)
 % Furthermore, the configuration should contain
 %   cfg.method       = different methods for calculating the significance probability and/or critical value
 %                    'montecarlo'    get Monte-Carlo estimates of the significance probabilities and/or critical values from the permutation distribution,
-%                    'analytic'      get significance probabilities and/or critical values from the analytic reference distribution (typically, the sampling distribution under the null hypothesis),
+%                    'analytic'      get significance probabilities and/or critical values from the analytic reference distribution
+%                                     (typically, the sampling distribution under the null hypothesis),
 %                    'stats'         use a parametric test from the MATLAB statistics toolbox,
 %                    'crossvalidate' use crossvalidation to compute predictive performance
+%                    'mvpa'          use functionality from the MVPA-light toolbox for classification or multivariate regression
 %
 %   cfg.design       = Nxnumobservations: design matrix (for examples/advice, please see the Fieldtrip wiki,
 %                      especially cluster-permutation tutorial and the 'walkthrough' design-matrix section)
@@ -78,23 +80,25 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar varargin
 ft_preamble provenance varargin
-ft_preamble trackconfig
+
+ft_preamble randomseed
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
   return
 end
 
-% check if the input cfg is valid for this function
-cfg = ft_checkconfig(cfg, 'required',    {'method', 'design'});
-cfg = ft_checkconfig(cfg, 'renamed',     {'approach',   'method'});
-cfg = ft_checkconfig(cfg, 'forbidden',   {'transform'});
-cfg = ft_checkconfig(cfg, 'forbidden',   {'trials'}); % this used to be present until 24 Dec 2014, but was deemed too confusing by Robert
-
 % check if the input data is valid for this function
 for i=1:length(varargin)
   varargin{i} = ft_checkdata(varargin{i}, 'datatype', 'freq', 'feedback', 'no');
 end
+
+% check if the input cfg is valid for this function
+cfg = ft_checkconfig(cfg, 'forbidden',  {'channels'}); % prevent accidental typos, see issue 1729
+cfg = ft_checkconfig(cfg, 'required',   {'method', 'design'});
+cfg = ft_checkconfig(cfg, 'renamed',    {'approach',   'method'});
+cfg = ft_checkconfig(cfg, 'forbidden',  {'transform'});
+cfg = ft_checkconfig(cfg, 'forbidden',  {'trials'}); % this used to be present until 24 Dec 2014, but was deemed too confusing by Robert
 
 % set the defaults
 cfg.parameter   = ft_getopt(cfg, 'parameter'); % default is set below
@@ -113,20 +117,29 @@ if isempty(cfg.parameter)
 end
 
 % ensure that the data in all inputs has the same channels, time-axis, etc.
-tmpcfg = keepfields(cfg, {'frequency', 'avgoverfreq', 'latency', 'avgovertime', 'channel', 'avgoverchan', 'parameter', 'showcallinfo'});
+tmpcfg = keepfields(cfg, {'frequency', 'avgoverfreq', 'latency', 'avgovertime', 'channel', 'avgoverchan', 'parameter', 'select', 'nanmean', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
 [varargin{:}] = ft_selectdata(tmpcfg, varargin{:});
 % restore the provenance information
 [cfg, varargin{:}] = rollback_provenance(cfg, varargin{:});
 
+% neighbours are required for clustering with multiple channels
 if strcmp(cfg.correctm, 'cluster') && length(varargin{1}.label)>1
-  % this is required for clustering with multiple channels
-  ft_checkconfig(cfg, 'required', 'neighbours');
+  % this is limited to reading neighbours from disk and/or selecting channels
+  % the user should call FT_PREPARE_NEIGHBOURS directly for the actual construction
+  tmpcfg = keepfields(cfg, {'neighbours', 'channel', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
+  cfg.neighbours = ft_prepare_neighbours(tmpcfg);
+end
+
+if isequal(cfg.method,'mvpa')
+  if isfield(varargin{1}, 'time')
+    cfg.time = varargin{1}.time;
+  end
+  cfg.freq = varargin{1}.freq;
 end
 
 dimord = getdimord(varargin{1}, cfg.parameter);
 dimtok = tokenize(dimord, '_');
-dimsiz = getdimsiz(varargin{1}, cfg.parameter);
-dimsiz(end+1:length(dimtok)) = 1; % there can be additional trailing singleton dimensions
+dimsiz = getdimsiz(varargin{1}, cfg.parameter, numel(dimtok));
 rptdim = find( strcmp(dimtok, 'subj') |  strcmp(dimtok, 'rpt') |  strcmp(dimtok, 'rpttap'));
 datdim = find(~strcmp(dimtok, 'subj') & ~strcmp(dimtok, 'rpt') & ~strcmp(dimtok, 'rpttap'));
 datsiz = dimsiz(datdim);
@@ -164,17 +177,17 @@ end
 
 design = cfg.design;
 
-% determine the function handle to the intermediate-level statistics function
-if exist(['ft_statistics_' cfg.method], 'file')
-  statmethod = str2func(['ft_statistics_' cfg.method]);
+% fetch function handle to the intermediate-level statistics function
+statmethod = ft_getuserfun(cfg.method, 'statistics');
+if isempty(statmethod)
+  ft_error('could not find the corresponding function for cfg.method="%s"\n', cfg.method);
 else
-  error('could not find the corresponding function for cfg.method="%s"\n', cfg.method);
+  ft_info('using "%s" for the statistical testing\n', func2str(statmethod));
 end
-fprintf('using "%s" for the statistical testing\n', func2str(statmethod));
 
 % check that the design completely describes the data
 if size(dat,2) ~= size(cfg.design,2)
-  error('the length of the design matrix (%d) does not match the number of observations in the data (%d)', size(cfg.design,2), size(dat,2));
+  ft_error('the length of the design matrix (%d) does not match the number of observations in the data (%d)', size(cfg.design,2), size(dat,2));
 end
 
 % determine the number of output arguments
@@ -186,22 +199,11 @@ catch
 end
 
 % perform the statistical test
-if strcmp(func2str(statmethod),'ft_statistics_montecarlo')
-  % because ft_statistics_montecarlo (or to be precise, clusterstat) requires to know whether it is getting source data,
-  % the following (ugly) work around is necessary
-  if num>1
-    [stat, cfg] = statmethod(cfg, dat, design);
-    cfg         = rollback_provenance(cfg); % ensure that changes to the cfg are passed back to the right level
-  else
-    [stat] = statmethod(cfg, dat, design);
-  end
+if num>1
+  [stat, cfg] = statmethod(cfg, dat, design);
+  cfg         = rollback_provenance(cfg); % ensure that changes to the cfg are passed back to the right level
 else
-  if num>1
-    [stat, cfg] = statmethod(cfg, dat, design);
-    cfg         = rollback_provenance(cfg); % ensure that changes to the cfg are passed back to the right level
-  else
-    [stat] = statmethod(cfg, dat, design);
-  end
+  [stat] = statmethod(cfg, dat, design);
 end
 
 if ~isstruct(stat)
@@ -222,15 +224,21 @@ end
 % describe the dimensions of the output data
 stat.dimord = cfg.dimord;
 
-% copy the descripive fields into the output
-stat = copyfields(varargin{1}, stat, {'freq', 'time', 'label'});
+% copy the descriptive fields into the output, but only if these are not
+% present (and possibly updated by the statmethod-function
+fieldstobecopied = {'freq' 'time' 'label' 'elec', 'grad', 'opto'};
+if isfield(stat, 'freq'),  fieldstobecopied = fieldstobecopied(~ismember(fieldstobecopied, 'freq'));  end
+if isfield(stat, 'time'),  fieldstobecopied = fieldstobecopied(~ismember(fieldstobecopied, 'time'));  end
+if isfield(stat, 'label'), fieldstobecopied = fieldstobecopied(~ismember(fieldstobecopied, 'label')); end
+
+stat = copyfields(varargin{1}, stat, fieldstobecopied);
 
 % these were only present to inform the low-level functions
 cfg = removefields(cfg, {'dim', 'dimord'});
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
+ft_postamble randomseed
 ft_postamble previous   varargin
 ft_postamble provenance stat
 ft_postamble history    stat

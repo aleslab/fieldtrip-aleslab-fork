@@ -2,10 +2,10 @@ function test_bug2385
 
 % WALLTIME 00:10:00
 % MEM 1gb
+% DEPENDENCY ft_filetype ft_read_sens
+% DATA private
 
-% TEST ft_filetype ft_read_sens
-
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/original/electrodes/easycap'));
+cd(dccnpath('/project/3031000.02/test/original/electrodes/easycap'));
 
 filename = {
   'M10_ThetaPhi.txt'

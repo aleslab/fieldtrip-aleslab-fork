@@ -1,10 +1,12 @@
 function test_bug1618
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY
+% DATA private
 
 
-filename = dccnpath('/home/common/matlab/fieldtrip/data/test/bug1618/bug1618.dat');
+filename = dccnpath('/project/3031000.02/test/bug1618/bug1618.dat');
 
 h = ft_read_header(filename);
 

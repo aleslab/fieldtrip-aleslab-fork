@@ -1,10 +1,12 @@
 function test_ft_redefinetrial
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY
+% DATA private
 
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/raw/meg/preproc_ctf151'));
+%% use 10 trials from the ctf151 data structure
+load(dccnpath('/project/3031000.02/test/latest/raw/meg/preproc_ctf151.mat'));
 
 data.trialinfo = (1:10)';
 
@@ -18,12 +20,12 @@ cfg.trl      = data.sampleinfo;
 cfg.trl(:,1) = cfg.trl(:,1)+50;
 cfg.trl(:,3) = -50;
 data3        = ft_redefinetrial(cfg, data);
-assert(all(data3.sampleinfo(:,1)==[51:300:2751]'));
+assert(all(data3.sampleinfo(:,1)==(51:300:2751)'));
 
 cfg        = [];
 cfg.toilim = [0.2 0.8];
 data4      = ft_redefinetrial(cfg, data);
-assert(all(data4.sampleinfo(:,1)==[61:300:2761]') && all(data4.sampleinfo(:,2)==[241:300:2941]'));
+assert(all(data4.sampleinfo(:,1)==(61:300:2761)') && all(data4.sampleinfo(:,2)==(241:300:2941)'));
 
 cfg        = [];
 cfg.length = 0.2;
@@ -42,7 +44,7 @@ cfg          = [];
 cfg.trl      = data.sampleinfo;
 cfg.trl(:,1) = cfg.trl(:,1)+50;
 cfg.trl(:,3) = -50;
-cfg.trl(:,4) = 1:10';
+cfg.trl(:,4) = 1:10;
 data7        = ft_redefinetrial(cfg, data);
 assert(all(data7.trialinfo(:,1)==(1:10)'));
 
@@ -65,3 +67,37 @@ cfg.trl(:,3) = -50;
 data8        = ft_redefinetrial(cfg, data);
 assert(all(data8.trialinfo(:,1)==(1:10)'));
 
+% we can specify separate toilim per trial
+cfg        = [];
+cfg.toilim = repmat([0.2 0.8], numel(data.trial), 1);
+data9      = ft_redefinetrial(cfg, data);
+assert(all(data9.sampleinfo(:,1)==(61:300:2761)') && all(data9.sampleinfo(:,2)==(241:300:2941)'));
+
+%% construct a continuous data structure
+
+data_orig = [];
+data_orig.label = {'1'};
+data_orig.time{1} = ((1:10000)-1)./1000; % 10 seconds
+data_orig.trial{1} = randn(1, 10000);
+data_orig.sampleinfo = [1 100000];
+data_orig.trialinfo = 1;
+
+cfg = [];
+cfg.length = 1;
+data_segmented = ft_redefinetrial(cfg, data_orig);
+assert(length(data_segmented.trial)==10);
+
+cfg = [];
+cfg.continuous = 'yes';
+data_continuous = ft_redefinetrial(cfg, data_segmented);
+assert(isscalar(data_continuous.trial));
+
+cfg = [];
+cfg.trials = setdiff(1:10, 5); % remove one trial
+data_segmented = ft_selectdata(cfg, data_segmented);
+
+cfg = [];
+cfg.continuous = 'yes';
+data_continuous = ft_redefinetrial(cfg, data_segmented);
+assert(length(data_continuous.trial)==2);
+assert(data_continuous.time{2}(1)==5);

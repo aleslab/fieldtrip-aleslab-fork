@@ -17,13 +17,13 @@ function event = read_spmeeg_event(filename, varargin)
 if nargin < 1
     help read_spmeeg_event;
     return;
-end;
+end
 
 header = ft_getopt(varargin, 'header');
 
 if isempty(header)
     header = read_spmeeg_header(filename);
-end;
+end
 
 D = header.orig;
 
@@ -73,6 +73,6 @@ elseif all(isfield(D, {'type', 'Nsamples', 'Fsample', 'timeOnset'})) % SPM8
     end
     
 else
-    error('Cannot recognize an SPM EEG header format');
+    ft_error('Cannot recognize an SPM EEG header format');
 end
 

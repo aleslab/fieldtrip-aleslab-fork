@@ -33,26 +33,25 @@ function ft_postamble(cmd, varargin)
 
 % ideally this would be a script, because the local variables would then be
 % shared with the calling function. Instead, this is a function which then
-% passes the variables explicitely to another script which is eval'ed.
+% passes the variables explicitly to another script which is eval'ed.
 
 % the following section ensures that these scripts are included as
 % dependencies when using the MATLAB compiler
 %
 %#function ft_postamble_debug
-%#function ft_postamble_trackconfig
 %#function ft_postamble_provenance
 %#function ft_postamble_previous
 %#function ft_postamble_history
 %#function ft_postamble_savevar
+%#function ft_postamble_savefig
 %#function ft_postamble_randomseed
-
-global ft_default
+%#function ft_postamble_hastoolbox
 
 % this is a trick to pass the input arguments into the ft_postamble_xxx script
-ft_default.postamble = varargin;
+assignin('caller', 'postamble_argin', varargin);
 
-full_cmd=['ft_postamble_' cmd];
-cmd_exists=false;
+full_cmd = ['ft_postamble_' cmd];
+cmd_exists = false;
 
 if exist(full_cmd, 'file')
   % Matlab can find commands in a private subdirectory; Octave cannot.
@@ -61,31 +60,23 @@ if exist(full_cmd, 'file')
   cmd_exists = true;
 
 elseif ~ft_platform_supports('exists-in-private-directory')
-  % Octave does not find files by name in a private directory, so the full
-  % filename must be specified.
-  private_dir=fullfile(fileparts(which(mfilename)),'private');
-  full_path=fullfile(private_dir,[full_cmd '.m']);
-
-  cmd_exists=exist(full_path,'file');
-  full_cmd_parts={'ft_tmp_orig_pwd=pwd();',...
-                  'ft_tmp_orig_pwd_cleaner='...
-                                'onCleanup(@()cd(ft_tmp_orig_pwd));',...
-                  sprintf('cd(''%s'');',private_dir),...
-                  [full_cmd ';'],...
-                  'clear ft_tmp_orig_pwd_cleaner;'};
-  full_cmd=sprintf('%s',full_cmd_parts{:});
+  % Octave does not find files by name in a private directory, so the full filename must be specified.
+  private_dir = fullfile(fileparts(which(mfilename)),'private');
+  full_path   = fullfile(private_dir,[full_cmd '.m']);
+  cmd_exists  = exist(full_path, 'file');
+  full_cmd_parts = {'ft_tmp_orig_pwd = pwd(); ',...
+                    'ft_tmp_orig_pwd_cleaner = onCleanup(@()cd(ft_tmp_orig_pwd)); ',...
+                    sprintf('cd(''%s''); ',private_dir),...
+                    [full_cmd '; '],...
+                    'clear ft_tmp_orig_pwd_cleaner;'};
+  full_cmd = sprintf('%s', full_cmd_parts{:});
 end
 
 if ~cmd_exists
   % XXX earlier versions would not do anything if ~cmd_exists,
   % but fail silently (without raising an error or warning).
   % Should that behavior be kept?
-  error('Could not run %s - does not seem to exist', full_cmd);
+  ft_error('Could not run %s - does not seem to exist', full_cmd);
 end
 
 evalin('caller', full_cmd);
-
-if isfield(ft_default, 'postamble')
-  % the postamble field should not remain in the ft_default structure
-  ft_default = rmfield(ft_default, 'postamble');
-end

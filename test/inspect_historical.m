@@ -1,5 +1,10 @@
 function inspect_historical
 
+% WALLTIME 00:10:00
+% MEM 1gb
+% DEPENDENCY
+% DATA private
+
 % this function creates the datafiles for the historical FieldTrip versions
 % it should not run unattended
 return

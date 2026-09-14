@@ -1,6 +1,6 @@
 function [varargout] = ft_plot_patch(hdat, vdat, varargin)
 
-% FT_PLOT_PATCH plot a colored shape, similar to the MATLAB patch() function. It is 
+% FT_PLOT_PATCH plot a colored shape, similar to the MATLAB patch() function. It is
 % similar in usage as ft_plot_vector, and they can be combined, for example,
 % to plot an area equivalent to a SEM or STD-DEV around a line.
 %
@@ -10,20 +10,21 @@ function [varargout] = ft_plot_patch(hdat, vdat, varargin)
 %
 % Optional arguments should come in key-value pairs and can include
 %   'axis'            = draw the local axis,  can be 'yes', 'no', 'xy', 'x' or 'y'
-%   'box'             = draw a box around the local axes, can be 'yes' or 'no'
-%   'tag'             = string, the name assigned to the object. All tags with the same name can be deleted in a figure, without deleting other parts of the figure.
-%   'facecolor'       = see MATLAB standard patch properties 
+%   'parent'          = handle which is set as the parent for the plotted elements (default = [])
+%   'tag'             = string, the tag assigned to the plotted elements (default = '')
+%   'facecolor'       = see MATLAB standard patch properties
 %   'facealpha'       = see MATLAB standard patch properties (note, approx. transparency can be achieved using 'facecolor')
 %   'edgecolor'       = see MATLAB standard patch properties (default is 'none') (equivalent to 'linecolor' in PLOT)
-%   'linestyle'       = see MATLAB standard patch properties 
-%   'linewidth'       = see MATLAB standard patch properties 
+%   'linestyle'       = see MATLAB standard patch properties
+%   'linewidth'       = see MATLAB standard patch properties
 %
 % The color of the patchand the edges (i.e. border lines) can be specified in a variety of ways
 %   - as a string with one character per line that you want to plot. Supported colors are the same as in PATCH, i.e. 'bgrcmykw'.
 %   - as an 'RGB triplet', a 1x3 vector with values between 0 and 1
 %   - as 'none' if you do not want the face of the patch to be filled (useful when you want to plot an empty box).
 %
-% It is possible to plot the object in a local pseudo-axis (c.f. subplot), which is specfied as follows
+% It is possible to plot the object in a local pseudo-axis (c.f. subplot), which is specified as follows
+%   'box'             = draw a box around the local axes, can be 'yes' or 'no'
 %   'hpos'            = horizontal position of the center of the local axes
 %   'vpos'            = vertical position of the center of the local axes
 %   'width'           = width of the local axes
@@ -37,9 +38,10 @@ function [varargout] = ft_plot_patch(hdat, vdat, varargin)
 %   vdat = [vdat vdat(end:-1:1)+1];
 %   ft_plot_patch(hdat, vdat)
 %
-% See also FT_PLOT_VECTOR
+% See also FT_PLOT_VECTOR, PATCH, PLOT
 
 % Copyrights (C) 2015, Roemer van der Meij
+% Copyrights (C) 2015-2022, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -58,8 +60,6 @@ function [varargout] = ft_plot_patch(hdat, vdat, varargin)
 %    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
 %
 % $Id$
-
-ws = warning('on', 'MATLAB:divideByZero');
 
 % get the optional input arguments
 hpos            = ft_getopt(varargin, 'hpos');
@@ -82,12 +82,8 @@ linewidth       = ft_getopt(varargin, 'linewidth', .5);
 box = istrue(box);
 
 % color management
-if ischar(facecolor) && exist([facecolor '.m'], 'file')
-  facecolor = eval(facecolor);
-end
-if ischar(edgecolor) && exist([edgecolor '.m'], 'file')
-  edgecolor = eval(edgecolor);
-end
+if ischar(facecolor), facecolor = colorspec2rgb(facecolor); end
+if ischar(edgecolor), edgecolor = colorspec2rgb(edgecolor); end
 
 % this should be a string, because valid options include yes, no, xy, x, y
 if isequal(axis, true)
@@ -110,7 +106,7 @@ if ischar(hlim)
       hlim = max(abs(hdat));
       hlim = [-hlim hlim];
     otherwise
-      error('unsupported option for hlim')
+      ft_error('unsupported option for hlim')
   end % switch
 end % if ischar
 
@@ -122,7 +118,7 @@ if ischar(vlim)
       vlim = max(abs(vdat(:)));
       vlim = [-vlim vlim];
     otherwise
-      error('unsupported option for vlim')
+      ft_error('unsupported option for vlim')
   end % switch
 end % if ischar
 
@@ -222,14 +218,14 @@ if ~isempty(axis) && ~strcmp(axis, 'no')
       xaxis = false;
       yaxis = true;
     otherwise
-      error('invalid specification of the "axis" option')
+      ft_error('invalid specification of the "axis" option')
   end
   
   if xaxis
     % x-axis should touch 0,0
     xrange = hlim;
     if sign(xrange(1))==sign(xrange(2))
-      [dum minind] = min(abs(hlim));
+      [dum, minind] = min(abs(hlim));
       xrange(minind) = 0;
     end
     ft_plot_line(xrange, [0 0], 'hpos', hpos, 'vpos', vpos, 'hlim', hlim, 'vlim', vlim, 'width', width, 'height', height);
@@ -238,7 +234,7 @@ if ~isempty(axis) && ~strcmp(axis, 'no')
     % y-axis should touch 0,0
     yrange = vlim;
     if sign(yrange(1))==sign(yrange(2))
-      [dum minind] = min(abs(vlim));
+      [dum, minind] = min(abs(vlim));
       yrange(minind) = 0;
     end
     ft_plot_line([0 0], yrange, 'hpos', hpos, 'vpos', vpos, 'hlim', hlim, 'vlim', vlim, 'width', width, 'height', height);
@@ -252,12 +248,10 @@ if ~isempty(parent)
 end
 
 % the (optional) output is the handle
-if nargout == 1;
+if nargout == 1
   varargout{1} = h;
 end
 
 if ~holdflag
   hold off
 end
-
-warning(ws); % revert to original state

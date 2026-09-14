@@ -1,9 +1,9 @@
 function test_ft_fetch_data
 
-% MEM 4gb
+% MEM 2gb
 % WALLTIME 00:10:00
-
-% TEST ft_fetch_data
+% DEPENDENCY ft_fetch_data
+% DATA no
 
 % this function primarily tests the speed of ft_fetch_data
 

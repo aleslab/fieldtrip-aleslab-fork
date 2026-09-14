@@ -2,8 +2,8 @@ function test_bug3075
 
 % MEM 1gb
 % WALLTIME 00:20:00
-
-% TEST ft_preprocessing test_bug3075
+% DEPENDENCY ft_preprocessing test_bug3075
+% DATA no
 
 % the reported issue is that cfg.inputfile and cfg.outputfile do not work
 

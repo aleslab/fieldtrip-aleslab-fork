@@ -55,13 +55,13 @@ else
   
   switch seldim
     case 'rpt'
-      if numel(fld)>6 && isfield(data, fld(1:end-6)),
+      if numel(fld)>6 && isfield(data, fld(1:end-6))
         % source level data
         dimtok = tokenize(data.(fld), '_');
         tmp    = data.(fld(1:end-6));
         % remove the first cell-dimension
         if iscell(tmp)
-          if isfield(data, 'inside'),
+          if isfield(data, 'inside')
             tmp = tmp{data.inside(1)};
           else
             tmp = tmp{1};
@@ -82,7 +82,7 @@ else
           end
         end
         
-      elseif strcmp(data.(fld), 'rpt_pos_freq'),
+      elseif strcmp(data.(fld), 'rpt_pos_freq')
         %FIXME HACK to be fixed
         x = fld(data);
         for k = 1:length(x)
@@ -93,7 +93,7 @@ else
           end
         end
         
-      elseif strcmp(data.(fld), 'rpt_pos_time'),
+      elseif strcmp(data.(fld), 'rpt_pos_time')
         %FIXME HACK to be fixed
         x = fld(data);
         for k = 1:length(x)
@@ -122,7 +122,7 @@ else
         if isfield(data, 'individual'),    n = [n size(data.individual,    1)]; end
         if isfield(data, 'stat'),          n = [n size(data.stat,          1)]; end
         if ~all(n==n(1))
-          error('inconsistent number of repetitions for dim "%s"', seldim);
+          ft_error('inconsistent number of repetitions for dim "%s"', seldim);
         end
         n = n(1);
         
@@ -156,7 +156,7 @@ else
         if isfield(data, 'trial'),         n = [n size(data.trial,         1)]; end
         if isfield(data, 'fourierspctrm'), n = [n size(data.fourierspctrm, 1)]; end
         if ~all(n==n(1))
-          error('inconsistent number of repetitions for dim "%s"', seldim);
+          ft_error('inconsistent number of repetitions for dim "%s"', seldim);
         end
         n = n(1);
         
@@ -175,7 +175,7 @@ else
       if isfield(data, 'powspctrm'),     n = [n size(data.powspctrm,     1)]; end
       if isfield(data, 'trial'),         n = [n size(data.trial,         1)]; end
       
-      if ~all(n==n(1)), error('inconsistent number of repetitions for dim "%s"', seldim); end
+      if ~all(n==n(1)), ft_error('inconsistent number of repetitions for dim "%s"', seldim); end
       n = n(1);
       
     case 'chan'
@@ -188,7 +188,7 @@ else
       
     case 'chancmb'
       if ~isfield(data, 'inside'),
-        n = size(data.labelcmb, 1);        
+        n = size(data.labelcmb, 1);
       else
         %error('cannot determine number of repetitions for dim "%s"', seldim);
         n = nan; %FIXME discuss appending label to source-like data
@@ -225,7 +225,7 @@ else
       end
       
     otherwise
-      error('unsupported dim "%s"', seldim);
+      ft_error('unsupported dim "%s"', seldim);
   end
   
 end % if nargin

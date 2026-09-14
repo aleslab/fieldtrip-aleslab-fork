@@ -1,17 +1,18 @@
 function test_bug1315
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_checkdata ft_prepare_neighbours ft_megplanar ft_combineplanar
+% DATA private
 
-% TEST ft_checkdata ft_prepare_neighbours ft_megplanar ft_combineplanar
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug1315.mat'))
+load(dccnpath('/project/3031000.02/test/bug1315.mat'))
 
 % neighbours
 cfg = [];
 cfg.method = 'template';
 cfg.layout = 'CTF275.lay';
 neighbours = ft_prepare_neighbours(cfg, data);
+
 %% producing the bug
 cfg = [];
 cfg.neighbours = neighbours;

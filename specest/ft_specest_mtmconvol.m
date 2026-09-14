@@ -1,31 +1,31 @@
-function [spectrum,ntaper,freqoi,timeoi] = ft_specest_mtmconvol(dat, time, varargin)
+function [spectrum, ntaper, freqoi, timeoi] = ft_specest_mtmconvol(dat, time, varargin)
 
 % FT_SPECEST_MTMCONVOL performs wavelet convolution in the time domain by
 % multiplication in the frequency domain.
 %
 % Use as
-%   [spectrum,ntaper,freqoi,timeoi] = ft_specest_mtmconvol(dat,time,...)
-% where input
+%   [spectrum, ntaper, freqoi, timeoi] = ft_specest_mtmconvol(dat, time, ...)
+% where the input arguments are
 %   dat       = matrix of chan*sample
 %   time      = vector, containing time in seconds for each sample
-% and output
+% and the ouitput arguments are
 %   spectrum  = matrix of ntaper*chan*freqoi*timeoi of fourier coefficients
 %   ntaper    = vector containing the number of tapers per freqoi
 %   freqoi    = vector of frequencies in spectrum
 %   timeoi    = vector of timebins in spectrum
 %
 % Optional arguments should be specified in key-value pairs and can include
-%   taper     = 'dpss', 'hanning' or many others, see WINDOW (default = 'dpss')
-%   pad       = number, indicating time-length of data to be padded out to in seconds
-%   padtype   = string, indicating type of padding to be used (see ft_preproc_padding, default: zero)
+%   freqoi    = vector, containing frequencies (in Hz)
 %   timeoi    = vector, containing time points of interest (in seconds)
 %   timwin    = vector, containing length of time windows (in seconds)
-%   freqoi    = vector, containing frequencies (in Hz)
-%   tapsmofrq = number, the amount of spectral smoothing through multi-tapering. Note: 4 Hz smoothing means plus-minus 4 Hz, i.e. a 8 Hz smoothing box
-%   dimord    = 'tap_chan_freq_time' (default) or 'chan_time_freqtap' for memory efficiency
-%   verbose   = output progress to console (0 or 1, default 1)
+%   taper     = 'dpss', 'hanning' or many others, see WINDOW (default = 'dpss')
 %   taperopt  = additional taper options to be used in the WINDOW function, see WINDOW
+%   tapsmofrq = number, the amount of spectral smoothing through multi-tapering. Note: 4 Hz smoothing means plus-minus 4 Hz, i.e. a 8 Hz smoothing box
+%   pad       = number, indicating time-length of data to be padded out to in seconds
+%   padtype   = string, indicating type of padding to be used (see ft_preproc_padding, default: zero)
+%   dimord    = 'tap_chan_freq_time' (default) or 'chan_time_freqtap' for memory efficiency
 %   polyorder = number, the order of the polynomial to fitted to and removed from the data prior to the fourier transform (default = 0 -> remove DC-component)
+%   verbose   = output progress to console (0 or 1, default 1)
 %
 % See also FT_FREQANALYSIS, FT_SPECEST_MTMFFT, FT_SPECEST_TFR, FT_SPECEST_HILBERT, FT_SPECEST_WAVELET
 
@@ -66,27 +66,29 @@ verbose   = ft_getopt(varargin, 'verbose', true);
 polyorder = ft_getopt(varargin, 'polyorder', 0);
 tapopt    = ft_getopt(varargin, 'taperopt');
 
-if isempty(fbopt),
+if isempty(fbopt)
   fbopt.i = 1;
   fbopt.n = 1;
 end
 
+verbose = istrue(verbose); % if the calling function has 'yes'/'no'/etc
+
 % throw errors for required input
-if isempty(tapsmofrq) && strcmp(taper, 'dpss')
-  error('you need to specify tapsmofrq when using dpss tapers')
+if ismember(taper, {'dpss', 'sine', 'sine_old'}) && isempty(tapsmofrq)
+  % these are multitapering methods
+  ft_error('you need to specify tapsmofrq when using %s tapers', taper)
 end
 if isempty(timwin)
-  error('you need to specify timwin')
-elseif (length(timwin) ~= length(freqoi) && ~strcmp(freqoi,'all'))
-  error('timwin should be of equal length as freqoi')
+  ft_error('you need to specify timwin')
+elseif ~strcmp(freqoi,'all') && length(timwin)~=length(freqoi)
+  ft_error('timwin should be of equal length as freqoi')
 end
 
 % Set n's
-[nchan,ndatsample] = size(dat);
+[nchan, ndatsample] = size(dat);
 
 % This does not work on integer data
-typ = class(dat);
-if ~strcmp(typ, 'double') && ~strcmp(typ, 'single')
+if ~isa(dat, 'double') && ~isa(dat, 'single')
   dat = cast(dat, 'double');
 end
 
@@ -101,14 +103,14 @@ dattime = ndatsample / fsample; % total time in seconds of input data
 
 % Zero padding
 if round(pad * fsample) < ndatsample
-  error('the padding that you specified is shorter than the data');
+  ft_error('the padding that you specified is shorter than the data');
 end
 if isempty(pad) % if no padding is specified padding is equal to current data length
   pad = dattime;
 end
 postpad    = round((pad - dattime) * fsample);
 endnsample = round(pad * fsample);  % total number of samples of padded data
-endtime    = pad;            % total time in seconds of padded data
+endtime    = pad;                   % total time in seconds of padded data
 
 % Set freqboi and freqoi
 freqoiinput = freqoi;
@@ -121,16 +123,15 @@ elseif strcmp(freqoi,'all')
   freqboi    = freqboilim(1):1:freqboilim(2);
   freqoi     = (freqboi-1) ./ endtime;
 end
+
 % check for freqoi = 0 and remove it, there is no wavelet for freqoi = 0
 if freqoi(1)==0
   freqoi(1)  = [];
-  freqboi(1) = [];
   if length(timwin) == (length(freqoi) + 1)
     timwin(1) = [];
   end
 end
-nfreqboi = length(freqboi);
-nfreqoi  = length(freqoi);
+nfreqoi = length(freqoi);
 
 % throw a warning if input freqoi is different from output freqoi
 if isnumeric(freqoiinput)
@@ -173,11 +174,10 @@ if isnumeric(timeoiinput)
 end
 
 % set number of samples per time-window (timwin is in seconds)
-if numel(timwin)==1 && nfreqoi~=1
+if isscalar(timwin) && nfreqoi~=1
   timwin = repmat(timwin,[1 nfreqoi]);
 end
 timwinsample = round(timwin .* fsample);
-
 
 % determine whether tapers need to be recomputed
 current_argin = {time, postpad, taper, timwinsample, tapsmofrq, freqoi, timeoi, tapopt}; % reasoning: if time and postpad are equal, it's the same length trial, if the rest is equal then the requested output is equal
@@ -199,7 +199,7 @@ else
         
         % give error/warning about number of tapers
         if isempty(tap)
-          error('%.3f Hz: datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',freqoi(ifreqoi), timwinsample(ifreqoi)/fsample,tapsmofrq(ifreqoi),fsample/timwinsample(ifreqoi));
+          ft_error('%.3f Hz: datalength to short for specified smoothing\ndatalength: %.3f s, smoothing: %.3f Hz, minimum smoothing: %.3f Hz',freqoi(ifreqoi), timwinsample(ifreqoi)/fsample,tapsmofrq(ifreqoi),fsample/timwinsample(ifreqoi));
         elseif size(tap,1) == 1
           disp([num2str(freqoi(ifreqoi)) ' Hz: WARNING: using only one taper for specified smoothing'])
         end
@@ -269,7 +269,7 @@ else
         %       else
         %         line([ceil(tline) ceil(tline)],[-max(abs(wavelet)) max(abs(wavelet))],'color','g','linestyle','--');
         %         line([floor(tline) floor(tline)],[-max(abs(wavelet)) max(abs(wavelet))],'color','g','linestyle','--');
-        %       end;
+        %       end
         %       subplot(2,1,2);
         %       plot(angle(wavelet),'color','g');
         %       if mod(tline,2)==0,
@@ -284,6 +284,7 @@ else
 end
 
 % Switch between memory efficient representation or intuitive default representation
+[st, cws] = dbstack;
 switch dimord
         
   case 'tap_chan_freq_time' % default
@@ -292,7 +293,6 @@ switch dimord
     spectrum = cell(max(ntaper), nfreqoi);
     for ifreqoi = 1:nfreqoi
       str = sprintf('frequency %d (%.2f Hz), %d tapers', ifreqoi,freqoi(ifreqoi),ntaper(ifreqoi));
-      [st, cws] = dbstack;
       if length(st)>1 && strcmp(st(2).name, 'ft_freqanalysis') && verbose
         % specest_mtmconvol has been called by ft_freqanalysis, meaning that ft_progress has been initialised
         ft_progress(fbopt.i./fbopt.n, ['trial %d, ',str,'\n'], fbopt.i);
@@ -335,7 +335,6 @@ switch dimord
     spectrum = complex(zeros([nchan ntimeboi sum(ntaper)]));
     for ifreqoi = 1:nfreqoi
       str = sprintf('frequency %d (%.2f Hz), %d tapers', ifreqoi,freqoi(ifreqoi),ntaper(ifreqoi));
-      [st, cws] = dbstack;
       if length(st)>1 && strcmp(st(2).name, 'ft_freqanalysis') && verbose
         % specest_mtmconvol has been called by ft_freqanalysis, meaning that ft_progress has been initialised
         ft_progress(fbopt.i./fbopt.n, ['trial %d, ',str,'\n'], fbopt.i);

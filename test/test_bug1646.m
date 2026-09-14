@@ -2,8 +2,8 @@ function test_bug1646
 
 % MEM 4gb
 % WALLTIME 00:15:00
-
-% TEST ft_prepare_mesh ft_datatype_segmentation
+% DEPENDENCY ft_prepare_mesh ft_datatype_segmentation
+% DATA private
 
 % the purpose of this test script is to ensure that the new implementation
 % of ft_prepare_mesh, which is a merger between the old ft_prepare_mesh and
@@ -11,11 +11,14 @@ function test_bug1646
 % done is to search for as many as possible other tets cases and replicated
 % them here.
 
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=105 is obsolete
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=115 is obsolete
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=964 is obsolete
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=105 is obsolete
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=115 is obsolete
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=964 is obsolete
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+[ftver, ftpath] = ft_version;
+templatedir  = fullfile(ftpath, 'template');
 
 % it is not supposed to work with a 3-D array as input
 try
@@ -45,20 +48,20 @@ bnd = ft_prepare_mesh(cfg, headmodel);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % the following piece of test code relates loosely to
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=222
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=373
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=222
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=373
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 cfg = [];
-cfg.headshape = dccnpath('/home/common/matlab/fieldtrip/data/Subject01.shape');
+cfg.headshape = dccnpath('/project/3031000.02/external/download/test/ctf/Subject01.shape');
 bnd = ft_prepare_mesh(cfg);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % this is the same test data as used for bug 1652
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=1652
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=1652
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-datadir = fullfile(dccnpath('/home/common/matlab/fieldtrip/data/test/bug1646'));
+datadir = fullfile(dccnpath('/project/3031000.02/test/bug1646'));
 
 load(fullfile(datadir,'seg1'));
 load(fullfile(datadir,'seg2'));
@@ -67,8 +70,8 @@ load(fullfile(datadir,'seg4'));
 load(fullfile(datadir,'seg5'));
 load(fullfile(datadir,'seg6'));
 
-atlas = ft_read_atlas(dccnpath('/home/common/matlab/fieldtrip/template/atlas/afni/TTatlas+tlrc.BRIK'));
-mri = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer/Subject01.mri'));
+atlas = ft_read_atlas(fullfile(templatedir, 'atlas', 'afni', 'TTatlas+tlrc.BRIK'));
+mri = ft_read_mri(dccnpath('/project/3031000.02/external/download/tutorial/beamformer/Subject01.mri'));
 
 assert(ft_datatype(seg1, 'segmentation'));
 assert(ft_datatype(seg2, 'segmentation'));
@@ -233,11 +236,11 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % this shares the test data with bug 1651
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=1651
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=1651
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clear all
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug1651.mat'));
+load(dccnpath('/project/3031000.02/test/bug1651.mat'));
 
 cfg = [];
 cfg.tissue = {'brain', 'skull', 'scalp'};
@@ -245,16 +248,16 @@ cfg.numvertices = [1000 2000 3000];
 bnd = ft_prepare_mesh(cfg, seg2);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=997
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=997
 % this one does not state an explicit way of reproducing the problems, it rather refers to 937
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=937
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=937
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug937.mat'));
+load(dccnpath('/project/3031000.02/test/bug937.mat'));
 
 mri = [];
 mri.anatomy = bkgrnd;

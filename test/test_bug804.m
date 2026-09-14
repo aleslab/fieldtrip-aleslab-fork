@@ -1,11 +1,11 @@
 function test_bug804
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY channeposition ft_datatype_sens yokogawa2grad ft_read_header
+% DATA private
 
-% TEST channeposition ft_datatype_sens yokogawa2grad ft_read_header
-
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/bug804'));
+cd(dccnpath('/project/3031000.02/test/bug804'));
 
 cfg = [];
 cfg.dataset = 'amano.ave';

@@ -3,18 +3,23 @@ function mesh = fixpos(mesh, recurse)
 % FIXPOS helper function to ensure that meshes are described properly
 
 if nargin==1
-  recurse = 1;
+  recurse = true;
 end
 
 if isa(mesh, 'delaunayTriangulation')
   % convert to structure, otherwise the code below won't work properly
-  ws = warning('off', 'MATLAB:structOnObject');
+  ws = ft_warning('off', 'MATLAB:structOnObject');
   mesh = struct(mesh);
-  warning(ws);
+  ft_warning(ws);
+end
+
+if isnumeric(mesh) && size(mesh,2)==3
+  % convert set of points into a mesh structure
+  mesh = struct('pos', mesh);
 end
 
 if ~isa(mesh, 'struct')
-  return;
+  return
 end
 
 if numel(mesh)>1
@@ -42,7 +47,7 @@ if isfield(mesh, 'Points') && isfield(mesh, 'ConnectivityList')
     case 8
       mesh.hex = mesh.ConnectivityList;
     otherwise
-      error('unsupported ConnectivityList')
+      ft_error('unsupported ConnectivityList')
   end % switch
   mesh = removefields(mesh, {'Points', 'ConnectivityList', 'Constraints', 'UnderlyingObj'});
 end
@@ -58,6 +63,20 @@ elseif isfield(mesh, 'Vertices') && isfield(mesh, 'Faces')
   mesh = rmfield(mesh, {'Faces', 'Vertices'});
 end
 
+% convert from GMesh/SimNIBS to FieldTrip convention
+if isfield(mesh, 'nodes') && isfield(mesh, 'node_data')
+  mesh.pos = mesh.nodes;
+  mesh = rmfield(mesh, 'nodes');
+  if isfield(mesh, 'triangles')
+    mesh.tri = mesh.triangles;
+    mesh = rmfield(mesh, 'triangles');
+  end
+  if isfield(mesh, 'tetrahedra')
+    mesh.tet = mesh.tetrahedra;
+    mesh = rmfield(mesh, 'tetrahedra');
+  end
+end
+
 % replace pnt by pos
 if isfield(mesh, 'pnt')
   mesh.pos = mesh.pnt;
@@ -67,7 +86,7 @@ end
 if recurse<3
   % recurse into substructures, not too deep
   fn = fieldnames(mesh);
-  fn = setdiff(fn, {'cfg'}); % don't recurse into the cfg structure
+  fn = setdiff(fn, {'cfg', 'hdr'}); % don't recurse into the cfg or hdr structure
   for i=1:length(fn)
     if isstruct(mesh.(fn{i}))
       mesh.(fn{i}) = fixpos(mesh.(fn{i}), recurse+1);

@@ -1,9 +1,9 @@
 function test_bug168
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_realtime_topography
+% DEPENDENCY ft_realtime_topography
+% DATA no
  
 [ftver, ftpath] = ft_version;
 cd(ftpath);
@@ -82,7 +82,7 @@ inlist = {
 
 [outlist, depmat] = mydepfun(inlist);
 
-problem = ~cellfun(@isempty, regexp(outlist, 'compat'));
+problem = ~cellfun(@isempty, regexp(outlist, 'compat/obsolete'));
 problem = outlist(problem)  % display the output;
 
 if ~isempty(problem)
@@ -98,10 +98,8 @@ end
 % end
 %
 % cfg = [];
-% cfg.dataset = dccnpath('/home/common/matlab/fieldtrip/data/Subject01.ds');
+% cfg.dataset = dccnpath('/project/3031000.02/external/download/test/ctf/Subject01.ds');
 % cfg.bufferdata = 'first';
 % cfg.layout = 'CTF151.lay';
 %
 % ft_realtime_topography(cfg);
-
-

@@ -1,17 +1,12 @@
 function test_bug1775
 
-% MEM 2gb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_sourceparcellate ft_checkdata ft_datatype_source ft_datatype_volume ft_datatype_parcellation ft_datatype_segmentation
-
-% use FieldTrip defaults instead of personal defaults
-global ft_default;
-ft_default = [];
-ft_default.feedback = 'no';
+% DEPENDENCY ft_sourceparcellate ft_checkdata ft_datatype_source ft_datatype_volume ft_datatype_parcellation ft_datatype_segmentation
+% DATA no
 
 %% create a set of sensors
-[pnt, tri] = icosahedron162;
+[pnt, tri] = mesh_sphere(162);
 pnt = pnt .* 10; % convert to cm
 sel = find(pnt(:,3)>0);
 
@@ -23,7 +18,7 @@ for i=1:length(sel)
   grad.label{i} = sprintf('magnetometer%d', i);
 end
 grad.unit = 'cm';
-grad.type = 'magnetometer';
+grad.type = 'meg';
 
 grad = ft_datatype_sens(grad);
 
@@ -40,29 +35,30 @@ vol = ft_datatype_headmodel(vol);
 
 cfg = [];
 cfg.grad            = grad;
-cfg.vol             = vol;
-cfg.grid.resolution = 2; % cm
+cfg.headmodel       = vol;
+cfg.resolution      = 2; % cm
 cfg.channel         = 'all';
 grid = ft_prepare_leadfield(cfg);
 
 %% create an anatomical parcellation
 parcellation = [];
-parcellation.pos        = grid.pos;
-parcellation.unit       = grid.unit;
-parcellation.type       = zeros(size(grid.pos,1),1);
-parcellation.typelabel  = {};
+parcellation.pos          = grid.pos;
+parcellation.unit         = grid.unit;
+parcellation.tissue       = zeros(size(grid.pos,1),1);
+parcellation.tissuelabel  = {};
 height = [3 4 5 6 7 8 9];
 for i=1:length(height)
+  % note that the parcellation does not cover all tissue types
   sel = parcellation.pos(:,3)==height(i);
-  parcellation.type(sel) = i;
-  parcellation.typelabel{i} = sprintf('%d%s', height(i), parcellation.unit);
+  parcellation.tissue(sel) = i;
+  parcellation.tissuelabel{i} = sprintf('%d%s', height(i), parcellation.unit);
 end
 parcellation.cfg = 'manual'; % to check whether the provenance is correct
 
 %% create simulated data
 cfg = [];
-cfg.grad    = grad;
-cfg.vol     = vol;
+cfg.grad = grad;
+cfg.headmodel = vol;
 cfg.dip.pos = [0 0 4];
 data = ft_dipolesimulation(cfg);
 
@@ -81,18 +77,18 @@ cfg.toi     = data.time{1};
 freq2 = ft_freqanalysis(cfg, data);
 
 cfg = [];
-cfg.grad    = grad;
-cfg.vol     = vol;
-cfg.grid    = grid;
-cfg.method  = 'lcmv';
+cfg.grad        = grad;
+cfg.headmodel   = vol;
+cfg.sourcemodel = grid;
+cfg.method      = 'lcmv';
 source1 = ft_sourceanalysis(cfg, timelock);
 
 cfg = [];
-cfg.grad    = grad;
-cfg.vol     = vol;
-cfg.grid    = grid;
-cfg.method  = 'mne';
-cfg.mne.lambda = 0;
+cfg.grad        = grad;
+cfg.headmodel   = vol;
+cfg.sourcemodel = grid;
+cfg.method      = 'mne';
+cfg.mne.lambda  = 0;
 source2 = ft_sourceanalysis(cfg, timelock);
 
 %% make some parcellations
@@ -162,4 +158,3 @@ cfg.method = 'max';
 source6p = ft_sourceparcellate(cfg, source6, parcellation);
 cfg.method = 'eig';
 source6p = ft_sourceparcellate(cfg, source6, parcellation);
-

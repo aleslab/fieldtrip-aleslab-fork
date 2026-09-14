@@ -1,9 +1,9 @@
 function test_bug1040
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST: bug1040
+% DEPENDENCY bug1040
+% DATA private
 
 % function to test ft_prepare_sourcemodel given configuration options (cfg),
 % a single sphere volume condution model (vol), and gradiometer information
@@ -15,13 +15,13 @@ function test_bug1040
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % load single sphere volume conduction model
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/vol/Subject01vol_singlesphere.mat'), 'vol');
+load(dccnpath('/project/3031000.02/test/latest/vol/Subject01vol_singlesphere.mat'), 'vol');
 
 % load gradiometer information of an exemplary subject
-grad_standard = ft_read_sens(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/sens/ctf275.mat'));
+grad_standard = ft_read_sens(dccnpath('/project/3031000.02/test/latest/sens/ctf275.mat'));
 
 % load the same gradiometer information treated with ft_headmovement (10 clusters)
-grad_extended = ft_read_sens(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/sens/ctf275_10clusters.mat'));
+grad_extended = ft_read_sens(dccnpath('/project/3031000.02/test/latest/sens/ctf275_10clusters.mat'));
 
 success = true;
 
@@ -31,9 +31,11 @@ success = true;
 % create config options
 cfg                 = [];
 cfg.symmetry        = [];
-cfg.grid.resolution = 2;
+cfg.resolution = 2;
+cfg.headmodel = vol;
+cfg.grad = grad_standard;
 
-[grid, cfg] = ft_prepare_sourcemodel(cfg, vol, grad_standard);
+[grid, cfg] = ft_prepare_sourcemodel(cfg);
 
 % check whether a grid could be computed
 success     = success && ~isempty(grid);
@@ -53,9 +55,11 @@ end
 % create config options
 cfg                 = [];
 cfg.symmetry        = [];
-cfg.grid.resolution = 2;
+cfg.resolution = 2;
+cfg.headmodel = vol;
+cfg.grad = grad_extended;
 
-[grid, cfg] = ft_prepare_sourcemodel(cfg, vol, grad_extended);
+[grid, cfg] = ft_prepare_sourcemodel(cfg);
 
 % check whether a grid could be computed
 success     = success && ~isempty(grid);

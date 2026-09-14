@@ -1,11 +1,11 @@
 function test_bug1210
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_datatype_sens
+% DATA private
 
-% TEST ft_datatype_sens
-
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test'))
+cd(dccnpath('/project/3031000.02/test'))
 load bug1210.mat
 
 % the input is old-style

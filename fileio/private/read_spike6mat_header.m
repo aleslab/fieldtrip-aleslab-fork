@@ -17,12 +17,12 @@ function header = read_spike6mat_header(filename)
 if nargin < 1
   help read_spike6mat_header;
   return;
-end;
+end
 
 try
     vars = struct2cell(load(filename));
 catch
-    error('File not found or wrong format.');
+    ft_error('File not found or wrong format.');
 end
 
 header = [];
@@ -42,7 +42,7 @@ for i = 1:numel(vars)
 end
 
 if length(unique(fsample))>1 || length(unique(onsets))>1 || length(unique(lengths))>1
-    error('Only files with identical channel parameters are supported');
+    ft_error('Only files with identical channel parameters are supported');
 end
 
 header.Fs          = unique(fsample);

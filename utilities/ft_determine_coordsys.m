@@ -6,9 +6,10 @@ function [data] = ft_determine_coordsys(data, varargin)
 %
 % Use as
 %   [dataout] = ft_determine_coordsys(datain, ...)
-% where the input data structure can be
+% where the input data structure can be either
 %  - an anatomical MRI
-%  - an electrode or gradiometer definition
+%  - an electrode, gradiometer or optode definition
+%  - a cortical or head surface mesh
 %  - a volume conduction model of the head
 % or most other FieldTrip structures that represent geometrical information.
 %
@@ -16,20 +17,26 @@ function [data] = ft_determine_coordsys(data, varargin)
 % and can include
 %   interactive  = string, 'yes' or 'no' (default = 'yes')
 %   axisscale    = scaling factor for the reference axes and sphere (default = 1)
+%   clim         = lower and upper anatomical MRI limits (default = [0 1])
 %
-% This function wil pop up a figure that allows you to check whether the
+% This function will pop up a figure that allows you to check whether the
 % alignment of the object relative to the coordinate system axes is correct
 % and what the anatomical labels of the coordinate system axes are. You
 % should switch on the 3D rotation option in the figure panel to rotate and
 % see the figure from all angles. To change the anatomical labels of the
 % coordinate system, you should press the corresponding keyboard button.
 %
-% Recognized and supported coordinate systems include: ctf, 4d, bti, itab,
-% neuromag, spm, mni, tal, als, ras, paxinos.
+% Recognized and supported coordinate systems are 'ctf', 'bti', '4d', 'yokogawa',
+% 'eeglab', 'eeglab-hj', 'neuromag', 'itab', 'acpc', 'spm', 'mni', 'fsaverage', 'tal', 'scanras',
+% 'scanlps', 'dicom'.
 %
-% See also FT_VOLUMEREALIGN, FT_VOLUMERESLICE
+% Furthermore, supported coordinate systems that do not specify the origin are 'ras',
+% 'als', 'lps', etc. See https://www.fieldtriptoolbox.org/faq/coordsys for more
+% details.
+%
+% See also FT_CONVERT_COORDSYS, FT_DETERMINE_UNITS, FT_CONVERT_UNITS, FT_PLOT_AXES, FT_PLOT_XXX
 
-% Copyright (C) 2015, Jan-Mathijs Schoffelen
+% Copyright (C) 2015-2021, Jan-Mathijs Schoffelen
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -50,14 +57,15 @@ function [data] = ft_determine_coordsys(data, varargin)
 % $Id$
 
 dointeractive = ft_getopt(varargin, 'interactive', 'yes');
-axisscale     = ft_getopt(varargin, 'axisscale', 1); % this is used to scale the axmax and rbol
+axisscale     = ft_getopt(varargin, 'axisscale', 1);  % this is used to scale the axmax and rbol
+clim          = ft_getopt(varargin, 'clim', [0 1]);   % this is used to scale the orthoplot
+fontsize      = ft_getopt(varargin, 'fontsize');      % this is passed to ft_plot_axes
 
-data  = ft_checkdata(data);
+data  = ft_checkdata(data, 'hasunit', 'yes');
 dtype = ft_datatype(data);
-data  = ft_convert_units(data);
 
 % the high-level data structures are detected with ft_datatype, but there are
-% also some low-level data structures that need to be supproted here
+% also some low-level data structures that need to be supported here
 if strcmp(dtype, 'unknown')
   if isfield(data, 'fid') || (isfield(data, 'tri') && isfield(data, 'pos'))
     dtype = 'headshape';
@@ -65,61 +73,27 @@ if strcmp(dtype, 'unknown')
     dtype = 'mesh';
   elseif isfield(data, 'tet') && isfield(data, 'pos')
     dtype = 'mesh';
-  elseif ~strcmp(ft_voltype(data), 'unknown')
+  elseif ~strcmp(ft_headmodeltype(data), 'unknown')
     dtype = 'headmodel';
   elseif ~strcmp(ft_senstype(data), 'unknown')
     dtype = 'sens';
   end
+elseif strcmp(dtype, 'volume+label')
+  % we don't care about the labels here
+  dtype = 'volume';
 elseif strcmp(dtype, 'mesh+label')
   % we don't care about the labels here
   dtype = 'mesh';
 end
 
-% NOTE this section should be kept consistent with the shorter labels in FT_PLOT_AXES
 if isfield(data, 'coordsys') && ~isempty(data.coordsys)
-  label = cell(3,1);
-  if length(data.coordsys)==3 && length(intersect(data.coordsys, 'rlasif'))==3
-    for i=1:3
-      switch data.coordsys(i)
-        case 'l'
-          label{i} = 'the left';
-        case 'r'
-          label{i} = 'the right';
-        case 'i'
-          label{i} = 'inferior';
-        case 's'
-          label{i} = 'superior';
-        case 'a'
-          label{i} = 'anterior';
-        case 'p'
-          label{i} = 'posterior';
-        otherwise
-          error('incorrect letter in the coordsys');
-      end % switch
-    end % for each of the three axes
-  elseif strcmpi(data.coordsys, 'itab') || strcmpi(data.coordsys, 'neuromag') || strcmpi(data.coordsys, 'tal') || strcmpi(data.coordsys, 'mni') || strcmpi(data.coordsys, 'spm')
-    label{1} = 'the right';
-    label{2} = 'anterior';
-    label{3} = 'superior';
-  elseif strcmpi(data.coordsys, 'ctf') || strcmpi(data.coordsys, '4d') || strcmpi(data.coordsys, 'bti')
-    label{1} = 'anterior';
-    label{2} = 'the left';
-    label{3} = 'superior';
-  elseif strcmpi(data.coordsys, 'paxinos')
-    label{1} = 'the right';
-    label{2} = 'superior';
-    label{3} = 'posterior';
-  elseif strcmpi(data.coordsys, 'unknown')
-    label{1} = 'unknown';
-    label{2} = 'unknown';
-    label{3} = 'unknown';
-  else
-    error('unsupported coordsys');
-  end
-
-  fprintf('The positive x-axis is pointing towards %s\n', label{1});
-  fprintf('The positive y-axis is pointing towards %s\n', label{2});
-  fprintf('The positive z-axis is pointing towards %s\n', label{3});
+  % ensure that it is in lower case
+  data.coordsys = lower(data.coordsys);
+  % print the interpretation of the coordinate system
+  [labelx, labely, labelz] = coordsys2label(data.coordsys, 2, 0);
+  fprintf('The positive x-axis is pointing towards %s\n', labelx);
+  fprintf('The positive y-axis is pointing towards %s\n', labely);
+  fprintf('The positive z-axis is pointing towards %s\n', labelz);
 end
 
 % plot the geometrical object
@@ -150,7 +124,7 @@ switch dtype
     end
 
     if isempty(funparam)
-      error('don''t know which volumetric parameter to plot');
+      ft_error('don''t know which volumetric parameter to plot');
     end
 
     % the volumetric data needs to be interpolated onto three orthogonal planes
@@ -158,10 +132,18 @@ switch dtype
     [corner_vox, corner_head] = cornerpoints(data.dim, data.transform);
     diagonal_head = norm(range(corner_head));
     diagonal_vox  = norm(range(corner_vox));
-    resolution    = diagonal_head/diagonal_vox; % this is in units of "data.unit"
+    resolution    = (diagonal_head+eps)/(diagonal_vox+eps); % this is in units of "data.unit"
+
+    % scale funparam between 0 and 1
+    if ~isa(funparam, 'double') % avoid integer datatypes to allow for scaling
+      funparam = double(funparam);
+    end
+    dmin = min(funparam(:));
+    dmax = max(funparam(:));
+    funparam = (funparam-dmin)./(dmax-dmin);
 
     clear ft_plot_slice
-    ft_plot_ortho(funparam, 'transform', data.transform, 'unit', data.unit, 'resolution', resolution, 'style', 'intersect');
+    ft_plot_ortho(funparam, 'transform', data.transform, 'unit', data.unit, 'resolution', resolution, 'style', 'intersect', 'clim', clim);
     axis vis3d
     view([110 36]);
 
@@ -172,27 +154,27 @@ switch dtype
     else
       ft_plot_mesh(data, 'edgecolor','none', 'facecolor', [0.6 0.8 0.6], 'facealpha', 0.6);
     end
-    camlight;
+    ft_headlight
 
   case 'dip'
     ft_plot_mesh(data, 'edgecolor','none', 'facecolor', 'none');
-    camlight;
+    ft_headlight
 
   case 'headshape'
     ft_plot_headshape(data);
-    camlight;
+    ft_headlight
 
   case {'mesh', 'source+mesh'}
     ft_plot_mesh(data);
-    camlight;
+    ft_headlight
 
   case 'headmodel'
-    ft_plot_vol(data);
-    camlight;
+    ft_plot_headmodel(data);
+    ft_headlight
 
-  case {'grad' 'elec' 'sens'}
+  case {'elec', 'grad', 'opto', 'sens'}
     ft_plot_sens(data, 'label', 'label');
-    camlight;
+    ft_headlight
 
   case {'raw', 'timelock', 'freq', 'mvar', 'freqmvar', 'comp'}
     % the data may contain a gradiometer or electrode definition
@@ -200,27 +182,29 @@ switch dtype
       ft_plot_sens(data.grad);
     elseif isfield(data, 'elec')
       ft_plot_sens(data.elec, 'label', 'label');
+    elseif isfield(data, 'opto')
+      ft_plot_sens(data.opto, 'label', 'label');
     end
 
   case 'unknown'
+    ft_warning('unsupported object')
 end % switch dtype{k}
 
-if isfield(data, 'tri')
-  % this makes the 3-D object easier to understand
-  camlight
-  lighting gouraud
-end
-
 % plot the 3-D axes, labels, and sphere at the origin
-ft_plot_axes(data, 'axisscale', axisscale);
+ft_plot_axes(data, 'axisscale', axisscale, 'fontsize', fontsize);
 
-if istrue(dointeractive),
+if istrue(dointeractive)
+  % ensure the figure is updated prior to asking the question
+  % this was needed for FT_ELECTRODEPLACEMENT in combination with MATLAB 2022a
+  drawnow
 
   if ~isfield(data, 'coordsys') || isempty(data.coordsys)
     % default is yes
+    fprintf('The coordinate system is not specified.\n')
     value = smartinput('Do you want to change the anatomical labels for the axes [Y, n]? ', 'y');
   else
     % default is no
+    fprintf('The coordinate system is specified as "%s".\n', data.coordsys)
     value = smartinput('Do you want to change the anatomical labels for the axes [y, N]? ', 'n');
   end
 
@@ -242,18 +226,23 @@ if istrue(dointeractive),
 
   % interactively determine origin
   origin = ' ';
-  while ~any(strcmp(origin, {'a', 'i', 'n'}))
-    origin = input('Is the origin of the coordinate system at the a(nterior commissure), i(nterauricular), n(ot a landmark)? ', 's');
+  while ~any(strcmp(origin, {'a', 'i', 's', 'n'}))
+    origin = input('Is the origin of the coordinate system at the a(nterior commissure), i(nterauricular), s(scanner origin), n(ot a landmark)? ', 's');
   end
 
+  % some coordinate systems are identical or very similar, see https://www.fieldtriptoolbox.org/faq/coordsys
   if origin=='a' && strcmp(orientation, 'ras')
-    coordsys = 'spm';
+    coordsys = 'acpc'; % also used for spm, mni, tal
   elseif origin=='i' && strcmp(orientation, 'als')
-    coordsys = 'ctf';
+    coordsys = 'ctf'; % also used for 4d, bti, eeglab
   elseif origin=='i' && strcmp(orientation, 'ras')
     coordsys = 'neuromag'; % also used for itab
+  elseif origin=='s' && strcmp(orientation, 'ras')
+    coordsys = 'scanras'; % also used for nifti
+  elseif origin=='s' && strcmp(orientation, 'lps')
+    coordsys = 'scanlps'; % also used for dicom
   else
-    % just use the orientation
+    % only use the orientation, not the origin
     coordsys = orientation;
   end
 

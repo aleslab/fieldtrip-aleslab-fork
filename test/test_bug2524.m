@@ -1,9 +1,9 @@
 function test_bug2524
 
 % WALLTIME 00:10:00
-% MEM 1024mb
-
-% TEST ft_write_mri
+% MEM 1gb
+% DEPENDENCY ft_write_mri
+% DATA no
 
 data = zeros(5,5,5);
 trans = diag([5 5 5 1]);

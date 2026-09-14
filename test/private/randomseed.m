@@ -8,7 +8,7 @@ function state = randomseed(setseed)
 %
 % INPUT
 % setseed    []              does not reset the state, but saves out the state for future use
-%            integer         seed value to set to specifc state
+%            integer         seed value to set to specific state
 %            state vector    state value (vector) output from previous call to setting the state
 %
 % OUTPUT
@@ -40,7 +40,8 @@ end
 
 state = [];
 
-if isempty(setseed) || strcmp(setseed, 'yes')
+if isempty(setseed) || (ischar(setseed) && strcmp(setseed, 'yes'))
+
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % save out rand state for later use
   

@@ -32,13 +32,17 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     float  *inputr_ps, *inputi_ps, *output1r_ps, *cnts, *ssqrs, *ssqis, *sumis, biasterms;
 
     /* figure out the classid */
-    classid = mxGetClassID(prhs[0]);
+    if (nrhs>0) {
+      classid = mxGetClassID(prhs[0]);
+    } else {
+      classid = mxUNKNOWN_CLASS;
+    }
 
     /* check inputs */
     if (nrhs > 3) {
         mexErrMsgTxt("Too many input arguments.");
     } else if (nrhs == 3) {
-        if (~mxIsEmpty(prhs[2]) && (mxGetM(prhs[2])!=1 || mxGetN(prhs[2])!=1)) {
+        if (!mxIsEmpty(prhs[2]) && (mxGetM(prhs[2])!=1 || mxGetN(prhs[2])!=1)) {
             mexErrMsgTxt("Invalid dimension for input argument 2, must be scalar. Weights vector is not supported in this implementation of nanvar.");
         }
         if (mxGetScalar(prhs[2]) <= 0) {
@@ -335,7 +339,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     else {
         /* we now at this point the input data is either numeric, char, or logical, but not double or single precision */
         /* since only double or single can be NaN, simply call matlab's var() function to do the work, we can safely ignore nans */
-        mexCallMATLAB(nlhs, plhs, nrhs, prhs, "var");
+        mexCallMATLAB(nlhs, plhs, nrhs, (mxArray **)prhs, "var");
         return;
     }
 }

@@ -51,7 +51,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance spike
-ft_preamble trackconfig
+
 
 % control input spike structure
 spike = ft_checkdata(spike,'datatype', 'spike', 'feedback', 'yes');
@@ -94,7 +94,7 @@ if ~doAll
 end
 
 % select the desired trials
-if ~isfield(spike,'trial') | ~isfield(spike,'trialtime') | ~isfield(spike,'time')
+if ~isfield(spike,'trial') || ~isfield(spike,'trialtime') || ~isfield(spike,'time')
   if ~doAllTrials
     warning('spike structure does not contain trial, time or trialtime field, cannot select trials');
   end
@@ -152,7 +152,7 @@ else
 end
     
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
+
 ft_postamble previous   spike
 ft_postamble provenance spike
 ft_postamble history    spike
@@ -178,7 +178,7 @@ function [cfg] = trialselection(cfg,spike)
 nTrials = size(spike.trialtime,1);
 if  strcmp(cfg.trials,'all')
   cfg.trials = 1:nTrials;
-elseif islogical(cfg.trials)
+elseif islogical(cfg.trials) || all(cfg.trials==0 | cfg.trials==1)
   cfg.trials = find(cfg.trials);
 end
 cfg.trials = sort(cfg.trials(:));

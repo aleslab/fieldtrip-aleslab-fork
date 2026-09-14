@@ -1,4 +1,4 @@
-function [Va] = volumewrite_spm(filename, data, transform, spmversion)
+function [Va] = volumewrite_spm(filename, data, transform, spmversion, scl_slope, scl_inter)
 
 % VOLUMEWRITE_SPM writes anatomical or functional MRI volume data to analyze or nifti format
 % using the SPM toolbox.
@@ -8,9 +8,33 @@ function [Va] = volumewrite_spm(filename, data, transform, spmversion)
 
 % Copyright (C) 2006, Robert Oostenveld
 % Copyright (C) 2011, Jan-Mathijs Schoffelen
+% 
+% This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
+% for the documentation and details.
+%
+%    FieldTrip is free software: you can redistribute it and/or modify
+%    it under the terms of the GNU General Public License as published by
+%    the Free Software Foundation, either version 3 of the License, or
+%    (at your option) any later version.
+%
+%    FieldTrip is distributed in the hope that it will be useful,
+%    but WITHOUT ANY WARRANTY; without even the implied warranty of
+%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%    GNU General Public License for more details.
+%
+%    You should have received a copy of the GNU General Public License
+%    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
+%
+% $Id$
 
 if nargin<4 || isempty(spmversion)
-  spmversion = 'spm8';
+  spmversion = 'spm12';
+end
+spmversion = lower(spmversion);
+
+if nargin<5
+  scl_slope = 1;
+  scl_inter = 0;
 end
 
 % check whether the required SPM toolbox is available
@@ -34,15 +58,26 @@ if 0
   spm_type('uint64')  %           -- 64-bit unsigned integer array
 end
 
-typ       = spm_type(class(data));
+datatype  = class(data);
 dim       = size(data);
+
+% different spm version have different names for double/single
+if isequal(datatype, 'single') && isequal(spmversion, 'spm2'),   datatype = 'float';   end
+if isequal(datatype, 'single') && ~isequal(spmversion, 'spm2'),  datatype = 'float32'; end
+if isequal(datatype, 'double') && ~isequal(spmversion, 'spm2'),  datatype = 'float64'; end
+
+typ       = spm_type(datatype);
 if isnan(typ)
   % convert every unsupported data type into double
   data      = double(data);
-  typ       = spm_type(class(data));
+  if isequal(spmversion, 'spm2')
+    typ = spm_type('double');
+  else
+    typ = spm_type('float64');
+  end
 end
 
-switch lower(spmversion)
+switch spmversion
   case 'spm2'
     %see spm_vol
     Va         = [];
@@ -67,7 +102,7 @@ switch lower(spmversion)
       Va.n       = 1;
     end
     Va.pinfo   = [1 0 0]';
-    %Va.dt      = [typ 1]; % this is not necessary because assigned in spm_create_vol
+    Va.dt      = [typ 0]; % this is not necessary because assigned in spm_create_vol
     Va         = spm_create_vol(Va);
     Va         = spm_write_vol(Va,data);
     
@@ -75,7 +110,8 @@ switch lower(spmversion)
     N     = nifti;
     N.mat = transform;
     N.mat_intent = 'Aligned';
-    N.dat = file_array(filename, dim, 'FLOAT32-LE');
+    %N.dat = file_array(filename, dim, 'FLOAT32-LE');
+    N.dat = file_array(filename, dim, [typ 0], 0, [],[]);%scl_slope, scl_inter);
     create(N);
     switch length(N.dat.dim)
       case 2
@@ -85,10 +121,10 @@ switch lower(spmversion)
       case 4
         N.dat(:,:,:, :) = data;
       otherwise
-        error('Invalid output dimensions');
+        ft_error('Invalid output dimensions');
     end
     Va = spm_vol(N.dat.fname);
     
   otherwise
-    error('unsupported SPM version requested');
+    ft_error('unsupported SPM version requested');
 end

@@ -7,11 +7,12 @@ function [data] = ft_combineplanar(cfg, data)
 %
 % Use as
 %   [data] = ft_combineplanar(cfg, data)
-% where data contains an averaged planar gradient ERF or single-trial/averaged TFR.
+% where data contains an averaged planar-gradient ERF or single-trial or
+% averaged TFRs.
 %
 % The configuration can contain
 %   cfg.method         = 'sum', 'svd', 'abssvd', or 'complex' (default = 'sum')
-%   cfg.updatesens     = 'no' or 'yes' (default = 'yes')
+%   cfg.updatesens     = 'yes' or 'no', whether to update the sensor array with the spatial projector (default = 'yes')
 % and for timelocked input data (i.e. ERFs), the configuration can also contain
 %   cfg.demean         = 'yes' or 'no' (default = 'no')
 %   cfg.baselinewindow = [begin end]
@@ -62,7 +63,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar data
 ft_preamble provenance data
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -70,7 +70,7 @@ if ft_abort
 end
 
 % check if the input data is valid for this function
-data = ft_checkdata(data, 'datatype', {'raw', 'freq', 'timelock'}, 'feedback', 'yes', 'senstype', {'ctf151_planar', 'ctf275_planar', 'neuromag122', 'neuromag306', 'bti248_planar', 'bti148_planar', 'itab153_planar', 'yokogawa160_planar', 'yokogawa64_planar', 'yokogawa440_planar'});
+data = ft_checkdata(data, 'datatype', {'raw', 'freq', 'timelock'}, 'feedback', 'yes', 'senstype', {'ctf64_planar', 'ctf151_planar', 'ctf275_planar', 'neuromag122', 'neuromag306', 'bti148_planar', 'bti248_planar', 'itab153_planar', 'yokogawa64_planar', 'yokogawa160_planar', 'yokogawa208_planar', 'yokogawa440_planar'});
 
 % check if the input cfg is valid for this function
 cfg = ft_checkconfig(cfg, 'forbidden',   {'combinegrad'});
@@ -89,7 +89,7 @@ cfg.method         = ft_getopt(cfg, 'method',         'sum');
 cfg.updatesens     = ft_getopt(cfg, 'updatesens',     'yes');
 
 if isfield(cfg, 'baseline')
-  warning('only supporting cfg.baseline for backwards compatibility, please update your cfg');
+  ft_warning('only supporting cfg.baseline for backwards compatibility, please update your cfg');
   cfg.demean         = 'yes';
   cfg.baselinewindow = cfg.baseline;
 end
@@ -103,7 +103,7 @@ end
 
 % select trials of interest
 if ~strcmp(cfg.trials, 'all')
-  error('trial selection has not been implemented yet') % first fix ft_checkdata (see above)
+  ft_error('trial selection has not been implemented yet') % first fix ft_checkdata (see above)
 end
 
 % find the combination of horizontal and vertical channels that should be combined
@@ -128,7 +128,7 @@ lab_comb          = planar(sel_planar,end);
 % perform baseline correction
 if strcmp(cfg.demean, 'yes')
   if ~(istimelock || israw)
-    error('baseline correction is only supported for timelocked or raw input data')
+    ft_error('baseline correction is only supported for timelocked or raw input data')
   end
   if ischar(cfg.baselinewindow) && strcmp(cfg.baselinewindow, 'all')
     cfg.baselinewindow = [-inf inf];
@@ -142,12 +142,12 @@ if strcmp(cfg.demean, 'yes')
 end
 
 if isfreq
-  
+
   switch cfg.method
     case 'sum'
       if isfield(data, 'powspctrm')
         % compute the power of each planar channel, by summing the horizontal and vertical gradients
-        dimtok = tokenize(dimord,'_');
+        dimtok = tokenize(dimord, '_');
         catdim = strmatch('chan',dimtok);
         if catdim==1
           combined = data.powspctrm(sel_dH,:,:,:) + data.powspctrm(sel_dV,:,:,:);
@@ -156,38 +156,36 @@ if isfreq
           combined = data.powspctrm(:,sel_dH,:,:,:) + data.powspctrm(:,sel_dV,:,:,:);
           other    = data.powspctrm(:,sel_other,:,:,:);
         else
-          error('unsupported dimension order of frequency data');
+          ft_error('unsupported dimension order of frequency data');
         end
         data.powspctrm = cat(catdim, combined, other);
         data.label     = cat(1, lab_comb(:), lab_other(:));
       else
-        error('cfg.method = ''%s'' only works for frequency data with powspctrm', cfg.method);
+        ft_error('cfg.method = ''%s'' only works for frequency data with powspctrm', cfg.method);
       end
     case 'svd'
       if isfield(data, 'fourierspctrm')
         fbin = nearest(data.freq, cfg.foilim(1)):nearest(data.freq, cfg.foilim(2));
-        Nrpt   = size(data.fourierspctrm,1);
-        Nsgn   = length(sel_dH);
-        Nfrq   = length(fbin);
-        Ntim   = size(data.fourierspctrm,4);
-        %fourier= complex(zeros(Nrpt,Nsgn,Nfrq,Ntim),zeros(Nrpt,Nsgn,Nfrq,Ntim));
-        fourier= nan(Nrpt,Nsgn,Nfrq,Ntim);
+        Nrpt    = size(data.fourierspctrm,1);
+        Nsgn    = length(sel_dH);
+        Nfrq    = length(fbin);
+        Ntim    = size(data.fourierspctrm,4);
+        fourier = nan(Nrpt,Nsgn,Nfrq,Ntim);
         ft_progress('init', cfg.feedback, 'computing the svd');
         for j = 1:Nsgn
           ft_progress(j/Nsgn, 'computing the svd of signal %d/%d\n', j, Nsgn);
           for k = 1:Nfrq
-            dum = reshape(data.fourierspctrm(:,[sel_dH(j) sel_dV(j)],fbin(k),:), [Nrpt 2 Ntim]);
-            dum = permute(dum, [2 3 1]);
-            dum = reshape(dum, [2 Ntim*Nrpt]);
-            timbin = ~isnan(dum(1,:));
-            [loading, ~,  ori, sin_val] = svdfft(dum(:,timbin),2,data.cumtapcnt);
-            dum2   = loading(1,:);
-            dum(1,timbin) = dum2;
-            dum = reshape(dum(1,:),[Ntim Nrpt]);
-            fourier(:,j,k,:) = transpose(dum);
-            data.ori{k} = ori; % to change into a cell
+            fdat = reshape(data.fourierspctrm(:,[sel_dH(j) sel_dV(j)], fbin(k),:), [Nrpt 2 Ntim]);
+            fdat = permute(fdat, [2 3 1]);        % 2 Ntim Nrpt
+            fdat = reshape(fdat, [2 Ntim*Nrpt]);  % 2 Ntim*Nrpt
+            timbin = ~isnan(fdat(1,:));
+            [frot, ut, ori, sin_val] = svdfft(fdat(:,timbin), 2, data.cumtapcnt);
+            dum = nan(Ntim, Nrpt);                % Ntim Nrpt
+            dum(timbin) = frot(1,:);              % Ntim Nrpt, insert the first channel of the rotated data
+            fourier(:,j,k,:) = transpose(dum);    % Nrpt Ntim
+            data.ori{k} = ori;                            % to change into a cell
             data.eta{k} = sin_val(1)/sum(sin_val(2:end)); % to change into a cell
-            
+
             %for m = 1:Ntim
             %  dum                     = data.fourierspctrm(:,[sel_dH(j) sel_dV(j)],fbin(k),m);
             %  timbin                  = find(~isnan(dum(:,1)));
@@ -202,18 +200,18 @@ if isfreq
         data.label         = cat(1, lab_comb(:), lab_other(:));
         data.freq          = data.freq(fbin);
       else
-        error('cfg.method = ''%s'' only works for frequency data with fourierspctrm', cfg.method);
+        ft_error('cfg.method = ''%s'' only works for frequency data with fourierspctrm', cfg.method);
       end
     otherwise
-      error('cfg.method = ''%s'' is not supported for frequency data', cfg.method);
+      ft_error('cfg.method = ''%s'' is not supported for frequency data', cfg.method);
   end % switch method
-  
+
 elseif (israw || istimelock)
   if istimelock
     % convert timelock to raw
     data = ft_checkdata(data, 'datatype', 'raw', 'feedback', 'yes');
   end
-  
+
   switch cfg.method
     case 'sum'
       Nrpt = length(data.trial);
@@ -223,7 +221,7 @@ elseif (israw || istimelock)
         data.trial{k} = [combined; other];
       end
       data.label = cat(1, lab_comb(:), lab_other(:));
-      
+
     case 'complex'
       Nrpt = length(data.trial);
       for k = 1:Nrpt
@@ -232,7 +230,7 @@ elseif (israw || istimelock)
         data.trial{k} = [combined; other];
       end
       data.label = cat(1, lab_comb(:), lab_other(:));
-      
+
     case {'svd' 'abssvd'}
       Nrpt = length(data.trial);
       Nsgn = length(sel_dH);
@@ -240,45 +238,45 @@ elseif (israw || istimelock)
       Csmp = cumsum([0 Nsmp]);
       % do a 'fixed orientation' across all trials approach here
       % this is different from the frequency case FIXME
-      tmpdat = zeros(2, sum(Nsmp));
+      tdat = zeros(2, sum(Nsmp));
       for k = 1:Nsgn
         for m = 1:Nrpt
-          tmpdat(:, (Csmp(m)+1):Csmp(m+1)) = data.trial{m}([sel_dH(k) sel_dV(k)],:);
+          tdat(:, (Csmp(m)+1):Csmp(m+1)) = data.trial{m}([sel_dH(k) sel_dV(k)],:);
         end
         if strcmp(cfg.method, 'abssvd')||strcmp(cfg.method, 'svd')
-          [loading, ~,  ori, sin_val] = svdfft(tmpdat,2);
-          data.ori{k} = ori; % to change into a cell
+          [rdat, ut, ori, sin_val] = svdfft(tdat, 2);
+          data.ori{k} = ori;                            % to change into a cell
           data.eta{k} = sin_val(1)/sum(sin_val(2:end)); % to change into a cell
           if strcmp(cfg.method, 'abssvd')
-            tmpdat2 = abs(loading(1,:));
+            rdat = abs(rdat(1,:));
           else
-            tmpdat2 = loading(1,:);
+            rdat = rdat(1,:);
           end
         end
-        tmpdat2 = mat2cell(tmpdat2, 1, Nsmp);
+        rdat = mat2cell(rdat, 1, Nsmp);
         for m = 1:Nrpt
           if k==1, trial{m} = zeros(Nsgn, Nsmp(m)); end
-          trial{m}(k,:) = tmpdat2{m};
+          trial{m}(k,:) = rdat{m};
         end
-      end
+      end % for each MEG channel
       for m = 1:Nrpt
         other = data.trial{m}(sel_other,:);
         trial{m} = [trial{m}; other];
       end
       data.trial = trial;
       data.label = cat(1, lab_comb(:), lab_other(:));
-      
+
     otherwise
-      error('cfg.method = ''%s'' is not supported for timelocked or raw data', cfg.method);
+      ft_error('cfg.method = ''%s'' is not supported for timelocked or raw data', cfg.method);
   end % switch method
-  
+
   if istimelock
     % convert raw to timelock
     data = ft_checkdata(data, 'datatype', 'timelock', 'feedback', 'yes');
   end
-  
+
 else
-  error('unsupported input data');
+  ft_error('unsupported input data');
 end % which ft_datatype
 
 % remove the fields for which the planar gradient could not be combined
@@ -288,12 +286,12 @@ if strcmp(cfg.updatesens, 'yes') && isfield(data, 'grad')
   % update the grad and only retain the channel related info
   [sel_dH, sel_comb] = match_str(data.grad.label, planar(:,1));  % indices of the horizontal channels
   [sel_dV          ] = match_str(data.grad.label, planar(:,2));  % indices of the vertical   channels
-  
+
   % find the other channels that are present in the data
   sel_other = setdiff(1:length(data.grad.label), [sel_dH(:)' sel_dV(:)']);
   lab_other = data.grad.label(sel_other);
   lab_comb  = planar(sel_comb,end);
-  
+
   % compute the average position
   newpos   = [
     (data.grad.chanpos(sel_dH,:)+data.grad.chanpos(sel_dV,:))/2
@@ -316,7 +314,7 @@ if strcmp(cfg.updatesens, 'yes') && isfield(data, 'grad')
     repmat({'unknown'}, numel(sel_comb), 1) % combined planar
     data.grad.chanunit(sel_other(:))        % keep the known channel details
     ];
-  
+
   newgrad.chanpos  = newpos;
   newgrad.chanori  = newori;
   newgrad.label    = newlabel;
@@ -324,7 +322,7 @@ if strcmp(cfg.updatesens, 'yes') && isfield(data, 'grad')
   newgrad.chanunit = newunit;
   newgrad.unit     = data.grad.unit;
   newgrad.type     = [data.grad.type '_combined'];
-  
+
   % remember the original channel position details
   if isfield(data.grad, 'chanposold')
     newgrad = copyfields(data.grad, newgrad, {'chanposold', 'chanoriold', 'labelold', 'chantypeold', 'chanunitold'});
@@ -335,7 +333,7 @@ if strcmp(cfg.updatesens, 'yes') && isfield(data, 'grad')
     newgrad.chantypeold  = data.grad.chantype;
     newgrad.chanunitold  = data.grad.chanunit;
   end
-  
+
   % replace it with the updated gradiometer description
   data.grad = newgrad;
 end
@@ -347,7 +345,6 @@ end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   data
 ft_postamble provenance data
 ft_postamble history    data

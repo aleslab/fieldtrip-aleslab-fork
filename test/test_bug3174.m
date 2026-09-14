@@ -1,11 +1,11 @@
 function test_bug3174
 
 % WALLTIME 00:20:00
-% MEM 2gb
+% MEM 1gb
+% DEPENDENCY ft_volumerealign
+% DATA private
 
-% TEST ft_volumerealign
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug3174.mat'));
+load(dccnpath('/project/3031000.02/test/bug3174.mat'));
 
 % co-register the CT to the MRI
 cfg             = [];

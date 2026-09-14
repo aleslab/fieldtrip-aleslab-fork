@@ -1,14 +1,17 @@
 function dat = ft_preproc_medianfilter(dat, order)
 
-% FT_PREPROC_MEDIANFILTER applies a median filter, which smooths the data with
-% a boxcar-like kernel except that it keeps steps in the data. This
-% function requires the MATLAB Signal Processing toolbox.
+% FT_PREPROC_MEDIANFILTER applies a median filter, which smooths the data with a
+% boxcar-like kernel, except that it keeps steps in the data. This function requires
+% the MATLAB Signal Processing toolbox.
 %
 % Use as
 %   [dat] = ft_preproc_medianfilter(dat, order)
 % where
 %   dat        data matrix (Nchans X Ntime)
 %   order      number, the length of the median filter kernel (default = 25)
+%
+% If the data contains NaNs, these are ignored for the computation, but
+% retained in the output.
 %
 % See also PREPROC
 
@@ -34,7 +37,7 @@ function dat = ft_preproc_medianfilter(dat, order)
 
 % set the default filter order
 if nargin<2 || isempty(order)
-  error('the order of the median filter is not specified');
+  ft_error('the order of the median filter is not specified');
 end
 
 % preprocessing fails on channels that contain NaN

@@ -1,16 +1,15 @@
 function [pnt, tri] = triangulate_seg(seg, npnt, origin)
 
-% TRIANGULATE_SEG constructs a triangulation of the outer surface of a
-% segmented volume. It starts at the center of the volume and projects the
-% vertices of an evenly triangulated sphere onto the outer surface. The
-% resulting surface is star-shaped from the origin of the sphere.
+% TRIANGULATE_SEG constructs a triangulation of the outer surface of a segmented
+% volume. It starts at the center of the volume and projects the vertices of an
+% evenly triangulated sphere onto the outer surface. The resulting surface is by
+% construction star-shaped from the origin of the sphere.
 %
 % Use as
 %   [pnt, tri] = triangulate_seg(seg, npnt, origin)
 %
 % Input arguments:
-%  seg    = 3D-matrix (boolean) containing segmented volume. If not boolean
-%           seg = seg(~=0);
+%  seg    = 3D-matrix (boolean) containing the segmented volume
 %  npnt   = requested number of vertices
 %  origin = 1x3 vector specifying the location of the origin of the sphere
 %           in voxel indices. This argument is optional. If undefined, the
@@ -20,12 +19,12 @@ function [pnt, tri] = triangulate_seg(seg, npnt, origin)
 %  pnt = Nx3 matrix of vertex locations
 %  tri = Mx3 matrix of triangles
 %
-% Seg will be checked for holes, and filled if necessary. Also, seg will be
-% checked to consist of a single boolean blob. If not, only the outer surface
-% of the largest will be triangulated. SPM is used for both the filling and
-% checking for multiple blobs.
+% The segmentation will be checked for holes, and filled if necessary. Also, the
+% segmentation will be checked to consist of a single boolean blob. If not, only the
+% outer surface of the largest will be triangulated. SPM is used for both the filling
+% and checking for multiple blobs.
 %
-% See also KSPHERE
+% See also MESH_SPHERE
 
 % Copyright (C) 2005-2012, Robert Oostenveld
 %
@@ -53,7 +52,7 @@ dim = size(seg);
 len = ceil(sqrt(sum(dim.^2))/2);
 
 if ~any(seg(:))
-  error('the segmentation is empty')
+  ft_error('the segmentation is empty')
 end
 
 % define the origin if it is not provided in the input arguments
@@ -75,9 +74,9 @@ ft_hastoolbox('spm8up', 3) || ft_hastoolbox('spm2', 1);
 
 % look for >1 blob
 [lab, num] = spm_bwlabel(double(seg), 26);
-if num>1,
-  warning('the segmented volume consists of more than one compartment, using only the biggest one for the segmentation');
-  
+if num>1
+  ft_warning('the segmented volume consists of more than one compartment, using only the biggest one for the segmentation');
+
   for k = 1:num
     n(k) = sum(lab(:)==k);
   end
@@ -86,7 +85,7 @@ if num>1,
 end
 
 % start with a unit sphere with evenly distributed vertices
-[pnt, tri] = ksphere(npnt);
+[pnt, tri] = mesh_sphere(npnt, 'ksphere');
 
 ishollow = false;
 
@@ -105,14 +104,14 @@ for i=1:npnt
         lin(:,3)<1 | lin(:,3)>dim(3);
   lin = lin(~sel,:);
   sel = sub2ind(dim, lin(:,1), lin(:,2), lin(:,3));
-  
+
   % interpolate the segmented volume along the sampled line
   int = seg(sel);
-  
+
   % the value along the line is expected to be 1 at first and then drop to 0
   % anything else suggests that the segmentation is hollow
   ishollow = any(diff(int)==1);
-  
+
   % find the last sample along the line that is inside the segmentation
   sel = find(int, 1, 'last');
   % this is a problem if sel is empty. If so, use the edge of the volume
@@ -127,7 +126,7 @@ end
 
 if ishollow
   % this should not have hapened, especially not after filling the holes
-  warning('the segmentation is not star-shaped, please check the surface mesh');
+  ft_warning('the segmentation is not star-shaped, please check the surface mesh');
 end
 
 % undo the shift of the origin from where the projection is done
@@ -138,4 +137,3 @@ end
 % fast unconditional re-implementation of the standard MATLAB function
 function [s] = sub2ind(dim, i, j, k)
 s = i + (j-1)*dim(1) + (k-1)*dim(1)*dim(2);
-

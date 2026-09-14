@@ -16,6 +16,8 @@ function label = ft_senslabel(type, varargin)
 %  'bti248'
 %  'bti248_planar'
 %  'btiref'
+%  'ctf64'
+%  'ctf64_planar'
 %  'ctf151'
 %  'ctf151_planar'
 %  'ctf275'
@@ -42,6 +44,8 @@ function label = ft_senslabel(type, varargin)
 %  'yokogawa64_planar'
 %  'yokogawa160'
 %  'yokogawa160_planar'
+%  'yokogawa208'
+%  'yokogawa208_planar'
 %  'yokogawa440'
 %  'yokogawa440_planar'
 %
@@ -52,7 +56,7 @@ function label = ft_senslabel(type, varargin)
 %
 % See also FT_SENSTYPE, FT_CHANNELSELECTION
 
-% Copyright (C) 2007-2013, Robert Oostenveld
+% Copyright (C) 2007-2022, Robert Oostenveld
 % Copyright (C) 2008, Vladimir Litvak
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
@@ -74,9 +78,10 @@ function label = ft_senslabel(type, varargin)
 % $Id$
 
 % these are for speeding up subsequent calls with the same input arguments
-persistent eeg electrode ant128 btiref bti148 bti148_planar bti148_planar_combined bti248 bti248_planar bti248_planar_combined ctfref ctfheadloc ctf64 ctf151 ctf151_planar ctf151_planar_combined ctf275 ctf275_planar ctf275_planar_combined neuromag122 neuromag122_combined neuromag306 neuromag306_mag neuromag306_planar neuromag306_combined eeg1020 eeg1010 eeg1005 ext1020 biosemi64 biosemi128 biosemi256 egi32 egi64 egi128 egi256 itab28 itab153 itab153_planar itab153_planar_combined yokogawa9 yokogawa64 yokogawa64_planar yokogawa64_planar_combined yokogawa160 yokogawa160_planar yokogawa160_planar_combined yokogawa440 yokogawa440_planar yokogawa440_planar_combined
+persistent eeg electrode ant128 btiref bti148 bti148_planar bti148_planar_combined bti248 bti248_planar bti248_planar_combined ctfref ctfheadloc ctf64 ctf64_planar ctf64_planar_combined ctf151 ctf151_planar ctf151_planar_combined ctf275 ctf275_planar ctf275_planar_combined neuromag122 neuromag122_combined neuromag306 neuromag306_mag neuromag306_planar neuromag306_combined eeg1020 eeg1010 eeg1005 ext1020 biosemi64 biosemi128 biosemi256 egi32 egi64 egi128 egi256 itab28 itab153 itab153_planar itab153_planar_combined yokogawa9 yokogawa64 yokogawa64_planar yokogawa64_planar_combined yokogawa160 yokogawa160_planar yokogawa160_planar_combined yokogawa208 yokogawa208_planar yokogawa208_planar_combined yokogawa440 yokogawa440_planar yokogawa440_planar_combined
 % these are for backward compatibility
-persistent neuromag122alt neuromag122alt_combined neuromag306alt neuromag306alt_combined
+persistent neuromag122alt neuromag122alt_combined
+persistent neuromag306alt neuromag306alt_mag neuromag306alt_planar neuromag306alt_combined
 
 if nargin<1
   % ensure that all input arguments are defined
@@ -87,11 +92,11 @@ end
 output  = ft_getopt(varargin, 'output', 'normal'); % 'normal' or 'planarcombined'
 
 if ~exist(type, 'var')
-  error('the requested sensor type "%s" is not supported', type);
-  
+  ft_error('the requested sensor type "%s" is not supported', type);
+
 elseif isempty(eval(type))
   % assign the list of channels only once, keep it as persistent variable
-  
+
   switch type
     case 'ant128'
       label = {
@@ -224,7 +229,7 @@ elseif isempty(eval(type))
         'RE4'
         'Rm'
         };
-      
+
     case 'btiref'
       label = {
         'MRxA'
@@ -251,13 +256,13 @@ elseif isempty(eval(type))
         'GyyA'
         'GzyA'
         };
-      
+
     case 'bti148'
       label = cell(148,1);
       for i=1:148
         label{i,1} = sprintf('A%d', i);
       end
-      
+
     case 'bti148_planar'
       label = cell(148,3);
       for i=1:148
@@ -267,13 +272,13 @@ elseif isempty(eval(type))
       end
       bti148_planar_combined = label(:,3);
       label = label(:,1:2);
-      
+
     case 'bti248'
       label = cell(248,1);
       for i=1:248
         label{i,1} = sprintf('A%d', i);
       end
-      
+
     case 'bti248_planar'
       label = cell(248,3);
       for i=1:248
@@ -283,7 +288,7 @@ elseif isempty(eval(type))
       end
       bti248_planar_combined = label(:,3);
       label = label(:,1:2);
-      
+
     case 'ctfref'
       label = {
         'BG1'
@@ -316,7 +321,7 @@ elseif isempty(eval(type))
         'R22'
         'R23'
         };
-      
+
     case 'ctfheadloc'
       label = {
         'HLC0011'
@@ -344,7 +349,7 @@ elseif isempty(eval(type))
         'HLC0036'
         'HLC0037'
         };
-      
+
     case 'ctf64'
       label = {
         'SL11'
@@ -412,7 +417,77 @@ elseif isempty(eval(type))
         'SR51'
         'SR52'
         };
-      
+
+    case 'ctf64_planar'
+      label = {
+        'SL11_dH'  'SL11_dV'  'SL11'
+        'SL12_dH'  'SL12_dV'  'SL12'
+        'SL13_dH'  'SL13_dV'  'SL13'
+        'SL14_dH'  'SL14_dV'  'SL14'
+        'SL15_dH'  'SL15_dV'  'SL15'
+        'SL16_dH'  'SL16_dV'  'SL16'
+        'SL17_dH'  'SL17_dV'  'SL17'
+        'SL18_dH'  'SL18_dV'  'SL18'
+        'SL19_dH'  'SL19_dV'  'SL19'
+        'SL21_dH'  'SL21_dV'  'SL21'
+        'SL22_dH'  'SL22_dV'  'SL22'
+        'SL23_dH'  'SL23_dV'  'SL23'
+        'SL24_dH'  'SL24_dV'  'SL24'
+        'SL25_dH'  'SL25_dV'  'SL25'
+        'SL26_dH'  'SL26_dV'  'SL26'
+        'SL27_dH'  'SL27_dV'  'SL27'
+        'SL28_dH'  'SL28_dV'  'SL28'
+        'SL29_dH'  'SL29_dV'  'SL29'
+        'SL31_dH'  'SL31_dV'  'SL31'
+        'SL32_dH'  'SL32_dV'  'SL32'
+        'SL33_dH'  'SL33_dV'  'SL33'
+        'SL34_dH'  'SL34_dV'  'SL34'
+        'SL35_dH'  'SL35_dV'  'SL35'
+        'SL41_dH'  'SL41_dV'  'SL41'
+        'SL42_dH'  'SL42_dV'  'SL42'
+        'SL43_dH'  'SL43_dV'  'SL43'
+        'SL44_dH'  'SL44_dV'  'SL44'
+        'SL45_dH'  'SL45_dV'  'SL45'
+        'SL46_dH'  'SL46_dV'  'SL46'
+        'SL47_dH'  'SL47_dV'  'SL47'
+        'SL51_dH'  'SL51_dV'  'SL51'
+        'SL52_dH'  'SL52_dV'  'SL52'
+        'SR11_dH'  'SR11_dV'  'SR11'
+        'SR12_dH'  'SR12_dV'  'SR12'
+        'SR13_dH'  'SR13_dV'  'SR13'
+        'SR14_dH'  'SR14_dV'  'SR14'
+        'SR15_dH'  'SR15_dV'  'SR15'
+        'SR16_dH'  'SR16_dV'  'SR16'
+        'SR17_dH'  'SR17_dV'  'SR17'
+        'SR18_dH'  'SR18_dV'  'SR18'
+        'SR19_dH'  'SR19_dV'  'SR19'
+        'SR21_dH'  'SR21_dV'  'SR21'
+        'SR22_dH'  'SR22_dV'  'SR22'
+        'SR23_dH'  'SR23_dV'  'SR23'
+        'SR24_dH'  'SR24_dV'  'SR24'
+        'SR25_dH'  'SR25_dV'  'SR25'
+        'SR26_dH'  'SR26_dV'  'SR26'
+        'SR27_dH'  'SR27_dV'  'SR27'
+        'SR28_dH'  'SR28_dV'  'SR28'
+        'SR29_dH'  'SR29_dV'  'SR29'
+        'SR31_dH'  'SR31_dV'  'SR31'
+        'SR32_dH'  'SR32_dV'  'SR32'
+        'SR33_dH'  'SR33_dV'  'SR33'
+        'SR34_dH'  'SR34_dV'  'SR34'
+        'SR35_dH'  'SR35_dV'  'SR35'
+        'SR41_dH'  'SR41_dV'  'SR41'
+        'SR42_dH'  'SR42_dV'  'SR42'
+        'SR43_dH'  'SR43_dV'  'SR43'
+        'SR44_dH'  'SR44_dV'  'SR44'
+        'SR45_dH'  'SR45_dV'  'SR45'
+        'SR46_dH'  'SR46_dV'  'SR46'
+        'SR47_dH'  'SR47_dV'  'SR47'
+        'SR51_dH'  'SR51_dV'  'SR51'
+        'SR52_dH'  'SR52_dV'  'SR52'
+        };
+      ctf64_planar_combined = label(:,3);
+      label = label(:,1:2);
+
     case 'ctf151'
       label = {
         'MLC11'
@@ -567,7 +642,7 @@ elseif isempty(eval(type))
         'MZP01'
         'MZP02'
         };
-      
+
     case 'ctf151_planar'
       label = {
         'MLC11_dH'  'MLC11_dV'  'MLC11'
@@ -724,7 +799,7 @@ elseif isempty(eval(type))
         };
       ctf151_planar_combined = label(:,3);
       label = label(:,1:2);
-      
+
     case 'ctf275'
       label = {
         'MLC11'
@@ -1003,7 +1078,7 @@ elseif isempty(eval(type))
         'MZO03'
         'MZP01'
         };
-      
+
     case 'ctf275_planar'
       label = {
         'MLC11_dH'  'MLC11_dV'  'MLC11'
@@ -1284,9 +1359,11 @@ elseif isempty(eval(type))
         };
       ctf275_planar_combined = label(:,3);
       label = label(:,1:2);
-      
-    case {'neuromag122' 'neuromag122alt'}
+
+    case {'neuromag122' 'neuromag122_combined' 'neuromag122alt' 'neuromag122alt_combined'}
       % this is the combination of the two versions (with and without space)
+      % with the MNE-MATLAB reading functions, the labels for 122-channel data are normally WITH a space
+      % with the MNE-MATLAB reading functions, the labels for 306-channel data are normally WITHOUT a space
       label = {
         'MEG 001'  'MEG 002'  'MEG 001+002'
         'MEG 003'  'MEG 004'  'MEG 003+004'
@@ -1349,7 +1426,7 @@ elseif isempty(eval(type))
         'MEG 117'  'MEG 118'  'MEG 117+118'
         'MEG 119'  'MEG 120'  'MEG 119+120'
         'MEG 121'  'MEG 122'  'MEG 121+122'
-        % this is an alternative set of labels without a space in them
+        % this is an alternative set of labels WITHOUT a space in them
         'MEG001'  'MEG002'  'MEG001+002'
         'MEG003'  'MEG004'  'MEG003+004'
         'MEG005'  'MEG006'  'MEG005+006'
@@ -1412,116 +1489,17 @@ elseif isempty(eval(type))
         'MEG119'  'MEG120'  'MEG119+120'
         'MEG121'  'MEG122'  'MEG121+122'
         };
-      neuromag122_combined = label(:,3);
-      neuromag122alt_combined = label(:,3);
-      label = label(:,1:2);
-      
-    case {'neuromag306' 'neuromag306alt'}
+      neuromag122             = label(1:61, 1:2);
+      neuromag122_combined    = label(1:61, 3);
+      neuromag122alt          = label(62:122, 1:2);
+      neuromag122alt_combined = label(62:122, 3);
+      label = eval(type);
+
+    case {'neuromag306' 'neuromag306_planar' 'neuromag306_mag' 'neuromag306_combined' 'neuromag306alt' 'neuromag306alt_planar' 'neuromag306alt_mag' 'neuromag306alt_combined'}
       % this is the combination of the two versions (with and without space)
+      % with the MNE-MATLAB reading functions, the labels for 306-channel data are normally WITHOUT a space
+      % with the MNE-MATLAB reading functions, the labels for 122-channel data are normally WITH a space
       label = {
-        'MEG 0112'  'MEG 0113'  'MEG 0111'  'MEG 0112+0113'
-        'MEG 0122'  'MEG 0123'  'MEG 0121'  'MEG 0122+0123'
-        'MEG 0132'  'MEG 0133'  'MEG 0131'  'MEG 0132+0133'
-        'MEG 0142'  'MEG 0143'  'MEG 0141'  'MEG 0142+0143'
-        'MEG 0212'  'MEG 0213'  'MEG 0211'  'MEG 0212+0213'
-        'MEG 0222'  'MEG 0223'  'MEG 0221'  'MEG 0222+0223'
-        'MEG 0232'  'MEG 0233'  'MEG 0231'  'MEG 0232+0233'
-        'MEG 0242'  'MEG 0243'  'MEG 0241'  'MEG 0242+0243'
-        'MEG 0312'  'MEG 0313'  'MEG 0311'  'MEG 0312+0313'
-        'MEG 0322'  'MEG 0323'  'MEG 0321'  'MEG 0322+0323'
-        'MEG 0332'  'MEG 0333'  'MEG 0331'  'MEG 0332+0333'
-        'MEG 0342'  'MEG 0343'  'MEG 0341'  'MEG 0342+0343'
-        'MEG 0412'  'MEG 0413'  'MEG 0411'  'MEG 0412+0413'
-        'MEG 0422'  'MEG 0423'  'MEG 0421'  'MEG 0422+0423'
-        'MEG 0432'  'MEG 0433'  'MEG 0431'  'MEG 0432+0433'
-        'MEG 0442'  'MEG 0443'  'MEG 0441'  'MEG 0442+0443'
-        'MEG 0512'  'MEG 0513'  'MEG 0511'  'MEG 0512+0513'
-        'MEG 0522'  'MEG 0523'  'MEG 0521'  'MEG 0522+0523'
-        'MEG 0532'  'MEG 0533'  'MEG 0531'  'MEG 0532+0533'
-        'MEG 0542'  'MEG 0543'  'MEG 0541'  'MEG 0542+0543'
-        'MEG 0612'  'MEG 0613'  'MEG 0611'  'MEG 0612+0613'
-        'MEG 0622'  'MEG 0623'  'MEG 0621'  'MEG 0622+0623'
-        'MEG 0632'  'MEG 0633'  'MEG 0631'  'MEG 0632+0633'
-        'MEG 0642'  'MEG 0643'  'MEG 0641'  'MEG 0642+0643'
-        'MEG 0712'  'MEG 0713'  'MEG 0711'  'MEG 0712+0713'
-        'MEG 0722'  'MEG 0723'  'MEG 0721'  'MEG 0722+0723'
-        'MEG 0732'  'MEG 0733'  'MEG 0731'  'MEG 0732+0733'
-        'MEG 0742'  'MEG 0743'  'MEG 0741'  'MEG 0742+0743'
-        'MEG 0812'  'MEG 0813'  'MEG 0811'  'MEG 0812+0813'
-        'MEG 0822'  'MEG 0823'  'MEG 0821'  'MEG 0822+0823'
-        'MEG 0912'  'MEG 0913'  'MEG 0911'  'MEG 0912+0913'
-        'MEG 0922'  'MEG 0923'  'MEG 0921'  'MEG 0922+0923'
-        'MEG 0932'  'MEG 0933'  'MEG 0931'  'MEG 0932+0933'
-        'MEG 0942'  'MEG 0943'  'MEG 0941'  'MEG 0942+0943'
-        'MEG 1012'  'MEG 1013'  'MEG 1011'  'MEG 1012+1013'
-        'MEG 1022'  'MEG 1023'  'MEG 1021'  'MEG 1022+1023'
-        'MEG 1032'  'MEG 1033'  'MEG 1031'  'MEG 1032+1033'
-        'MEG 1042'  'MEG 1043'  'MEG 1041'  'MEG 1042+1043'
-        'MEG 1112'  'MEG 1113'  'MEG 1111'  'MEG 1112+1113'
-        'MEG 1122'  'MEG 1123'  'MEG 1121'  'MEG 1122+1123'
-        'MEG 1132'  'MEG 1133'  'MEG 1131'  'MEG 1132+1133'
-        'MEG 1142'  'MEG 1143'  'MEG 1141'  'MEG 1142+1143'
-        'MEG 1212'  'MEG 1213'  'MEG 1211'  'MEG 1212+1213'
-        'MEG 1222'  'MEG 1223'  'MEG 1221'  'MEG 1222+1223'
-        'MEG 1232'  'MEG 1233'  'MEG 1231'  'MEG 1232+1233'
-        'MEG 1242'  'MEG 1243'  'MEG 1241'  'MEG 1242+1243'
-        'MEG 1312'  'MEG 1313'  'MEG 1311'  'MEG 1312+1313'
-        'MEG 1322'  'MEG 1323'  'MEG 1321'  'MEG 1322+1323'
-        'MEG 1332'  'MEG 1333'  'MEG 1331'  'MEG 1332+1333'
-        'MEG 1342'  'MEG 1343'  'MEG 1341'  'MEG 1342+1343'
-        'MEG 1412'  'MEG 1413'  'MEG 1411'  'MEG 1412+1413'
-        'MEG 1422'  'MEG 1423'  'MEG 1421'  'MEG 1422+1423'
-        'MEG 1432'  'MEG 1433'  'MEG 1431'  'MEG 1432+1433'
-        'MEG 1442'  'MEG 1443'  'MEG 1441'  'MEG 1442+1443'
-        'MEG 1512'  'MEG 1513'  'MEG 1511'  'MEG 1512+1513'
-        'MEG 1522'  'MEG 1523'  'MEG 1521'  'MEG 1522+1523'
-        'MEG 1532'  'MEG 1533'  'MEG 1531'  'MEG 1532+1533'
-        'MEG 1542'  'MEG 1543'  'MEG 1541'  'MEG 1542+1543'
-        'MEG 1612'  'MEG 1613'  'MEG 1611'  'MEG 1612+1613'
-        'MEG 1622'  'MEG 1623'  'MEG 1621'  'MEG 1622+1623'
-        'MEG 1632'  'MEG 1633'  'MEG 1631'  'MEG 1632+1633'
-        'MEG 1642'  'MEG 1643'  'MEG 1641'  'MEG 1642+1643'
-        'MEG 1712'  'MEG 1713'  'MEG 1711'  'MEG 1712+1713'
-        'MEG 1722'  'MEG 1723'  'MEG 1721'  'MEG 1722+1723'
-        'MEG 1732'  'MEG 1733'  'MEG 1731'  'MEG 1732+1733'
-        'MEG 1742'  'MEG 1743'  'MEG 1741'  'MEG 1742+1743'
-        'MEG 1812'  'MEG 1813'  'MEG 1811'  'MEG 1812+1813'
-        'MEG 1822'  'MEG 1823'  'MEG 1821'  'MEG 1822+1823'
-        'MEG 1832'  'MEG 1833'  'MEG 1831'  'MEG 1832+1833'
-        'MEG 1842'  'MEG 1843'  'MEG 1841'  'MEG 1842+1843'
-        'MEG 1912'  'MEG 1913'  'MEG 1911'  'MEG 1912+1913'
-        'MEG 1922'  'MEG 1923'  'MEG 1921'  'MEG 1922+1923'
-        'MEG 1932'  'MEG 1933'  'MEG 1931'  'MEG 1932+1933'
-        'MEG 1942'  'MEG 1943'  'MEG 1941'  'MEG 1942+1943'
-        'MEG 2012'  'MEG 2013'  'MEG 2011'  'MEG 2012+2013'
-        'MEG 2022'  'MEG 2023'  'MEG 2021'  'MEG 2022+2023'
-        'MEG 2032'  'MEG 2033'  'MEG 2031'  'MEG 2032+2033'
-        'MEG 2042'  'MEG 2043'  'MEG 2041'  'MEG 2042+2043'
-        'MEG 2112'  'MEG 2113'  'MEG 2111'  'MEG 2112+2113'
-        'MEG 2122'  'MEG 2123'  'MEG 2121'  'MEG 2122+2123'
-        'MEG 2132'  'MEG 2133'  'MEG 2131'  'MEG 2132+2133'
-        'MEG 2142'  'MEG 2143'  'MEG 2141'  'MEG 2142+2143'
-        'MEG 2212'  'MEG 2213'  'MEG 2211'  'MEG 2212+2213'
-        'MEG 2222'  'MEG 2223'  'MEG 2221'  'MEG 2222+2223'
-        'MEG 2232'  'MEG 2233'  'MEG 2231'  'MEG 2232+2233'
-        'MEG 2242'  'MEG 2243'  'MEG 2241'  'MEG 2242+2243'
-        'MEG 2312'  'MEG 2313'  'MEG 2311'  'MEG 2312+2313'
-        'MEG 2322'  'MEG 2323'  'MEG 2321'  'MEG 2322+2323'
-        'MEG 2332'  'MEG 2333'  'MEG 2331'  'MEG 2332+2333'
-        'MEG 2342'  'MEG 2343'  'MEG 2341'  'MEG 2342+2343'
-        'MEG 2412'  'MEG 2413'  'MEG 2411'  'MEG 2412+2413'
-        'MEG 2422'  'MEG 2423'  'MEG 2421'  'MEG 2422+2423'
-        'MEG 2432'  'MEG 2433'  'MEG 2431'  'MEG 2432+2433'
-        'MEG 2442'  'MEG 2443'  'MEG 2441'  'MEG 2442+2443'
-        'MEG 2512'  'MEG 2513'  'MEG 2511'  'MEG 2512+2513'
-        'MEG 2522'  'MEG 2523'  'MEG 2521'  'MEG 2522+2523'
-        'MEG 2532'  'MEG 2533'  'MEG 2531'  'MEG 2532+2533'
-        'MEG 2542'  'MEG 2543'  'MEG 2541'  'MEG 2542+2543'
-        'MEG 2612'  'MEG 2613'  'MEG 2611'  'MEG 2612+2613'
-        'MEG 2622'  'MEG 2623'  'MEG 2621'  'MEG 2622+2623'
-        'MEG 2632'  'MEG 2633'  'MEG 2631'  'MEG 2632+2633'
-        'MEG 2642'  'MEG 2643'  'MEG 2641'  'MEG 2642+2643'
-        % this is an alternative set of labels without a space in them
         'MEG0112'  'MEG0113'  'MEG0111'  'MEG0112+0113'
         'MEG0122'  'MEG0123'  'MEG0121'  'MEG0122+0123'
         'MEG0132'  'MEG0133'  'MEG0131'  'MEG0132+0133'
@@ -1624,12 +1602,121 @@ elseif isempty(eval(type))
         'MEG2622'  'MEG2623'  'MEG2621'  'MEG2622+2623'
         'MEG2632'  'MEG2633'  'MEG2631'  'MEG2632+2633'
         'MEG2642'  'MEG2643'  'MEG2641'  'MEG2642+2643'
+        % this is an alternative set of labels WITH a space in them
+        'MEG 0112'  'MEG 0113'  'MEG 0111'  'MEG 0112+0113'
+        'MEG 0122'  'MEG 0123'  'MEG 0121'  'MEG 0122+0123'
+        'MEG 0132'  'MEG 0133'  'MEG 0131'  'MEG 0132+0133'
+        'MEG 0142'  'MEG 0143'  'MEG 0141'  'MEG 0142+0143'
+        'MEG 0212'  'MEG 0213'  'MEG 0211'  'MEG 0212+0213'
+        'MEG 0222'  'MEG 0223'  'MEG 0221'  'MEG 0222+0223'
+        'MEG 0232'  'MEG 0233'  'MEG 0231'  'MEG 0232+0233'
+        'MEG 0242'  'MEG 0243'  'MEG 0241'  'MEG 0242+0243'
+        'MEG 0312'  'MEG 0313'  'MEG 0311'  'MEG 0312+0313'
+        'MEG 0322'  'MEG 0323'  'MEG 0321'  'MEG 0322+0323'
+        'MEG 0332'  'MEG 0333'  'MEG 0331'  'MEG 0332+0333'
+        'MEG 0342'  'MEG 0343'  'MEG 0341'  'MEG 0342+0343'
+        'MEG 0412'  'MEG 0413'  'MEG 0411'  'MEG 0412+0413'
+        'MEG 0422'  'MEG 0423'  'MEG 0421'  'MEG 0422+0423'
+        'MEG 0432'  'MEG 0433'  'MEG 0431'  'MEG 0432+0433'
+        'MEG 0442'  'MEG 0443'  'MEG 0441'  'MEG 0442+0443'
+        'MEG 0512'  'MEG 0513'  'MEG 0511'  'MEG 0512+0513'
+        'MEG 0522'  'MEG 0523'  'MEG 0521'  'MEG 0522+0523'
+        'MEG 0532'  'MEG 0533'  'MEG 0531'  'MEG 0532+0533'
+        'MEG 0542'  'MEG 0543'  'MEG 0541'  'MEG 0542+0543'
+        'MEG 0612'  'MEG 0613'  'MEG 0611'  'MEG 0612+0613'
+        'MEG 0622'  'MEG 0623'  'MEG 0621'  'MEG 0622+0623'
+        'MEG 0632'  'MEG 0633'  'MEG 0631'  'MEG 0632+0633'
+        'MEG 0642'  'MEG 0643'  'MEG 0641'  'MEG 0642+0643'
+        'MEG 0712'  'MEG 0713'  'MEG 0711'  'MEG 0712+0713'
+        'MEG 0722'  'MEG 0723'  'MEG 0721'  'MEG 0722+0723'
+        'MEG 0732'  'MEG 0733'  'MEG 0731'  'MEG 0732+0733'
+        'MEG 0742'  'MEG 0743'  'MEG 0741'  'MEG 0742+0743'
+        'MEG 0812'  'MEG 0813'  'MEG 0811'  'MEG 0812+0813'
+        'MEG 0822'  'MEG 0823'  'MEG 0821'  'MEG 0822+0823'
+        'MEG 0912'  'MEG 0913'  'MEG 0911'  'MEG 0912+0913'
+        'MEG 0922'  'MEG 0923'  'MEG 0921'  'MEG 0922+0923'
+        'MEG 0932'  'MEG 0933'  'MEG 0931'  'MEG 0932+0933'
+        'MEG 0942'  'MEG 0943'  'MEG 0941'  'MEG 0942+0943'
+        'MEG 1012'  'MEG 1013'  'MEG 1011'  'MEG 1012+1013'
+        'MEG 1022'  'MEG 1023'  'MEG 1021'  'MEG 1022+1023'
+        'MEG 1032'  'MEG 1033'  'MEG 1031'  'MEG 1032+1033'
+        'MEG 1042'  'MEG 1043'  'MEG 1041'  'MEG 1042+1043'
+        'MEG 1112'  'MEG 1113'  'MEG 1111'  'MEG 1112+1113'
+        'MEG 1122'  'MEG 1123'  'MEG 1121'  'MEG 1122+1123'
+        'MEG 1132'  'MEG 1133'  'MEG 1131'  'MEG 1132+1133'
+        'MEG 1142'  'MEG 1143'  'MEG 1141'  'MEG 1142+1143'
+        'MEG 1212'  'MEG 1213'  'MEG 1211'  'MEG 1212+1213'
+        'MEG 1222'  'MEG 1223'  'MEG 1221'  'MEG 1222+1223'
+        'MEG 1232'  'MEG 1233'  'MEG 1231'  'MEG 1232+1233'
+        'MEG 1242'  'MEG 1243'  'MEG 1241'  'MEG 1242+1243'
+        'MEG 1312'  'MEG 1313'  'MEG 1311'  'MEG 1312+1313'
+        'MEG 1322'  'MEG 1323'  'MEG 1321'  'MEG 1322+1323'
+        'MEG 1332'  'MEG 1333'  'MEG 1331'  'MEG 1332+1333'
+        'MEG 1342'  'MEG 1343'  'MEG 1341'  'MEG 1342+1343'
+        'MEG 1412'  'MEG 1413'  'MEG 1411'  'MEG 1412+1413'
+        'MEG 1422'  'MEG 1423'  'MEG 1421'  'MEG 1422+1423'
+        'MEG 1432'  'MEG 1433'  'MEG 1431'  'MEG 1432+1433'
+        'MEG 1442'  'MEG 1443'  'MEG 1441'  'MEG 1442+1443'
+        'MEG 1512'  'MEG 1513'  'MEG 1511'  'MEG 1512+1513'
+        'MEG 1522'  'MEG 1523'  'MEG 1521'  'MEG 1522+1523'
+        'MEG 1532'  'MEG 1533'  'MEG 1531'  'MEG 1532+1533'
+        'MEG 1542'  'MEG 1543'  'MEG 1541'  'MEG 1542+1543'
+        'MEG 1612'  'MEG 1613'  'MEG 1611'  'MEG 1612+1613'
+        'MEG 1622'  'MEG 1623'  'MEG 1621'  'MEG 1622+1623'
+        'MEG 1632'  'MEG 1633'  'MEG 1631'  'MEG 1632+1633'
+        'MEG 1642'  'MEG 1643'  'MEG 1641'  'MEG 1642+1643'
+        'MEG 1712'  'MEG 1713'  'MEG 1711'  'MEG 1712+1713'
+        'MEG 1722'  'MEG 1723'  'MEG 1721'  'MEG 1722+1723'
+        'MEG 1732'  'MEG 1733'  'MEG 1731'  'MEG 1732+1733'
+        'MEG 1742'  'MEG 1743'  'MEG 1741'  'MEG 1742+1743'
+        'MEG 1812'  'MEG 1813'  'MEG 1811'  'MEG 1812+1813'
+        'MEG 1822'  'MEG 1823'  'MEG 1821'  'MEG 1822+1823'
+        'MEG 1832'  'MEG 1833'  'MEG 1831'  'MEG 1832+1833'
+        'MEG 1842'  'MEG 1843'  'MEG 1841'  'MEG 1842+1843'
+        'MEG 1912'  'MEG 1913'  'MEG 1911'  'MEG 1912+1913'
+        'MEG 1922'  'MEG 1923'  'MEG 1921'  'MEG 1922+1923'
+        'MEG 1932'  'MEG 1933'  'MEG 1931'  'MEG 1932+1933'
+        'MEG 1942'  'MEG 1943'  'MEG 1941'  'MEG 1942+1943'
+        'MEG 2012'  'MEG 2013'  'MEG 2011'  'MEG 2012+2013'
+        'MEG 2022'  'MEG 2023'  'MEG 2021'  'MEG 2022+2023'
+        'MEG 2032'  'MEG 2033'  'MEG 2031'  'MEG 2032+2033'
+        'MEG 2042'  'MEG 2043'  'MEG 2041'  'MEG 2042+2043'
+        'MEG 2112'  'MEG 2113'  'MEG 2111'  'MEG 2112+2113'
+        'MEG 2122'  'MEG 2123'  'MEG 2121'  'MEG 2122+2123'
+        'MEG 2132'  'MEG 2133'  'MEG 2131'  'MEG 2132+2133'
+        'MEG 2142'  'MEG 2143'  'MEG 2141'  'MEG 2142+2143'
+        'MEG 2212'  'MEG 2213'  'MEG 2211'  'MEG 2212+2213'
+        'MEG 2222'  'MEG 2223'  'MEG 2221'  'MEG 2222+2223'
+        'MEG 2232'  'MEG 2233'  'MEG 2231'  'MEG 2232+2233'
+        'MEG 2242'  'MEG 2243'  'MEG 2241'  'MEG 2242+2243'
+        'MEG 2312'  'MEG 2313'  'MEG 2311'  'MEG 2312+2313'
+        'MEG 2322'  'MEG 2323'  'MEG 2321'  'MEG 2322+2323'
+        'MEG 2332'  'MEG 2333'  'MEG 2331'  'MEG 2332+2333'
+        'MEG 2342'  'MEG 2343'  'MEG 2341'  'MEG 2342+2343'
+        'MEG 2412'  'MEG 2413'  'MEG 2411'  'MEG 2412+2413'
+        'MEG 2422'  'MEG 2423'  'MEG 2421'  'MEG 2422+2423'
+        'MEG 2432'  'MEG 2433'  'MEG 2431'  'MEG 2432+2433'
+        'MEG 2442'  'MEG 2443'  'MEG 2441'  'MEG 2442+2443'
+        'MEG 2512'  'MEG 2513'  'MEG 2511'  'MEG 2512+2513'
+        'MEG 2522'  'MEG 2523'  'MEG 2521'  'MEG 2522+2523'
+        'MEG 2532'  'MEG 2533'  'MEG 2531'  'MEG 2532+2533'
+        'MEG 2542'  'MEG 2543'  'MEG 2541'  'MEG 2542+2543'
+        'MEG 2612'  'MEG 2613'  'MEG 2611'  'MEG 2612+2613'
+        'MEG 2622'  'MEG 2623'  'MEG 2621'  'MEG 2622+2623'
+        'MEG 2632'  'MEG 2633'  'MEG 2631'  'MEG 2632+2633'
+        'MEG 2642'  'MEG 2643'  'MEG 2641'  'MEG 2642+2643'
+
         };
-      neuromag306_mag      = label(:,1);
-      neuromag306_planar   = label(:,[1 2]);
-      neuromag306_combined = label(:,[3 4]); % magnetometers and combined channels
-      label                = label(:,1:3);
-      
+      neuromag306          = label(1:102, [1 2 3]);       % all physical channels
+      neuromag306_planar   = label(1:102, [1 2]);         % planar channels
+      neuromag306_mag      = label(1:102, 3);             % magnetometer channels
+      neuromag306_combined = label(1:102, 4);             % combined channels
+      neuromag306alt          = label(103:204, [1 2 3]);  % all physical channels
+      neuromag306alt_planar   = label(103:204, [1 2]);    % planar channels
+      neuromag306alt_mag      = label(103:204, 3);        % magnetometer channels
+      neuromag306alt_combined = label(103:204, 4);        % combined channels
+      label = eval(type);
+
     case 'eeg1020'
       label = {
         'Fp1'
@@ -1653,10 +1740,10 @@ elseif isempty(eval(type))
         'O1'
         'Oz'
         'O2'};
-      
+
       % Add also reference and some alternative labels that might be used
       label = cat(1, label, {'A1' 'A2' 'M1' 'M2' 'T3' 'T4' 'T5' 'T6'}');
-      
+
     case 'eeg1010'
       label = {
         'Fp1'
@@ -2091,7 +2178,7 @@ elseif isempty(eval(type))
 
       % Add also reference and some alternative labels that might be used
       label = cat(1, label, {'A1' 'A2' 'M1' 'M2' 'T3' 'T4' 'T5' 'T6'}');
-      
+
     case 'ext1020'
       % start with the eeg1005 list
       label = {
@@ -2431,13 +2518,13 @@ elseif isempty(eval(type))
         'OIz'
         'OI2'
         };
-      
+
       % Add also reference and some alternative labels that might be used
       label = cat(1, label, {'A1' 'A2' 'M1' 'M2' 'T3' 'T4' 'T5' 'T6'}');
-      
+
       % This is to account for all variants of case in 1020 systems
       label = unique(cat(1, label, upper(label), lower(label)));
-      
+
     case 'biosemi64'
       label = {
         'A1'
@@ -2505,7 +2592,7 @@ elseif isempty(eval(type))
         'B31'
         'B32'
         };
-      
+
     case 'biosemi128'
       label = {
         'A1'
@@ -2637,7 +2724,7 @@ elseif isempty(eval(type))
         'D31'
         'D32'
         };
-      
+
     case 'biosemi256'
       label = {
         'A1'
@@ -2897,7 +2984,7 @@ elseif isempty(eval(type))
         'H31'
         'H32'
         };
-      
+
     case 'egi32'
       % this should be  uppercase for consistency with ft_read_header
       label = cell(33, 1);
@@ -2906,7 +2993,7 @@ elseif isempty(eval(type))
       end
       % there might also be a reference channel, but its name is inconsistent
       % it might be Cz, REF, VREF or 'vertex reference'
-      
+
     case 'egi64'
       % this should be  uppercase for consistency with ft_read_header
       label = cell(65, 1);
@@ -2915,7 +3002,7 @@ elseif isempty(eval(type))
       end
       % there might also be a reference channel, but its name is inconsistent
       % it might be Cz, REF, VREF or 'vertex reference'
-      
+
     case 'egi128'
       % this should be  uppercase for consistency with ft_read_header
       label = cell(129, 1);
@@ -2924,7 +3011,7 @@ elseif isempty(eval(type))
       end
       % there might also be a reference channel, but its name is inconsistent
       % it might be Cz, REF, VREF or 'vertex reference'
-      
+
     case 'egi256'
       % this should be  uppercase for consistency with ft_read_header
       label = cell(257, 1);
@@ -2933,7 +3020,7 @@ elseif isempty(eval(type))
       end
       % there might also be a reference channel, but its name is inconsistent
       % it might be Cz, REF, VREF or 'vertex reference'
-      
+
     case 'itab28'
       label = {
         'MAG_1'
@@ -2957,14 +3044,14 @@ elseif isempty(eval(type))
         'MAG_27'
         'MAG_28'
         };
-      
+
     case 'itab153'
       label = cell(153,1);
       for i=1:153
         % channel names start counting at zero
         label{i} = sprintf('MAG_%03d',  i-1);
       end
-      
+
     case 'itab153_planar'
       label = cell(153,3);
       for i=1:153
@@ -2975,7 +3062,7 @@ elseif isempty(eval(type))
       end
       itab153_planar_combined = label(:,3);
       label = label(:,1:2);
-      
+
     case 'yokogawa9'
       % note that this uses MATLAB style 1-offset indexing and not C style 0-offset indexing
       % this should be consistent with: read_yokogawa_header, ft_channelselection, yokogawa2grad
@@ -2983,7 +3070,7 @@ elseif isempty(eval(type))
       for i=1:9
         label{i} = sprintf('M%03d',  i);
       end
-      
+
     case 'yokogawa64'
       % note that this uses MATLAB style 1-offset indexing and not C style 0-offset indexing
       % this should be consistent with: read_yokogawa_header, ft_channelselection, yokogawa2grad
@@ -2991,7 +3078,7 @@ elseif isempty(eval(type))
       for i=1:64
         label{i} = sprintf('AG%03d', i);
       end
-      
+
     case 'yokogawa64_planar'
       % note that this uses MATLAB style 1-offset indexing and not C style 0-offset indexing
       % this should be consistent with: read_yokogawa_header, ft_channelselection, yokogawa2grad
@@ -3003,7 +3090,7 @@ elseif isempty(eval(type))
       end
       yokogawa64_planar_combined = label(:,3);
       label = label(:,1:2);
-      
+
     case 'yokogawa160'
       % note that this uses MATLAB style 1-offset indexing and not C style 0-offset indexing
       % this should be consistent with: read_yokogawa_header, ft_channelselection, yokogawa2grad
@@ -3011,7 +3098,7 @@ elseif isempty(eval(type))
       for i=1:160
         label{i} = sprintf('AG%03d', i);
       end
-      
+
     case 'yokogawa160_planar'
       % note that this uses MATLAB style 1-offset indexing and not C style 0-offset indexing
       % this should be consistent with: read_yokogawa_header, ft_channelselection, yokogawa2grad
@@ -3023,7 +3110,27 @@ elseif isempty(eval(type))
       end
       yokogawa160_planar_combined = label(:,3);
       label = label(:,1:2);
-      
+
+    case 'yokogawa208'
+      % note that this uses MATLAB style 1-offset indexing and not C style 0-offset indexing
+      % this should be consistent with: read_yokogawa_header, ft_channelselection, yokogawa2grad
+      label = cell(207,1);
+      for i=1:208
+        label{i} = sprintf('AG%03d', i);
+      end
+
+    case 'yokogawa208_planar'
+      % note that this uses MATLAB style 1-offset indexing and not C style 0-offset indexing
+      % this should be consistent with: read_yokogawa_header, ft_channelselection, yokogawa2grad
+      label = cell(207,2);
+      for i=1:208
+        label{i,1} = sprintf('AG%03d_dH', i);
+        label{i,2} = sprintf('AG%03d_dV', i);
+        label{i,3} = sprintf('AG%03d', i);
+      end
+      yokogawa208_planar_combined = label(:,3);
+      label = label(:,1:2);
+
     case 'yokogawa440'
       % this should be consistent with read_yokogawa_header, with ft_channelselection and with yokogawa2grad
       label = {
@@ -3440,7 +3547,7 @@ elseif isempty(eval(type))
         'RM411'
         'RM412'
         };
-      
+
     case 'yokogawa440_planar'
       % this should be consistent with read_yokogawa_header, with
       % ft_channelselection and with yokogawa2grad
@@ -3658,29 +3765,21 @@ elseif isempty(eval(type))
         };
       yokogawa440_planar_combined = label(:,3);
       label = label(:,1:2);
-       
+
     case {'eeg' 'electrode'}
       % there is no default set of electrode labels for all possible EEG systems
       % but nevertheless the requested input type should not result in an error
       label = {};
-      
-    case {'neuromag122_combined' 'neuromag122alt_combined'}
-      tmp   = ft_senslabel('neuromag122'); % this is required to generate the combined version
-      label = ft_senslabel(type);
-      
-    case {'neuromag306_combined' 'neuromag306alt_combined'}
-      tmp   = ft_senslabel('neuromag306'); % this is required to generate the combined version
-      label = ft_senslabel(type);
-      
+
     otherwise
-      error('the requested sensor type "%s" is not supported', type);
-      
+      ft_error('the requested sensor type "%s" is not supported', type);
+
   end % switch
-  
+
   % remember this set of labels to speed up subsequent function calls
   eval(sprintf('%s = label;', type));
   clear label
-  
+
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3692,14 +3791,14 @@ switch output
     % return labels as 2*Nx1 cell-array for planar systems or 3*Nx1 for neuromag306
     % return labels as   Nx1 cell-array for non-planar systems
     label = eval(type);
-    
+
   case 'planarcombined'
     % return labels as Nx3 cell-array for the planar channels, 3rd column contains the combination
     planar    = eval(type);
     combined  = eval([type '_combined']);
     label     = [planar(:,1:2) combined]; % magnetometers are in the 3rd column for neuromag306
-    
+
   otherwise
-    error('unsupported output "%s"', output);
-    
+    ft_error('unsupported output "%s"', output);
+
 end

@@ -23,19 +23,27 @@ function d = det2x2(x)
 %
 % $Id$
 
+persistent warning_once
+if isempty(warning_once) || ~warning_once
+  % the mex file is many times faster than the matlab implementation, hence that is preferred
+  % but now we use the matlab implementation as a fallback
+  warning_once = true;
+  warning('Could not locate the MEX file "%s.%s"', mfilename, mexext);
+end
+
 siz = size(x);
-if all(siz(1:2)==2),
+if all(siz(1:2)==2)
   d = x(1,1,:,:).*x(2,2,:,:) - x(1,2,:,:).*x(2,1,:,:);
-elseif all(siz(1:2)==3),
+elseif all(siz(1:2)==3)
   d = x(1,1,:,:).*x(2,2,:,:).*x(3,3,:,:) - ...
       x(1,1,:,:).*x(2,3,:,:).*x(3,2,:,:) - ...
       x(1,2,:,:).*x(2,1,:,:).*x(3,3,:,:) + ...
       x(1,2,:,:).*x(2,3,:,:).*x(3,1,:,:) + ...
       x(1,3,:,:).*x(2,1,:,:).*x(3,2,:,:) - ...
       x(1,3,:,:).*x(2,2,:,:).*x(3,1,:,:);
-elseif numel(siz)==2,
+elseif numel(siz)==2
   d = det(x);
 else
-  error('not implemented');
+  ft_error('not implemented');
   % write for loop for the higher dimensions, using normal inv
 end

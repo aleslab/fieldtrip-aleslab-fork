@@ -1,16 +1,16 @@
 function test_bug255
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_timelockanalysis ft_prepare_layout ft_timelockstatistics ft_topoplotER
+% DEPENDENCY ft_timelockanalysis ft_prepare_layout ft_timelockstatistics ft_topoplotER
+% DATA private
 
 % this script tests the functionality of ft_topoplotER with respect to
 % functional data having dimord 'chan', i.e. after doing statistics with
 % 'avgoverfreq' or 'avgovertime' = 'yes';
 
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/raw/eeg/'));
-load('preproc_neuroscan16');
+filename = dccnpath('/project/3031000.02/test/latest/raw/eeg/preproc_neuroscan16.mat');
+load(filename)
 
 %there's an unresolved issue with duplicate labels 'FREE'
 %FIXME

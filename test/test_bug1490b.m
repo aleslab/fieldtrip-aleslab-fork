@@ -1,18 +1,18 @@
 function test_bug1490b
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_read_header ft_read_data loadcnt
+% DATA private
 
-% TEST ft_read_header ft_read_data loadcnt
-
-% this is a second test pertaining to http://bugzilla.fcdonders.nl/show_bug.cgi?id=1490#c11
+% this is a second test pertaining to http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=1490#c11
 
 warning('this bug cannot be fixed in FieldTrip, but should be fixed in EEGLAB');
 return
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-filename = dccnpath('/home/common/matlab/fieldtrip/data/test/bug1490/cba1ff01.cnt');
+filename = dccnpath('/project/3031000.02/test/bug1490/cba1ff01.cnt');
 dataformat = 'ns_cnt16';
 
 hdr = ft_read_header(filename);

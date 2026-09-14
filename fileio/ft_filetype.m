@@ -36,7 +36,7 @@ function [type] = ft_filetype(filename, desired, varargin)
 %  - Analyse
 %  - Analyze/SPM
 %  - BESA
-%  - Bioimage Suite (*.mgrid)
+%  - Bioimage Suite *.mgrid
 %  - BrainSuite
 %  - BrainVisa
 %  - BrainVision
@@ -45,27 +45,36 @@ function [type] = ft_filetype(filename, desired, varargin)
 %  - EDF
 %  - EEProbe
 %  - Elektra/Neuromag
+%  - EEGsynth *.tsv
 %  - FreeSurfer
 %  - LORETA
 %  - Localite
 %  - MINC
 %  - Neuralynx
 %  - Neuroscan
-%  - Nihon Koden (*.m00)
+%  - Nihon Koden *.m00
+%  - OpenVibe MATLAB files *.mat
 %  - Plexon
 %  - SR Research Eyelink
 %  - SensoMotoric Instruments (SMI) *.txt
 %  - Tobii *.tsv
 %  - Stanford *.ply
 %  - Tucker Davis Technology
-%  - VSM-Medtech/CTF
-%  - Yokogawa
+%  - CTF
+%  - Yokogawa & Ricoh
 %  - nifti, gifti
-%  - Nicolet *.e (currently from Natus, formerly Carefusion, Viasys and
-%                 Taugagreining. Also known as Oxford/Teca/Medelec Valor
-%                 - Nervus)
+%  - Nicolet *.e (currently from Natus, formerly Carefusion, Viasys and Taugagreining. Also known as Oxford/Teca/Medelec Valor Nervus)
+%  - Biopac *.acq
+%  - AnyWave *.ades
+%  - Qualisys *.tsv
+%  - Mrtrix *.mif
+%  - MAUS *.TextGrid
+%  - Neurodata Without Borders *.nwb
+%  - PhysioNet *.hea and *.dat
+%  - NIRx *.tpl, *.wl1 and *.wl2
+%  - York Instruments *.meghdf5
 
-% Copyright (C) 2003-2013 Robert Oostenveld
+% Copyright (C) 2003-2024, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -85,7 +94,7 @@ function [type] = ft_filetype(filename, desired, varargin)
 %
 % $Id$
 
-% these are for remembering the type on subsequent calls with the same input arguments
+% these are for speeding up subsequent calls with the same input arguments
 persistent previous_argin previous_argout previous_pwd
 
 if nargin<2
@@ -153,8 +162,14 @@ if isempty(filename)
   end
 end
 
+% some of the code does not work well on matlab strings, (i.e. "" vs ''),
+% specifically ["a" "b"] yields something different than ['a' 'b']. 
+if isstring(filename)
+  filename = char(filename);
+end
+
 % the parts of the filename are used further down
-if isdir(filename)
+if isfolder(filename)
   [p, f, x] = fileparts(filename);
   p = filename;  % the full path to the directory name
   d = f;         % the last part of the directory name
@@ -165,7 +180,7 @@ else
 end
 
 % prevent this test if the filename resembles an URI, i.e. like "scheme://"
-if isempty(strfind(filename , '://')) && isdir(filename)
+if ~contains(filename , '://') && isfolder(filename)
   % the directory listing is needed below
   ls = dir(filename);
   % remove the parent directory and the directory itself from the list
@@ -186,11 +201,10 @@ if filetype_check_extension(filename, 'zip')...
     || (filetype_check_extension(filename, '.gz') && ~filetype_check_extension(filename, '.nii.gz'))...
     || filetype_check_extension(filename,  'tgz')...
     || filetype_check_extension(filename, 'tar')
-  
   type         = 'compressed';
   manufacturer = 'undefined';
   content      = 'unknown, extract first';
-  
+
   % these are some streams for asynchronous BCI
 elseif filetype_check_uri(filename, 'fifo')
   type        = 'fcdc_fifo';
@@ -232,13 +246,13 @@ elseif filetype_check_uri(filename, 'empty')
   type        = 'empty';
   manufacturer = 'Donders Centre for Cognitive Neuroimaging';
   content      = '/dev/null';
-  
+
   % known CTF file types
-elseif isdir(filename) && filetype_check_extension(filename, '.ds') && exist(fullfile(filename, [f '.res4']), 'file')
+elseif isfolder(filename) && filetype_check_extension(filename, '.ds') && exist(fullfile(filename, [f '.res4']), 'file')
   type = 'ctf_ds';
   manufacturer = 'CTF';
   content = 'MEG dataset';
-elseif isdir(filename) && ~isempty(dir(fullfile(filename, '*.res4'))) && ~isempty(dir(fullfile(filename, '*.meg4')))
+elseif isfolder(filename) && ~isempty(dir(fullfile(filename, '*.res4'))) && ~isempty(dir(fullfile(filename, '*.meg4')))
   type = 'ctf_ds';
   manufacturer = 'CTF';
   content = 'MEG dataset';
@@ -286,13 +300,13 @@ elseif filetype_check_extension(filename, '.svl')
   type = 'ctf_svl';
   manufacturer = 'CTF';
   content = 'SAM (pseudo-)statistic volumes';
-  
+
   % known Micromed file types
 elseif filetype_check_extension(filename, '.trc') && filetype_check_header(filename, '* MICROMED')
   type = 'micromed_trc';
   manufacturer = 'Micromed';
   content = 'Electrophysiological data';
-  
+
   % known Neuromag file types
 elseif filetype_check_extension(filename, '.fif')
   type = 'neuromag_fif';
@@ -310,24 +324,58 @@ elseif filetype_check_extension(filename, '.eve') && exist(fullfile(p, [f '.fif'
   type = 'neuromag_eve'; % these are being used by Tristan Technologies for the BabySQUID system
   manufacturer = 'Neuromag';
   content = 'events';
-  
-  % known Yokogawa file types
+elseif filetype_check_extension(filename, '.log') && filetype_check_header(filename, '*** This is Elekta Neuromag MaxFilter', 61)
+  type = 'neuromag_maxfilterlog';
+  manufacturer = 'Neuromag';
+  content = 'MaxFilter log information';
+elseif filetype_check_extension(filename, '.pos') && filetype_check_header(filename, ' Time       q1      ', 0)
+  type = 'neuromag_headpos';
+  manufacturer = 'Neuromag';
+  content = 'MaxFilter head position information';
+elseif filetype_check_extension(filename, '.iso') && filetype_check_header(filename, char([0 0 0 100]))
+  type = 'neuromag_iso';
+  manufacturer = 'Neuromag';
+  content = 'Isotrack digitizer points';
+elseif strcmp(filename, 'sss_cal.dat')
+  type = 'neuromag_cal';
+  manufacturer = 'Neuromag';
+  content = 'Fine calibration';
+
+  % known Yokogawa & Ricoh file types
 elseif filetype_check_extension(filename, '.ave') || filetype_check_extension(filename, '.sqd')
-  type = 'yokogawa_ave';
-  manufacturer = 'Yokogawa';
-  content = 'averaged MEG data';
+  if ~isricohmegfile(filename)
+    type = 'yokogawa_ave';
+    manufacturer = 'Yokogawa';
+    content = 'averaged MEG data';
+  else
+    type = 'ricoh_ave';
+    manufacturer = 'Ricoh';
+    content = 'averaged MEG data';
+  end
 elseif filetype_check_extension(filename, '.con')
-  type = 'yokogawa_con';
-  manufacturer = 'Yokogawa';
-  content = 'continuous MEG data';
+  if ~isricohmegfile(filename)
+    type = 'yokogawa_con';
+    manufacturer = 'Yokogawa';
+    content = 'continuous MEG data';
+  else
+    type = 'ricoh_con';
+    manufacturer = 'Ricoh';
+    content = 'continuous MEG data';
+  end
 elseif filetype_check_extension(filename, '.raw') && filetype_check_header(filename, char([0 0 0 0])) % FIXME, this detection should possibly be improved
   type = 'yokogawa_raw';
   manufacturer = 'Yokogawa';
   content = 'evoked/trialbased MEG data';
 elseif filetype_check_extension(filename, '.mrk') && filetype_check_header(filename,  char([0 0 0 0])) % FIXME, this detection should possibly be improved
-  type = 'yokogawa_mrk';
-  manufacturer = 'Yokogawa';
-  content = 'headcoil locations';
+  if ~isricohmegfile(filename)
+    type = 'yokogawa_mrk';
+    manufacturer = 'Yokogawa';
+    content = 'headcoil locations';
+  else
+    type = 'ricoh_mrk';
+    manufacturer = 'Ricoh';
+    content = 'headcoil locations';
+  end
 elseif filetype_check_extension(filename, '.txt') && numel(strfind(filename,'-coregis')) == 1
   type = 'yokogawa_coregis';
   manufacturer = 'Yokogawa';
@@ -350,25 +398,25 @@ elseif filetype_check_extension(filename, '.txt') && numel(strfind(filename,'-FL
 elseif filetype_check_extension(filename, '.hsp')
   type = 'yokogawa_hsp';
   manufacturer = 'Yokogawa';
-  
+
   % Neurosim files; this has to go before the 4D detection
-elseif ~isdir(filename) && (strcmp(f,'spikes') || filetype_check_header(filename,'#  Spike information'))
+elseif ~isfolder(filename) && (strcmp(f,'spikes') || filetype_check_header(filename,'#  Spike information'))
   type = 'neurosim_spikes';
   manufacturer = 'Jan van der Eerden (DCCN)';
   content = 'simulated spikes';
-elseif ~isdir(filename) && (strcmp(f,'evolution') || filetype_check_header(filename,'#  Voltages'))
+elseif ~isfolder(filename) && (strcmp(f,'evolution') || filetype_check_header(filename,'#  Voltages'))
   type = 'neurosim_evolution';
   manufacturer = 'Jan van der Eerden (DCCN)';
   content = 'simulated membrane voltages and currents';
-elseif ~isdir(filename) && (strcmp(f,'signals') || filetype_check_header(filename,'#  Internal',2))
+elseif ~isfolder(filename) && (strcmp(f,'signals') || filetype_check_header(filename,'#  Internal',2))
   type = 'neurosim_signals';
   manufacturer = 'Jan van der Eerden (DCCN)';
   content = 'simulated network signals';
-elseif isdir(filename) && exist(fullfile(filename, 'signals'), 'file') && exist(fullfile(filename, 'spikes'), 'file')
+elseif isfolder(filename) && exist(fullfile(filename, 'signals'), 'file') && exist(fullfile(filename, 'spikes'), 'file')
   type = 'neurosim_ds';
   manufacturer = 'Jan van der Eerden (DCCN)';
   content = 'simulated spikes and continuous signals';
-  
+
   % known 4D/BTI file types
 elseif filetype_check_extension(filename, '.pdf') && filetype_check_header(filename, 'E|lk') % I am not sure whether this header always applies
   type = '4d_pdf';
@@ -390,7 +438,7 @@ elseif isequal(f, 'hs_file') % the filename is "hs_file"
   type = '4d_hs';
   manufacturer = '4D/BTI';
   content = 'head shape';
-elseif length(filename)>=4 && ~isempty(strfind(filename,',rf'))
+elseif length(filename)>=4 && contains(filename,',rf')
   type = '4d';
   manufacturer = '4D/BTi';
   content = '';
@@ -398,7 +446,7 @@ elseif filetype_check_extension(filename, '.el.ascii') && filetype_check_ascii(f
   type = '4d_el_ascii';
   manufacturer = '4D/BTi';
   content = 'electrode positions';
-  
+
   % known EEProbe file types
 elseif filetype_check_extension(filename, '.cnt') && (filetype_check_header(filename, 'RIFF') || filetype_check_header(filename, 'RF64'))
   type = 'eep_cnt';
@@ -416,13 +464,13 @@ elseif filetype_check_extension(filename, '.rej')
   type = 'eep_rej';
   manufacturer = 'EEProbe';
   content = 'rejection marks';
-  
+
   % the yokogawa_mri has to be checked prior to asa_mri, because this one is more strict
 elseif filetype_check_extension(filename, '.mri') && filetype_check_header(filename, char(0)) % FIXME, this detection should possibly be improved
   type = 'yokogawa_mri';
   manufacturer = 'Yokogawa';
   content = 'anatomical MRI';
-  
+
   % known ASA file types
 elseif filetype_check_extension(filename, '.elc')
   type = 'asa_elc';
@@ -453,17 +501,17 @@ elseif filetype_check_extension(filename, '.mri')
   type = 'asa_mri';
   manufacturer = 'ASA';
   content = 'MRI image header';
-elseif filetype_check_extension(filename, '.iso')
+elseif filetype_check_extension(filename, '.iso') && ~filetype_check_header(filename, char([0 0 0 100]))
   type = 'asa_iso';
   manufacturer = 'ASA';
   content = 'MRI image data';
-  
+
   % known BCI2000 file types
 elseif filetype_check_extension(filename, '.dat') && (filetype_check_header(filename, 'BCI2000') || filetype_check_header(filename, 'HeaderLen='))
   type = 'bci2000_dat';
   manufacturer = 'BCI2000';
   content = 'continuous EEG';
-  
+
   % known Neuroscan file types
 elseif filetype_check_extension(filename, '.avg') && filetype_check_header(filename, 'Version 3.0')
   type = 'ns_avg';
@@ -477,7 +525,7 @@ elseif filetype_check_extension(filename, '.eeg') && filetype_check_header(filen
   type = 'ns_eeg';
   manufacturer = 'Neuroscan';
   content = 'epoched EEG';
-  
+
 elseif filetype_check_extension(filename, '.eeg') && filetype_check_header(filename, 'V3.0')
   type = 'neuroprax_eeg';
   manufacturer = 'eldith GmbH';
@@ -486,7 +534,7 @@ elseif filetype_check_extension(filename, '.ee_')
   type = 'neuroprax_mrk';
   manufacturer = 'eldith GmbH';
   content = 'EEG markers';
-  
+
   % known Analyze & SPM file types
 elseif filetype_check_extension(filename, '.hdr')
   type = 'analyze_hdr';
@@ -505,12 +553,12 @@ elseif filetype_check_extension(filename, '.nii') && filetype_check_header(filen
 elseif filetype_check_extension(filename, '.nii') && filetype_check_header(filename, {[28 2 0 0], [0 0 2 28]}) % header starts with the number 540
   type = 'nifti2';
   content = 'MRI image data';
-  
+
   % known FSL file types
 elseif filetype_check_extension(filename, '.nii.gz')
-  type = 'nifti_fsl';
+  type = 'nifti_gz';
   content = 'MRI image data';
-  
+
   % known LORETA file types
 elseif filetype_check_extension(filename, '.lorb')
   type = 'loreta_lorb';
@@ -520,15 +568,15 @@ elseif filetype_check_extension(filename, '.slor')
   type = 'loreta_slor';
   manufacturer = 'sLORETA';
   content = 'source reconstruction';
-  
+
   % known AFNI file types
-elseif filetype_check_extension(filename, '.brik') || filetype_check_extension(filename, '.BRIK')
+elseif filetype_check_extension(lower(filename), '.brik')
   type = 'afni_brik';
   content = 'MRI image data';
-elseif filetype_check_extension(filename, '.head') || filetype_check_extension(filename, '.HEAD')
+elseif filetype_check_extension(lower(filename), '.head')
   type = 'afni_head';
   content = 'MRI header data';
-  
+
   % known BrainVison file types
 elseif filetype_check_extension(filename, '.vhdr')
   type = 'brainvision_vhdr';
@@ -562,13 +610,29 @@ elseif filetype_check_extension(filename, '.marker')
   type = 'brainvision_marker';
   manufacturer = 'BrainProducts';
   content = 'rejection markers';
-  
+elseif filetype_check_extension(filename, '.bvrd')
+  type = 'brainvision_bvrd';
+  manufacturer = 'BrainProducts';
+  content = 'continuous EEG data';
+elseif filetype_check_extension(filename, '.bvrh')
+  type = 'brainvision_bvrh';
+  manufacturer = 'BrainProducts';
+  content = 'EEG header';
+elseif filetype_check_extension(filename, '.bvrm')
+  type = 'brainvision_bvrm';
+  manufacturer = 'BrainProducts';
+  content = 'EEG markers';
+
   % known Polhemus file types
 elseif filetype_check_extension(filename, '.pos')
   type = 'polhemus_pos';
   manufacturer = 'BrainProducts/CTF/Polhemus?'; % actually I don't know whose software it is
   content = 'electrode positions';
-  
+elseif filetype_check_extension(filename, '.txt') && filetype_header_contains(filename, 'FastSCAN', 300)
+  type = 'fastscan_txt';
+  manufacturer = 'Polhemus FastSCAN';
+  content = 'headshape points';
+
   % known Blackrock Microsystems file types
 elseif strncmp(x,'.ns',3) && (filetype_check_header(filename, 'NEURALCD') || filetype_check_header(filename, 'NEURALSG'))
   type = 'blackrock_nsx';
@@ -578,7 +642,7 @@ elseif filetype_check_extension(filename, '.nev') && filetype_check_header(filen
   type = 'blackrock_nev';
   manufacturer = 'Blackrock Microsystems';
   contenct = 'extracellular electrode spike information';
-  
+
   % known Neuralynx file types
 elseif filetype_check_extension(filename, '.nev') || filetype_check_extension(filename, '.Nev')
   type = 'neuralynx_nev';
@@ -612,7 +676,7 @@ elseif strcmpi(f, 'logfile') && strcmpi(x, '.txt')  % case insensitive
   type = 'neuralynx_log';
   manufacturer = 'Neuralynx';
   content = 'log information in ASCII format';
-elseif ~isempty(strfind(lower(f), 'dma')) && strcmpi(x, '.log')  % this is not a very strong detection
+elseif contains(lower(f), 'dma') && strcmpi(x, '.log')  % this is not a very strong detection
   type = 'neuralynx_dma';
   manufacturer = 'Neuralynx';
   content = 'raw aplifier data directly from DMA';
@@ -620,51 +684,55 @@ elseif filetype_check_extension(filename, '.nrd') % see also above, since Cheeta
   type = 'neuralynx_dma';
   manufacturer = 'Neuralynx';
   content = 'raw aplifier data directly from DMA';
-elseif isdir(filename) && (any(filetype_check_extension({ls.name}, '.nev')) || any(filetype_check_extension({ls.name}, '.Nev')))
+elseif isfolder(filename) && (any(filetype_check_extension({ls.name}, '.nev')) || any(filetype_check_extension({ls.name}, '.Nev')))
   % a regular Neuralynx dataset directory that contains an event file
   type = 'neuralynx_ds';
   manufacturer = 'Neuralynx';
   content = 'dataset';
-elseif isdir(filename) && most(filetype_check_extension({ls.name}, '.ncs'))
+elseif isfolder(filename) && most(filetype_check_extension({ls.name}, '.ncs'))
   % a directory containing continuously sampled channels in Neuralynx format
   type = 'neuralynx_ds';
   manufacturer = 'Neuralynx';
   content = 'continuously sampled channels';
-elseif isdir(filename) && most(filetype_check_extension({ls.name}, '.nse'))
+elseif isfolder(filename) && most(filetype_check_extension({ls.name}, '.nse'))
   % a directory containing spike waveforms in Neuralynx format
   type = 'neuralynx_ds';
   manufacturer = 'Neuralynx';
   content = 'spike waveforms';
-elseif isdir(filename) && most(filetype_check_extension({ls.name}, '.nte'))
+elseif isfolder(filename) && most(filetype_check_extension({ls.name}, '.nte'))
   % a directory containing spike timestamps in Neuralynx format
   type = 'neuralynx_ds';
   manufacturer = 'Neuralynx';
   content = 'spike timestamps';
-elseif isdir(filename) && most(filetype_check_extension({ls.name}, '.ntt'))
+elseif isfolder(filename) && most(filetype_check_extension({ls.name}, '.ntt'))
   % a directory containing tetrode recordings in Neuralynx format
   type = 'neuralynx_ds';
   manufacturer = 'Neuralynx';
   content = 'tetrode recordings ';
-  
-elseif isdir(p) && exist(fullfile(p, 'header'), 'file') && exist(fullfile(p, 'samples'), 'file') && exist(fullfile(p, 'events'), 'file')
+
+elseif filetype_check_extension(filename, '.mat') && contains(filename, 'times_')
+  type = 'wave_clus';
+  manufacturer = 'Department of Engineering, University of Leicester, UK';
+  content = 'sorted spikes';
+elseif isfolder(p) && exist(fullfile(p, 'header'), 'file') && exist(fullfile(p, 'samples'), 'file') && exist(fullfile(p, 'events'), 'file')
   type = 'fcdc_buffer_offline';
   manufacturer = 'Donders Centre for Cognitive Neuroimaging';
   content = 'FieldTrip buffer offline dataset';
-  
-elseif isdir(filename) && exist(fullfile(filename, 'info.xml'), 'file') && exist(fullfile(filename, 'signal1.bin'), 'file')
+
+elseif isfolder(filename) && exist(fullfile(filename, 'info.xml'), 'file') && exist(fullfile(filename, 'signal1.bin'), 'file')
   % this is an OS X package directory representing a complete EEG dataset
   % it contains a Content file, multiple xml files and one or more signalN.bin files
   type = 'egi_mff';
   manufacturer = 'Electrical Geodesics Incorporated';
   content = 'raw EEG data';
-elseif ~isdir(filename) && isdir(p) && exist(fullfile(p, 'info.xml'), 'file') && exist(fullfile(p, 'signal1.bin'), 'file')
+elseif ~isfolder(filename) && isfolder(p) && exist(fullfile(p, 'info.xml'), 'file') && exist(fullfile(p, 'signal1.bin'), 'file')
   % the file that the user specified is one of the files in an mff package directory
   type = 'egi_mff';
   manufacturer = 'Electrical Geodesics Incorporated';
   content = 'raw EEG data';
-  
+
   % these are formally not Neuralynx file formats, but at the FCDC we use them together with Neuralynx
-elseif isdir(filename) && filetype_check_neuralynx_cds(filename)
+elseif isfolder(filename) && filetype_check_neuralynx_cds(filename)
   % a downsampled Neuralynx DMA file can be split into three separate lfp/mua/spike directories
   % treat them as one combined dataset
   type = 'neuralynx_cds';
@@ -686,17 +754,17 @@ elseif filetype_check_extension(filename, '.bin') && filetype_check_header(filen
   type = 'neuralynx_bin';
   manufacturer = 'Donders Centre for Cognitive Neuroimaging';
   content = 'single channel continuous data';
-elseif isdir(filename) && any(filetype_check_extension({ls.name}, '.ttl')) && any(filetype_check_extension({ls.name}, '.tsl')) && any(filetype_check_extension({ls.name}, '.tsh'))
+elseif isfolder(filename) && any(filetype_check_extension({ls.name}, '.ttl')) && any(filetype_check_extension({ls.name}, '.tsl')) && any(filetype_check_extension({ls.name}, '.tsh'))
   % a directory containing the split channels from a DMA logfile
   type = 'neuralynx_sdma';
   manufacturer = 'Donders Centre for Cognitive Neuroimaging';
   content = 'split DMA log file';
-elseif isdir(filename) && filetype_check_extension(filename, '.sdma')
+elseif isfolder(filename) && filetype_check_extension(filename, '.sdma')
   % a directory containing the split channels from a DMA logfile
   type = 'neuralynx_sdma';
   manufacturer = 'Donders Centre for Cognitive Neuroimaging';
   content = 'split DMA log file';
-  
+
   % known Plexon file types
 elseif filetype_check_extension(filename, '.nex')  && filetype_check_header(filename, 'NEX1')
   type = 'plexon_nex';
@@ -709,18 +777,22 @@ elseif filetype_check_extension(filename, '.plx')  && filetype_check_header(file
 elseif filetype_check_extension(filename, '.ddt')
   type = 'plexon_ddt';
   manufacturer = 'Plexon';
-elseif isdir(filename) && most(filetype_check_extension({ls.name}, '.nex')) && most(filetype_check_header({ls.name}, 'NEX1'))
+elseif isfolder(filename) && most(filetype_check_extension({ls.name}, '.nex')) && most(filetype_check_header({ls.name}, 'NEX1'))
   % a directory containing multiple plexon NEX files
   type = 'plexon_ds';
   manufacturer = 'Plexon';
   content = 'electrophysiological data';
-  
+elseif filetype_check_extension(filename, '.nex5')  && filetype_check_header(filename, 'NEX5')
+  type = 'plexon_nex5';
+  manufacturer = 'Nex Technologies';
+  content = 'electrophysiological data';
+
   % known Cambridge Electronic Design file types
 elseif filetype_check_extension(filename, '.smr')
   type = 'ced_son';
   manufacturer = 'Cambridge Electronic Design';
   content = 'Spike2 SON filing system';
-  
+
   % known BESA file types
 elseif filetype_check_extension(filename, '.avr') && strcmp(type, 'unknown')
   type = 'besa_avr';  % FIXME, can also be EEProbe average EEG
@@ -782,23 +854,23 @@ elseif filetype_check_extension(filename, '.srf') && filetype_check_header(filen
   type = 'brainvoyager_srf';
   manufacturer = 'BrainVoyager'; % see http://support.brainvoyager.com/installation-introduction/23-file-formats/375-users-guide-23-the-format-of-srf-files.html
   content = 'surface';
-    
+
   % known Dataq file formats
 elseif filetype_check_extension(upper(filename), '.WDQ')
   type         = 'dataq_wdq';
   manufacturer = 'dataq instruments';
   content      = 'electrophysiological data';
-  
+
   % old files from Pascal Fries' PhD research at the MPI
 elseif filetype_check_extension(filename, '.dap') && filetype_check_header(filename, char(1))
   type = 'mpi_dap';
   manufacturer = 'MPI Frankfurt';
   content = 'electrophysiological data';
-elseif isdir(filename) && ~isempty(cell2mat(regexp({ls.name}, '.dap$')))
+elseif isfolder(filename) && ~isempty(cell2mat(regexp({ls.name}, '.dap$')))
   type = 'mpi_ds';
   manufacturer = 'MPI Frankfurt';
   content = 'electrophysiological data';
-  
+
   % Frankfurt SPASS format, which uses the Labview Datalog (DTLG) format
 elseif  filetype_check_extension(filename, '.ana') && filetype_check_header(filename, 'DTLG')
   type = 'spass_ana';
@@ -820,7 +892,7 @@ elseif  filetype_check_extension(filename, '.bhv') && filetype_check_header(file
   type = 'spass_bhv';
   manufacturer = 'MPI Frankfurt';
   content = 'electrophysiological data';
-  
+
   % known Chieti ITAB file types
 elseif filetype_check_extension(filename, '.raw') && (filetype_check_header(filename, 'FORMAT: ATB-BIOMAGDATA') || filetype_check_header(filename, '[HeaderType]'))
   type = 'itab_raw';
@@ -834,13 +906,13 @@ elseif filetype_check_extension(filename, '.asc') && ~filetype_check_header(file
   type = 'itab_asc';
   manufacturer = 'Chieti ITAB';
   content = 'headshape digitization file';
-  
+
   % known Nexstim file types
 elseif filetype_check_extension(filename, '.nxe')
   type = 'nexstim_nxe';
   manufacturer = 'Nexstim';
   content = 'electrophysiological data';
-  
+
   % known Tucker-Davis-Technology file types
 elseif filetype_check_extension(filename, '.tbk')
   type = 'tdt_tbk';
@@ -858,7 +930,7 @@ elseif filetype_check_extension(filename, '.tev')
   type = 'tdt_tev';
   manufacturer = 'Tucker-Davis-Technology';
   content = 'electrophysiological data';
-  
+
   % raw audio and video data from https://github.com/andreyzhd/VideoMEG
   % the extension *.aud/*.vid is used at NatMEG and *.audio.dat/*.video.dat seems to be used in Helsinki
 elseif (filetype_check_extension(filename, '.aud') || filetype_check_extension(filename, '.audio.dat')) && filetype_check_header(filename, 'ELEKTA_AUDIO_FILE')
@@ -870,6 +942,12 @@ elseif (filetype_check_extension(filename, '.vid') || filetype_check_extension(f
   % this should go before curry_dat
   type = 'videomeg_vid';
   manufacturer = 'VideoMEG';
+  content = 'video';
+
+elseif (filetype_check_extension(filename, '.avi') || filetype_check_extension(filename, '.vlf') || filetype_check_extension(filename, '.wmv') || filetype_check_extension(filename, '.mov') || filetype_check_extension(filename, '.mp4'))
+  % generic fideo files, these are also supported by ft_read_header and ft_read_data
+  type = 'video';
+  manufacturer = 'generic';
   content = 'video';
 
 elseif (filetype_check_extension(filename, '.dat') ||  filetype_check_extension(filename, '.Dat')) && (exist(fullfile(p, [f '.ini']), 'file') || exist(fullfile(p, [f '.Ini']), 'file'))
@@ -887,6 +965,17 @@ elseif filetype_check_extension(filename, '.dat') && (filetype_check_header(file
   type = 'jaga16';
   manufacturer = 'Jinga-Hi';
   content = 'electrophysiological data';
+
+  % some AnyWave file formats, see http://meg.univ-amu.fr/wiki/AnyWave:ADES
+elseif filetype_check_extension(filename, '.ades') && filetype_check_header(filename, '#ADES') && exist(fullfile(p, [f '.dat']), 'file')
+  type = 'anywave_ades';
+  manufacturer = 'AnyWave';
+  content = 'continuous EEG, iEEG or MEG data';
+elseif filetype_check_extension(filename, '.dat') && exist(fullfile(p, [f '.ades']), 'file') && filetype_check_header(fullfile(p, [f '.ades']), '#ADES')
+  % this should go before curry_dat
+  type = 'anywave_dat';
+  manufacturer = 'AnyWave';
+  content = 'continuous EEG, iEEG or MEG data';
 
   % known Curry V4 file types
 elseif filetype_check_extension(filename, '.dap')
@@ -921,12 +1010,29 @@ elseif filetype_check_extension(filename, '.dig')
   type = 'curry_dig';
   manufacturer = 'Curry';
   content = 'digitizer file';
-  
+elseif filetype_check_extension(filename, '.cdt')
+  type = 'curry_cdt';
+  manufacturer = 'Curry';
+  content = 'Curry8 data file';
+elseif filetype_check_extension(filename, '.cef')
+  type = 'curry_cef';
+  manufacturer = 'Curry';
+  content = 'Curry event file';
+elseif filetype_check_extension(filename, '.dpa')
+  type = 'curry_dpa';
+  manufacturer = 'Curry';
+  content = 'Curry8 sensor file';
+
+elseif filetype_check_extension(filename, '.txt') && filetype_check_header(filename, '#Study')
+  type = 'imotions_txt';
+  manufacturer = 'iMotions';
+  content = 'various biosignals';
+
 elseif filetype_check_extension(filename, '.txt') && filetype_check_header(filename, '##')
   type = 'smi_txt';
   manufacturer = 'SensoMotoric Instruments (SMI)';
   content = 'eyetracker data';
-  
+
   % known SR Research eyelink file formats
 elseif filetype_check_extension(filename, '.asc') && filetype_check_header(filename, '**')
   type = 'eyelink_asc';
@@ -936,12 +1042,12 @@ elseif filetype_check_extension(filename, '.edf') && filetype_check_header(filen
   type = 'eyelink_edf';
   manufacturer = 'SR Research';
   content = 'eyetracker data (binary)';
-  
+
 elseif filetype_check_extension(filename, '.tsv') && (filetype_check_header(filename, 'Data Properties:') || filetype_check_header(filename, 'System Properties:'))
   type = 'tobii_tsv';
   manufacturer = 'Tobii';
   content = 'eyetracker data (ascii)';
-  
+
   % known Curry V2 file types
 elseif filetype_check_extension(filename, '.sp0') || filetype_check_extension(filename, '.sp1') || filetype_check_extension(filename, '.sp2') || filetype_check_extension(filename, '.sp3') || filetype_check_extension(filename, '.sp4') || filetype_check_extension(filename, '.sp5') || filetype_check_extension(filename, '.sp6') || filetype_check_extension(filename, '.sp7') || filetype_check_extension(filename, '.sp8') || filetype_check_extension(filename, '.sp9')
   type = 'curry_sp';
@@ -959,7 +1065,7 @@ elseif filetype_check_extension(filename, '.res')
   type = 'curry_res';
   manufacturer = 'Curry';
   content = 'functional localization file';
-  
+
   % known MBFYS file types
 elseif filetype_check_extension(filename, '.tri')
   type = 'mbfys_tri';
@@ -969,7 +1075,7 @@ elseif filetype_check_extension(filename, '.ama') && filetype_check_header(filen
   type = 'mbfys_ama';
   manufacturer = 'MBFYS';
   content = 'BEM volume conduction model';
-  
+
   % Electrical Geodesics Incorporated formats
   % the egi_mff format is checked earlier
 elseif (filetype_check_extension(filename, '.egis') || filetype_check_extension(filename, '.ave') || filetype_check_extension(filename, '.gave') || filetype_check_extension(filename, '.raw')) && (filetype_check_header(filename, [char(1) char(2) char(3) char(4) char(255) char(255)]) || filetype_check_header(filename, [char(3) char(4) char(1) char(2) char(255) char(255)]))
@@ -986,7 +1092,7 @@ elseif (filetype_check_extension(filename, '.sbin') || filetype_check_extension(
   type = 'egi_sbin';
   manufacturer = 'Electrical Geodesics Incorporated';
   content = 'averaged EEG data';
-  
+
   % FreeSurfer file formats, see also http://www.grahamwideman.com/gw/brain/fs/surfacefileformats.htm
 elseif filetype_check_extension(filename, '.mgz')
   type = 'freesurfer_mgz';
@@ -1021,31 +1127,73 @@ elseif filetype_check_extension(filename, '.annot')
   type = 'freesurfer_annot';
   manufacturer = 'FreeSurfer';
   content = 'parcellation annotation';
-  
+elseif filetype_check_extension(filename, '.label') && filetype_check_header(filename, '#!ascii')
+  % Freesurfer label file, see https://surfer.nmr.mgh.harvard.edu/fswiki/LabelsClutsAnnotationFiles
+  type = 'freesurfer_label';
+  manufacturer = 'FreeSurfer';
+  content = 'list of vertices belonging to a region';
+
 elseif filetype_check_extension(filename, '.txt') && numel(strfind(filename,'_nrs_')) == 1
-  % This may be improved by looking into the file, rather than assuming the
-  % filename has "_nrs_" somewhere. Also, distinction by the different file
-  % types could be made
+  % This is for the ASCII-formatted NIRS data acquired with the UCL-BIRKBECK machine and postprocessed by the Paris group
+  %
+  % This may be improved by looking into the file, rather than assuming the filename
+  % has "_nrs_" somewhere. Also, distinction by the different file types could be
+  % made
   type = 'bucn_nirs';
   manufacturer = 'BUCN';
-  content = 'ascii formatted nirs data';
-elseif filetype_check_extension(filename, '.nirs') && filetype_check_header(filename, 'MATLAB')
+  content = 'ascii formatted NIRS data';
+elseif filetype_check_extension(filename, '.nirs') && (filetype_check_header(filename, 'MATLAB') || ~exist(filename, 'file'))
   % Homer is MATLAB software for NIRS processing, see http://www.nmr.mgh.harvard.edu/DOT/resources/homer2/home.htm
   type = 'homer_nirs';
   manufacturer = 'Homer';
-  content = '(f)NIRS data';
+  content = 'NIRS data';
 elseif filetype_check_extension(filename, '.sd') && filetype_check_header(filename, 'MATLAB')
   % Homer is MATLAB software for NIRS processing, see http://www.nmr.mgh.harvard.edu/DOT/resources/homer2/home.htm
   type = 'homer_sd';
   manufacturer = 'Homer';
   content = 'source detector information';
-  
-  % known Artinis file format
-elseif filetype_check_extension(filename, '.oxy3')  
-  type = 'oxy3';
+elseif filetype_check_extension(filename, '.snirf') && (filetype_check_header(filename, [137 72 68 70 13 10 26 10]) || ~exist(filename, 'file'))
+  % this is a HDF5 file, see also https://support.hdfgroup.org/HDF5/doc/H5.format.html#Superblock
+  type = 'snirf';
+  manufacturer = 'The society for functional near-infrared spectroscopy (SfNIRS)';
+  content = 'NIRS data';
+
+  % known Artinis file formats
+elseif filetype_check_extension(filename, '.oxy3')
+  type = 'artinis_oxy3';
   manufacturer = 'Artinis Medical Systems';
   content = '(f)NIRS data';
-  
+elseif filetype_check_extension(filename, '.oxy4')
+  type = 'artinis_oxy4';
+  manufacturer = 'Artinis Medical Systems';
+  content = '(f)NIRS data';
+elseif filetype_check_extension(filename, '.oxy5')
+  type = 'artinis_oxy5';
+  manufacturer = 'Artinis Medical Systems';
+  content = '(f)NIRS data';
+elseif filetype_check_extension(filename, '.oxyproj')
+  type = 'artinis_oxyproj';
+  manufacturer = 'Artinis Medical Systems';
+  content = '(f)NIRS project file';
+elseif isequal([f x], 'optodetemplates.xml')
+  type = 'artinis_xml';
+  manufacturer = 'Artinis Medical Systems';
+  content = '(f)NIRS optode layout';
+
+  % known NIRx file formats
+elseif filetype_check_extension(filename, '.tpl') && exist(fullfile(p, [f '.wl1']), 'file') && exist(fullfile(p, [f '.wl2']), 'file')
+  type = 'nirx_tpl';
+  manufacturer = 'NIRx';
+  content = 'NIRS data';
+elseif filetype_check_extension(filename, '.wl1') && exist(fullfile(p, [f '.wl2']), 'file') && exist(fullfile(p, [f '.tpl']), 'file')
+  type = 'nirx_wl1';
+  manufacturer = 'NIRx';
+  content = 'NIRS data';
+elseif filetype_check_extension(filename, '.wl2') && exist(fullfile(p, [f '.tpl']), 'file') && exist(fullfile(p, [f '.wl1']), 'file')
+  type = 'nirx_wl2';
+  manufacturer = 'NIRx';
+  content = 'NIRS data';
+
   % known TETGEN file types, see http://tetgen.berlios.de/fformats.html
 elseif any(filetype_check_extension(filename, {'.node' '.poly' '.smesh' '.ele' '.face' '.edge' '.vol' '.var' '.neigh'})) && exist(fullfile(p, [f '.node']), 'file') && filetype_check_ascii(fullfile(p, [f '.node']), 100) && exist(fullfile(p, [f '.poly']), 'file')
   type = 'tetgen_poly';
@@ -1083,7 +1231,7 @@ elseif any(filetype_check_extension(filename, {'.node' '.poly' '.smesh' '.ele' '
   type = 'tetgen_node';
   manufacturer = 'TetGen, see http://tetgen.berlios.de';
   content = 'geometrical data desribed with only nodes';
-  
+
   % some BrainSuite file formats, see http://brainsuite.bmap.ucla.edu/
 elseif filetype_check_extension(filename, '.dfs') && filetype_check_header(filename, 'DFS_LE v2.0')
   type = 'brainsuite_dfs';
@@ -1097,8 +1245,8 @@ elseif filetype_check_extension(filename, '.dfc') && filetype_check_header(filen
   type = 'loni_dfc';
   manufacturer = 'LONI'; % it is used in BrainSuite
   content = 'curvature information';
-  
-    % some BrainVISA file formats, see http://brainvisa.info
+
+  % some BrainVISA file formats, see http://brainvisa.info
 elseif filetype_check_extension(filename, '.mesh') && (filetype_check_header(filename, 'ascii') || filetype_check_header(filename, 'binarABCD') || filetype_check_header(filename, 'binarDCBA'))  % http://brainvisa.info/doc/documents-4.4/formats/mesh.pdf
   type = 'brainvisa_mesh';
   manufacturer = 'BrainVISA';
@@ -1107,7 +1255,55 @@ elseif filetype_check_extension(filename, '.minf') && filetype_check_ascii(filen
   type = 'brainvisa_minf';
   manufacturer = 'BrainVISA';
   content = 'annotation/metadata';
-  
+
+  % known Multiscale Electrophysiology Format (or Mayo EEG File, MEF)
+  % MEF 2.1, see: https://github.com/benbrinkmann/mef_lib_2_1
+  % MEF 3.0, see: https://msel.mayo.edu/codes.html
+  % MED 1.0, see: http://www.darkhorseneuro.com
+elseif isfolder(filename) && any(filetype_check_extension(filename, {'.medd', '.tied', '.rdat','recd','.ridx'}))
+  type = 'dhn_med10';
+  manufacturer = 'Dark Horse Neuro';
+  content = 'Multiscale Electrophysiology Data 1.0';
+elseif isfolder(filename) && any(endsWith({ls.name}, '.medd'))
+  type = 'dhn_med10';
+  manufacturer = 'Dark Horse Neuro';
+  content = 'Multiscale Electrophysiology Format 1.0';
+elseif isfolder(filename) && any(filetype_check_extension(filename, {'.mefd', '.timd', '.segd'}))
+  type = 'mayo_mef30';
+  manufacturer = 'Mayo Clinic';
+  content = 'Multiscale Electrophysiology Format 3.0';
+elseif isfile(filename) && any(filetype_check_extension(filename, {'.tdat', '.tidx', '.tmet'})) && filetype_check_header(filename, uint8(3), 13) && filetype_check_header(filename, uint8(0), 14)
+  type = 'mayo_mef30';
+  manufacturer = 'Mayo Clinic';
+  content = 'Multiscale Electrophysiology Format 3.0';
+elseif isfolder(filename) && any(endsWith({ls.name}, '.mef'))
+  type = 'mayo_mef21';
+  manufacturer = 'Mayo Clinic';
+  content = 'Multiscale Electrophysiology Format 2.1';
+elseif isfile(filename) && filetype_check_extension(filename, '.mef') && filetype_check_header(filename, uint8(2), 164) && filetype_check_header(filename, uint8(1), 165)
+  type = 'mayo_mef21';
+  manufacturer = 'Mayo Clinic';
+  content = 'Multiscale Electrophysiology Format 2.1';
+
+  % known Neuroelectrics/Enobio file formats
+  % see https://www.neuroelectrics.com/wiki/index.php/Files_%26_Formats
+elseif filetype_check_extension(filename, '.easy')
+  type = 'neuroelectrics_easy';
+  manufacturer = 'Neurolectrics';
+  content = 'EEG data in ASCII, plain text (Enobio & Starstim)';
+elseif filetype_check_extension(filename, '.info')
+  type = 'neuroelectrics_info';
+  manufacturer = 'Neurolectrics';
+  content = 'EEG header in ASCII, plain text (Enobio & Starstim) ';
+elseif filetype_check_extension(filename, '.sdeeg')
+  type = 'neuroelectrics_sdeeg';
+  manufacturer = 'Neurolectrics';
+  content = 'SD card data format (binary) (Enobio & Starstim)';
+elseif filetype_check_extension(filename, '.nedf')
+  type = 'neuroelectrics_nedf';
+  manufacturer = 'Neurolectrics';
+  content = 'EEG binary data (Enobio & Starstim)';
+
   % some other known file types
 elseif filetype_check_extension(filename, '.hdf5')
   type = 'gtec_hdf5';
@@ -1163,18 +1359,46 @@ elseif filetype_check_extension(filename, '.mat') && filetype_check_header(filen
   type = 'ced_spike6mat';
   manufacturer = 'Cambridge Electronic Design Limited';
   content = 'electrophysiological data';
+elseif filetype_check_extension(filename, '.mat') && filetype_check_header(filename, 'MATLAB') && filetype_check_neuroomega_mat(filename)
+  type = 'neuroomega_mat';
+  manufacturer = 'Alpha Omega';
+  content = 'electrophysiological data';
+elseif filetype_check_extension(filename, '.mat') && filetype_check_header(filename, 'MATLAB') && filetype_check_seg3d_mat(filename)
+  type = 'seg3d_mat';
+  manufacturer = 'Scientific Computing and Imaging Institute, Salt Lake City, Utah';
+  content = 'imaging data';
+elseif filetype_check_extension(filename, '.mat') && filetype_check_header(filename, 'MATLAB') && filetype_check_openvibe_mat(filename)
+  type = 'openvibe_mat';
+  manufacturer = 'OpenVibe';
+  content = 'EEG data';
 elseif filetype_check_extension(filename, '.mat') && filetype_check_header(filename, 'MATLAB')
   type = 'matlab';
   manufacturer = 'MATLAB';
   content = 'MATLAB binary data';
 elseif filetype_check_header(filename, 'RIFF', 0) && filetype_check_header(filename, 'WAVE', 8)
-  type = 'riff_wave';
+  type = 'audio_wav';
   manufacturer = 'Microsoft';
+  content = 'audio';
+elseif any(filetype_check_extension(filename, {'.wav', '.ogg', '.flac', '.au', '.aiff', '.aif', '.aifc', '.mp3', '.m4a', '.mp4'}))
+  type = ['audio_' x(2:end)];
+  manufacturer = 'Various';
   content = 'audio';
 elseif filetype_check_extension(filename, '.txt') && filetype_check_header(filename, 'Site')
   type = 'easycap_txt';
   manufacturer = 'Easycap';
   content = 'electrode positions';
+elseif filetype_check_extension(filename, '.txt') && filetype_check_header(filename, '# OpenSignals Text File Format')
+  type = 'opensignals_txt';
+  manufacturer = 'Bitalino';
+  content = '';
+elseif filetype_check_extension(filename, '.txt') && filetype_check_header(filename, '%OpenBCI')
+  type = 'openbci_txt';
+  manufacturer = 'OpenBCI';
+  content = 'raw EEG data';
+elseif filetype_check_extension(filename, '.txt') && filetype_check_header(filename, '# Version:')
+  type = 'brainsight_txt';
+  manufacturer = 'Rogue Research';
+  content = '3D positions';
 elseif filetype_check_extension(filename, '.txt')
   type = 'ascii_txt';
   manufacturer = '';
@@ -1208,22 +1432,22 @@ elseif filetype_check_extension(filename, '.border') && filetype_check_header(fi
 elseif filetype_check_extension(filename, '.spec') && (filetype_check_header(filename, '<?xml') || filetype_check_header(filename, 'BeginHeader'))
   type = 'caret_spec';
   manufacturer = 'Caret and ConnectomeWB';
-elseif filetype_check_extension(filename, '.gii') && ~isempty(strfind(filename, '.coord.')) && filetype_check_header(filename, '<?xml')
+elseif filetype_check_extension(filename, '.gii') && contains(filename, '.coord.') && filetype_check_header(filename, '<?xml')
   type = 'caret_coord';
   manufacturer = 'Caret and ConnectomeWB';
-elseif filetype_check_extension(filename, '.gii') && ~isempty(strfind(filename, '.topo.')) && filetype_check_header(filename, '<?xml')
+elseif filetype_check_extension(filename, '.gii') && contains(filename, '.topo.') && filetype_check_header(filename, '<?xml')
   type = 'caret_topo';
   manufacturer = 'Caret and ConnectomeWB';
-elseif filetype_check_extension(filename, '.gii') && ~isempty(strfind(filename, '.surf.')) && filetype_check_header(filename, '<?xml')
+elseif filetype_check_extension(filename, '.gii') && contains(filename, '.surf.') && filetype_check_header(filename, '<?xml')
   type = 'caret_surf';
   manufacturer = 'Caret and ConnectomeWB';
-elseif filetype_check_extension(filename, '.gii') && ~isempty(strfind(filename, '.label.')) && filetype_check_header(filename, '<?xml')
+elseif filetype_check_extension(filename, '.gii') && contains(filename, '.label.') && filetype_check_header(filename, '<?xml')
   type = 'caret_label';
   manufacturer = 'Caret and ConnectomeWB';
-elseif filetype_check_extension(filename, '.gii') && ~isempty(strfind(filename, '.func.')) && filetype_check_header(filename, '<?xml')
+elseif filetype_check_extension(filename, '.gii') && contains(filename, '.func.') && filetype_check_header(filename, '<?xml')
   type = 'caret_func';
   manufacturer = 'Caret and ConnectomeWB';
-elseif filetype_check_extension(filename, '.gii') && ~isempty(strfind(filename, '.shape.')) && filetype_check_header(filename, '<?xml')
+elseif filetype_check_extension(filename, '.gii') && contains(filename, '.shape.') && filetype_check_header(filename, '<?xml')
   type = 'caret_shape';
   manufacturer = 'Caret and ConnectomeWB';
 elseif filetype_check_extension(filename, '.gii') && filetype_check_header(filename, '<?xml')
@@ -1262,23 +1486,35 @@ elseif filetype_check_header(filename, 'ply')
   type = 'ply';
   manufacturer = 'Stanford Triangle Format';
   content = 'three dimensional data from 3D scanners, see http://en.wikipedia.org/wiki/PLY_(file_format)';
+elseif filetype_check_extension(filename, '.csv') && filetype_check_header(filename, 'Sensor,Sample,Timestamp')
+  type = 'liberty_csv';
+  manufacturer = 'Polhemus Liberty';
+  content = 'motion capture data';
+elseif filetype_check_extension(filename, '.csv') && filetype_check_header(filename, '"Date",')
+  type = 'sensys_csv';
+  manufacturer = 'Sensys';
+  content = 'fluxgate magnetometer data';
+elseif filetype_check_extension(filename, '.csv') && filetype_check_header(filename, 'EEG')
+  type = 'unicorn_csv';
+  manufacturer = 'Gtec/Unicorn';
+  content = 'EEG data';
 elseif filetype_check_extension(filename, '.csv')
   type = 'csv';
   manufacturer = 'Generic';
   content = 'Comma-separated values, see http://en.wikipedia.org/wiki/Comma-separated_values';
 elseif filetype_check_extension(filename, '.ah5')
-    type = 'AnyWave';
-    manufacturer = 'AnyWave, http://meg.univ-amu.fr/wiki/AnyWave';
-    content = 'MEG/SEEG/EEG data';
-elseif (isdir(filename) && exist(fullfile(p, [d '.EEG.Poly5']), 'file')) || filetype_check_extension(filename, '.Poly5')
-    type = 'tmsi_poly5';
-    manufacturer = 'TMSi PolyBench';
-    content = 'EEG';
-elseif (isdir(filename) && exist(fullfile(filename, 'DataSetSession.xml'), 'file') && exist(fullfile(filename, 'DataSetProtocol.xml'), 'file'))
-    type = 'mega_neurone';
-    manufacturer = 'Mega - http://www.megaemg.com';
-    content = 'EEG';
-elseif filetype_check_extension(filename, '.e') 
+  type = 'AnyWave';
+  manufacturer = 'AnyWave, http://meg.univ-amu.fr/wiki/AnyWave';
+  content = 'MEG/SEEG/EEG data';
+elseif (isfolder(filename) && exist(fullfile(p, [d '.EEG.Poly5']), 'file')) || filetype_check_extension(filename, '.Poly5')
+  type = 'tmsi_poly5';
+  manufacturer = 'TMSi PolyBench';
+  content = 'EEG';
+elseif (isfolder(filename) && exist(fullfile(filename, 'DataSetSession.xml'), 'file') && exist(fullfile(filename, 'DataSetProtocol.xml'), 'file'))
+  type = 'mega_neurone';
+  manufacturer = 'Mega - http://www.megaemg.com';
+  content = 'EEG';
+elseif filetype_check_extension(filename, '.e')
   type = 'nervus_eeg';  % Nervus/Nicolet EEG files
   manufacturer = 'Natus';
   content = 'EEG';
@@ -1286,12 +1522,163 @@ elseif filetype_check_extension(filename, '.m00')
   type = 'nihonkohden_m00';
   manufacturer = 'Nihon Kohden';
   content = 'continuous EEG';
+elseif filetype_check_extension(filename, '.EEG') && (exist([filename(1:(end-4)) '.11D'], 'file') || exist([filename(1:(end-4)) '.21E'], 'file') ...
+    || exist([filename(1:(end-4)) '.BFT'], 'file') || exist([filename(1:(end-4)) '.CMT'], 'file') || exist([filename(1:(end-4)) '.CN3'], 'file') ...
+    || exist([filename(1:(end-4)) '.EGF'], 'file') || exist([filename(1:(end-4)) '.EVT'], 'file') || exist([filename(1:(end-4)) '.LOG'], 'file') ...
+    || exist([filename(1:(end-4)) '.pnt'], 'file') || exist([filename(1:(end-4)) '.reg'], 'file'))
+  type = 'nihonkohden_eeg';
+  manufacturer = 'Nihon Kohden';
+  content = 'continuous EEG';
 elseif filetype_check_extension(filename, '.mgrid')
   type = 'bioimage_mgrid';
   manufacturer = 'Bioimage Suite';
   content = 'electrode positions';
+elseif filetype_check_extension(filename, '.log') && filetype_check_header(filename, 'Scenario')
+  type = 'presentation_log';
+  manufacturer = 'NBS Presentation';
+  content = 'events';
+elseif filetype_check_extension(filename, '.acq')
+  type = 'biopac_acq';
+  manufacturer = 'Biopac';
+  content = 'physiological signals';
+elseif contains(filename, '_events.tsv')
+  % this could be a BIDS-compatible events file
+  type = 'events_tsv';
+  manufacturer = 'BIDS';
+  content = 'events';
+elseif filetype_check_extension(filename, '.xdf') && filetype_check_header(filename, 'XDF')
+  type = 'sccn_xdf';
+  manufacturer = 'SCCN / Lab Streaming Layer';
+  content = 'multiple streams';
+elseif filetype_check_extension(filename, '.tsv') && filetype_check_header(filename, 'NO_OF_')
+  type = 'qualisys_tsv';
+  manufacturer = 'Qualisys';
+  content = 'motion capture data';
+elseif filetype_check_extension(filename, '.c3d') && filetype_check_header(filename, [2, 80])
+  type = 'motion_c3d';
+  manufacturer = 'https://www.c3d.org';
+  content = 'motion capture data';
+elseif filetype_check_extension(filename, '.mvnx') && filetype_check_header(filename, '<?xml')
+  type = 'xsens_mvnx';
+  manufacturer = 'https://www.xsens.com/motion-capture';
+  content = 'motion capture data';
+elseif filetype_check_extension(filename, '.json') && filetype_check_header(filename, '{"version":1.3') % this JSON format detection is not very robust
+  type = 'openpose_keypoints';
+  manufacturer = 'https://github.com/CMU-Perceptual-Computing-Lab/openpose';
+  content = 'motion capture data';
+elseif filetype_check_extension(filename, '.mif')
+  % this could be a mrtrix compatible image file
+  type = 'mrtrix_mif';
+  manufacturer = 'Mrtrix';
+  content = 'image data';
+elseif filetype_check_extension(filename, '.tck')
+  % this could be a mrtrix compatible tractography file
+  type = 'mrtrix_tck';
+  manufacturer = 'Mrtrix';
+  content = 'tractography data';
+elseif exist(fullfile(p, [f '.tsv']), 'file') && exist(fullfile(p, [f '.json']), 'file')
+  % BIDS uses tsv and json file pairs for behavioral and physiological data
+  type = 'bids_tsv';
+  manufacturer = 'BIDS';
+  content = 'timeseries data';
+elseif filetype_check_extension(filename, '.vtp') && filetype_check_header(filename, '<?xml')
+  type = 'vtk_xml';
+  manufacturer = 'https://vtk.org';
+  content = 'vtkPolyData unstructured';
+elseif filetype_check_extension(filename, '.tck') && filetype_check_header(filename, 'mrtrix tracks')
+  type = 'mrtrix_tck';
+  manufacturer = 'https://mrtrix.org';
+  content = 'mrtrix tracks';
+elseif filetype_check_extension(filename, '.TextGrid')
+  type = 'maus_textgrid';
+  manufacturer = 'MAUS/WebMAUS';
+  content = 'segmented text';
+elseif filetype_check_extension(filename, '.fcsv')
+  type = '3dslicer_fscv';
+  manufacturer = 'https://www.slicer.org/';
+  content = 'position information about Markups Fiducial Node';
+elseif filetype_check_extension(filename, '.nwb')
+  % this could be a mrtrix compatible image file
+  type = 'nwb';
+  manufacturer = 'Neurodata Without Borders';
+  content = 'neurophysiology data';
+elseif filetype_check_extension(filename, '.hea') && exist(fullfile(p, [f '.dat']), 'file')
+  type = 'physionet_hea';
+  manufacturer = 'PhysioNet';
+  content = 'continuous physiological signals';
+elseif filetype_check_extension(filename, '.dat') && exist(fullfile(p, [f '.hea']), 'file')
+  type = 'physionet_dat';
+  manufacturer = 'PhysioNet';
+  content = 'continuous physiological signals';
+elseif filetype_check_extension(filename, '.dgf') && filetype_check_header(filename, 'DGF')
+  type = 'duneuro_dgf';
+  manufacturer = 'duneuro';
+  content = 'geometrical meshes';
+  % known York Instruments file types
+elseif filetype_check_extension(filename, '.meghdf5')
+  type = 'yorkinstruments_hdf5';
+  manufacturer = 'York Instruments';
+  content = 'MEG header and data';
+elseif filetype_check_extension(filename, '.jnii')
+  type = 'neurojson_jnii';
+  manufacturer = 'NeuroJSON'; % See https://neurojson.org
+  content = 'MRI';
+elseif filetype_check_extension(filename, '.bnii')
+  type = 'neurojson_bnii';
+  manufacturer = 'NeuroJSON'; % See https://neurojson.org
+  content = 'MRI';
+elseif any(filetype_check_extension(filename, {'.jmsh' '.jmesh'}))
+  type = 'neurojson_jmesh';
+  manufacturer = 'NeuroJSON'; % See https://neurojson.org
+  content = 'Mesh';
+elseif any(filetype_check_extension(filename, {'.bmsh' '.bmesh'}))
+  type = 'neurojson_bmesh';
+  manufacturer = 'NeuroJSON'; % See https://neurojson.org
+  content = 'Mesh';
+elseif filetype_check_extension(filename, '.tsv') && filetype_check_header(filename, sprintf('event\tvalue\ttimestamp'))
+  type = 'eegsynth_tsv';
+  manufacturer = 'EEGsynth recordtrigger';
+  content = 'events';
+elseif filetype_check_extension(filename, '.msh') && filetype_check_header(filename, '$MeshFormat') && filetype_check_header(filename, 49, 16)
+  type = 'gmsh_binary';
+  manufacturer = 'gmsh team';
+  content = 'geometrical meshes';
+elseif filetype_check_extension(filename, '.msh') && filetype_check_header(filename, '$MeshFormat') && filetype_check_header(filename, 48, 16)
+  type = 'gmsh_ascii';
+  manufacturer = 'gmsh team';
+  content = 'geometrical meshes';
+elseif filetype_check_extension(filename, '.vtk') && filetype_check_header(filename, '# vtk') && filetype_check_ascii(filename, inf)
+  type = 'vtk';
+  manufacturer = 'Visualization Toolkit';
+  content = 'geometrical meshes';
+elseif filetype_check_extension(filename, '.bin') && exist(fullfile(p, [f '.meta']), 'file') 
+  type = 'spikeglx_bin';
+  manufacturer = 'SpikeGLX';
+  content = 'neuropixel data';
+elseif filetype_check_extension(filename, '.meta') && exist(fullfile(p, [f '.bin']), 'file') 
+  type = 'spikeglx_bin';
+  manufacturer = 'SpikeGLX';
+  content = 'neuropixel data';
+elseif filetype_check_extension(filename, '.lvm') && filetype_check_header(filename, 'LabVIEW')
+  type = 'quspin_lvm'; % technically it is a https://www.ni.com/docs/en-US/bundle/labview/page/labview-measurement-files.html
+  manufacturer = 'QuSpin';
+  content = 'OPM MEG data';
+elseif (filetype_check_extension(filename, '.bin') && exist(fullfile(p, [f '.json']), 'file')) || ...
+    (filetype_check_extension(filename, '.json') && exist(fullfile(p, [f '.bin']), 'file'))
+  % this could be a opm_fil dataset, in BIDS-like folder organisation, with also a channel tsv file. 
+  % If of a later date, the channels.tsv has the same f-stem as the datafile, but this is not a guarantee,
+  % so FIXME this is a bit of a HACK here
+  if exist(fullfile(p, [strrep(f, '_meg', '_channels') '.tsv']), 'file')
+    type = 'opm_fil';
+    manufacturer = 'QuSpin';
+    content = 'OPM MEG data';
+  elseif ~isempty(dir(fullfile(p, '*channels.tsv')))
+    % old style representation, e.g. as per the getting started opm_fil data on the fieldtrip website
+    type = 'opm_fil';
+    manufacturer = 'QuSpin';
+    content = 'OPM MEG data';
+  end  
 end
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % finished determining the filetype
@@ -1299,9 +1686,9 @@ end
 
 if strcmp(type, 'unknown')
   if ~exist(filename, 'file') && ~exist(filename, 'dir')
-    warning('file or directory "%s" does not exist, could not determine fileformat', filename);
+    ft_warning('file or directory "%s" does not exist, could not determine fileformat', filename);
   else
-    warning('could not determine filetype of %s', filename);
+    ft_warning('could not determine filetype of %s', filename);
   end
 end
 
@@ -1350,12 +1737,11 @@ y = 1;
 % SUBFUNCTION that checks for CED spike6 mat file
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function res = filetype_check_ced_spike6mat(filename)
-res = 1;
 var = whos('-file', filename);
 
 % Check whether all the variables in the file are structs (representing channels)
 if ~all(strcmp('struct', unique({var(:).class})) == 1)
-  res = 0;
+  res = false;
   return;
 end
 
@@ -1377,6 +1763,23 @@ fnames = {
   };
 
 res = (numel(intersect(fieldnames(var{1}), fnames)) >= 5);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SUBFUNCTION that checks for a OpenVibe mat file
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function res = filetype_check_openvibe_mat(filename)
+% check the content of the *.mat file
+var = whos('-file', filename);
+expected = {'stims', 'sampleTime', 'samples', 'samplingFreq', 'channelNames'};
+res = all(ismember(expected, {var.name}));
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SUBFUNCTION that checks for a SCIRun/Seg3D mat file
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function res = filetype_check_seg3d_mat(filename)
+% check the content of the *.mat file
+var = whos('-file', filename);
+res = contains('scirunnrrd', {var.name});
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION that checks for a SPM eeg/meg mat file
@@ -1411,6 +1814,12 @@ end
 res = any(strcmp(filename,{d.name}));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SUBFUNCTION that checks for NeuroOmega mat file
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function res = filetype_check_neuroomega_mat(filename)
+res=~isempty(regexp(filename,'[RL]T[1-5]D[-]{0,1}\d+\.\d+([+-]M){0,1}F\d+\.mat','once'));
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION that checks whether the directory is neuralynx_cds
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function res = filetype_check_neuralynx_cds(filename)
@@ -1429,14 +1838,31 @@ if haslfp || hasmua || hasspike
   sel=find(filetype_check_extension({dirlist.name}, 'lfp')+...
     filetype_check_extension({dirlist.name}, 'mua')+...
     filetype_check_extension({dirlist.name}, 'spike'));
-  
+
   neuralynxdirs=cell(1,length(sel));
-  
+
   for n=1:length(sel)
     neuralynxdirs{n}=fullfile(filename, dirlist(sel(n)).name);
   end
-  
+
   res=any(ft_filetype(neuralynxdirs, 'neuralynx_ds'));
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SUBFUNCTION that checks whether the file contains only ascii characters
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function res = filetype_header_contains(filename, pat, len)
+if exist(filename, 'file')
+  fid = fopen(filename, 'rt');
+  try
+    str = fread(fid, [1 len], 'uint8=>char');
+  catch
+    str = fread(fid, [1 inf], 'uint8=>char');
+  end
+  fclose(fid);
+  res = contains(str, pat);
+else
+  res = false;
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1449,7 +1875,7 @@ if exist(filename, 'file')
   bin = fread(fid, len, 'uint8=>uint8');
   fclose(fid);
   printable = bin>31 & bin<127;  % the printable characters, represent letters, digits, punctuation marks, and a few miscellaneous symbols
-  special   = bin==10 | bin==13 | bin==11; % line feed, form feed, tab
+  special   = bin==9 | bin==10 | bin==11 | bin==12 | bin==13; % horizontal tab, line feed, vertical tab, form feed, carriage return
   res = all(printable | special);
 else
   % always return true if the file does not (yet) exist, this is important

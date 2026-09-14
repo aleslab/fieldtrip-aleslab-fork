@@ -55,7 +55,7 @@ if ~isfield(cfg, 'eventformat'),      cfg.eventformat     = [];       end % defa
 if ~isfield(cfg, 'blocksize'),        cfg.blocksize       = 0.05;     end % stepsize, in seconds
 if ~isfield(cfg, 'channel'),          cfg.channel         = 'all';    end
 if ~isfield(cfg, 'bufferdata'),       cfg.bufferdata      = 'last';   end % first or last
-if ~isfield(cfg, 'dataset'),          cfg.dataset         = 'buffer:\\localhost:1972'; end;
+if ~isfield(cfg, 'dataset'),          cfg.dataset         = 'buffer:\\localhost:1972'; end
 if ~isfield(cfg, 'foilim'),           cfg.foilim          = [1 45];   end
 if ~isfield(cfg, 'windowsize'),       cfg.windowsize      = 2;        end % length of sliding window, in seconds
 if ~isfield(cfg, 'scale'),            cfg.scale           = 1;        end % can be used to fix the calibration
@@ -114,10 +114,10 @@ nchan = length(chanindx);
 if nchan>2
   chanindx = [1 2];
   nchan = 2;
-  warning('exactly two channels should be selected');
+  ft_warning('exactly two channels should be selected');
 end
 if nchan<2
-  error('exactly two channels should be selected');
+  ft_error('exactly two channels should be selected');
 end
 
 nhistory = 100;
@@ -170,9 +170,9 @@ while true
       endsample = hdr.nSamples*hdr.nTrials;
     elseif strcmp(cfg.bufferdata, 'first')
       begsample = prevSample+1;
-      endsample = prevSample+blocksize ;
+      endsample = prevSample+blocksize;
     else
-      error('unsupported value for cfg.bufferdata');
+      ft_error('unsupported value for cfg.bufferdata');
     end
     
     % remember up to where the data was read
@@ -481,7 +481,7 @@ while true
           end
         else
           midiOut('.', 1);
-        end;
+        end
         
       elseif max((dat(left_thresh_time(1):left_thresh_time(2)))) > left_thresh_ampl
         if beatdrum == true
@@ -493,7 +493,7 @@ while true
         end
       else
         % midiOut('.', 1);
-      end;
+      end
       
       % schemerlamp.setLevel(round(TFR(1, 60, end) / mean(TFR(1, 60, :)))*5);
       volume_right = round((mean(TFR(2, right_freq, end)) - right_offset) * right_mult);

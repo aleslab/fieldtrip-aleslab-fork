@@ -33,7 +33,7 @@ function [resample] = resampledesign(cfg, design)
 % cells, where the multiple observations in a groups should not be broken
 % apart. This for example applies to multiple tapers in a spectral estimate
 % of a single trial of data (the "rpttap" dimension), where different
-% tapers should not be shuffled seperately. Another example is a blocked
+% tapers should not be shuffled separately. Another example is a blocked
 % fMRI design, with a different condition in each block and multiple
 % repetitions of the same condition within a block. Assuming that there is
 % a slow HRF that convolutes the trials within a block, you can shuffle the
@@ -46,7 +46,7 @@ function [resample] = resampledesign(cfg, design)
 %
 % See also FT_STATISTICS_MONTECARLO
 
-% Copyright (C) 2005-2011, Robert Oostenveld
+% Copyright (C) 2005-2020, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -91,12 +91,12 @@ efficient = ft_getopt(cfg, 'efficient', 'no');
 Nvar  = size(design,1);   % number of factors or regressors
 Nrepl = size(design,2);   % number of replications
 
-if ~isempty(intersect(cfg.ivar, cfg.uvar)), warning('there is an intersection between cfg.ivar and cfg.uvar'); end
-if ~isempty(intersect(cfg.ivar, cfg.wvar)), warning('there is an intersection between cfg.ivar and cfg.wvar'); end
-if ~isempty(intersect(cfg.ivar, cfg.cvar)), warning('there is an intersection between cfg.ivar and cfg.cvar'); end
-if ~isempty(intersect(cfg.uvar, cfg.wvar)), warning('there is an intersection between cfg.uvar and cfg.wvar'); end
-if ~isempty(intersect(cfg.uvar, cfg.cvar)), warning('there is an intersection between cfg.uvar and cfg.cvar'); end
-if ~isempty(intersect(cfg.wvar, cfg.cvar)), warning('there is an intersection between cfg.wvar and cfg.cvar'); end
+if ~isempty(intersect(cfg.ivar, cfg.uvar)), ft_warning('there is an intersection between cfg.ivar and cfg.uvar'); end
+if ~isempty(intersect(cfg.ivar, cfg.wvar)), ft_warning('there is an intersection between cfg.ivar and cfg.wvar'); end
+if ~isempty(intersect(cfg.ivar, cfg.cvar)), ft_warning('there is an intersection between cfg.ivar and cfg.cvar'); end
+if ~isempty(intersect(cfg.uvar, cfg.wvar)), ft_warning('there is an intersection between cfg.uvar and cfg.wvar'); end
+if ~isempty(intersect(cfg.uvar, cfg.cvar)), ft_warning('there is an intersection between cfg.uvar and cfg.cvar'); end
+if ~isempty(intersect(cfg.wvar, cfg.cvar)), ft_warning('there is an intersection between cfg.wvar and cfg.cvar'); end
 
 fprintf('total number of measurements     = %d\n', Nrepl);
 fprintf('total number of variables        = %d\n', Nvar);
@@ -146,11 +146,11 @@ if ~isempty(cfg.wvar)
     blklen(i) = length(blksel{i});
   end
   if any(blklen~=blklen(1))
-    error('the number of repetitions per block should be constant');
+    ft_error('the number of repetitions per block should be constant');
   end
   for i=1:size(blkmeas,2)
     if any(diff(design(:, blksel{i}), 1, 2)~=0)
-      error('the design matrix variables should be constant within a block');
+      ft_error('the design matrix variables should be constant within a block');
     end
   end
   orig_design = design;
@@ -165,7 +165,7 @@ end
 
 % do some validity checks
 if Nvar==1 && ~isempty(cfg.uvar)
-  error('A within-units shuffling requires a at least one unit variable and at least one independent variable');
+  ft_error('A within-units shuffling requires a at least one unit variable and at least one independent variable');
 end
 
 if isempty(cfg.uvar) && strcmp(cfg.resampling, 'permutation')
@@ -185,11 +185,11 @@ if isempty(cfg.uvar) && strcmp(cfg.resampling, 'permutation')
   
 elseif isempty(cfg.uvar) && strcmp(cfg.resampling, 'bootstrap')
   % randomly draw with replacement, keeping the number of elements the same in each class
-  % only the test under the null-hypothesis (h0) is explicitely implemented here
+  % only the test under the null-hypothesis (h0) is explicitly implemented here
   % but the h1 test can be achieved using a control variable
   resample = zeros(cfg.numrandomization, Nrepl);
   for i=1:cfg.numrandomization
-    resample(i,:) = randsample(1:Nrepl, Nrepl, true);
+    resample(i,:) = randi(Nrepl, 1, Nrepl);
   end
   
 elseif ~isempty(cfg.uvar) && strcmp(cfg.resampling, 'permutation')
@@ -206,29 +206,39 @@ elseif ~isempty(cfg.uvar) && strcmp(cfg.resampling, 'permutation')
     fprintf('repeated measurement in mutiple variables over %d levels\n', length(unitlevel));
     fprintf('number of repeated measurements in each level is '); fprintf('%d ', unitlen); fprintf('\n');
   end
+  fprintf('the maximum number of unique permutations is %d\n', prod(unitlen));
   
   if ischar(cfg.numrandomization) && strcmp(cfg.numrandomization, 'all')
     % create all possible permutations by systematic assignment
     if any(unitlen~=2)
-      error('cfg.numrandomization=''all'' is only supported for two repeated measurements');
+      % it would be possible to also implement it for other cases
+      % but so far ther has not been a concrete need for it
+      ft_error('cfg.numrandomization=''all'' is only supported for two repeated measurements');
     end
     Nperm = 2^(length(unitlevel));
-    fprintf('creating all possible permutations (%d)\n', 2^(length(unitlevel)));
     resample = zeros(Nperm, Nrepl);
     for i=1:Nperm
       flip  = dec2bin( i-1, length(unitlevel));
       for j=1:length(unitlevel)
-        if     strcmp('0', flip(j)),
+        if     strcmp('0', flip(j))
           resample(i, unitsel{j}(1)) = unitsel{j}(1);
           resample(i, unitsel{j}(2)) = unitsel{j}(2);
-        elseif strcmp('1', flip(j)),
+        elseif strcmp('1', flip(j))
           resample(i, unitsel{j}(1)) = unitsel{j}(2);
           resample(i, unitsel{j}(2)) = unitsel{j}(1);
         end
       end
     end
+    fprintf('generated all %d possible permutations\n', 2^(length(unitlevel)));
     
   elseif ~ischar(cfg.numrandomization)
+    % see https://github.com/fieldtrip/fieldtrip/issues/1313
+    if cfg.numrandomization > prod(unitlen)
+      ft_warning('the number of randomizations (%d) is larger than the maximum number of unique permutations (%d), better use cfg.numrandomization=''all''', cfg.numrandomization, prod(unitlen))
+    elseif cfg.numrandomization/prod(unitlen) > 0.5
+      ft_warning('the number of randomizations (%d) is close to the maximum number of unique permutations (%d), better use cfg.numrandomization=''all''', cfg.numrandomization, prod(unitlen))
+    end
+    
     % create the desired number of permutations by random shuffling
     resample = zeros(cfg.numrandomization, Nrepl);
     for i=1:cfg.numrandomization
@@ -236,11 +246,12 @@ elseif ~isempty(cfg.uvar) && strcmp(cfg.resampling, 'permutation')
         resample(i, unitsel{j}) = unitsel{j}(randperm(length(unitsel{j})));
       end
     end
+    fprintf('generated %d random permutations\n', cfg.numrandomization);
   end
   
-elseif length(cfg.uvar)==1 && strcmp(cfg.resampling, 'bootstrap') && isempty(cfg.cvar),
+elseif length(cfg.uvar)==1 && strcmp(cfg.resampling, 'bootstrap') && isempty(cfg.cvar)
   % randomly draw with replacement, keeping the number of elements the same in each class
-  % only the test under the null-hypothesis (h0) is explicitely implemented here
+  % only the test under the null-hypothesis (h0) is explicitly implemented here
   % but the h1 test can be achieved using a control variable
   
   % FIXME allow for length(cfg.uvar)>1, does it make sense in the first place
@@ -254,18 +265,18 @@ elseif length(cfg.uvar)==1 && strcmp(cfg.resampling, 'bootstrap') && isempty(cfg
   resample = zeros(cfg.numrandomization, Nrepl);
   
   %sanity check on number of repetitions
-  if any(Nrep~=Nrep(1)), error('all units of observation should have an equal number of repetitions'); end
+  if any(Nrep~=Nrep(1)), ft_error('all units of observation should have an equal number of repetitions'); end
   
-  if max(units(:))<20,
-    warning('fewer than 20 units warrants explicit checking of double occurrences of ''bootstraps''');
+  if max(units(:))<20
+    ft_warning('fewer than 20 units warrants explicit checking of double occurrences of ''bootstraps''');
     checkunique = 1;
   else
     checkunique = 0;
   end
   
-  if ~checkunique,
+  if ~checkunique
     for i=1:cfg.numrandomization
-      tmp           = randsample(1:Nrepl/Nrep(1), Nrepl/Nrep(1), true);
+      tmp           = randi(Nrepl/Nrep(1), 1, Nrepl/Nrep(1));
       for k=1:size(indx,1)
         resample(i,indx(k,:)) = indx(k,tmp);
       end
@@ -273,17 +284,30 @@ elseif length(cfg.uvar)==1 && strcmp(cfg.resampling, 'bootstrap') && isempty(cfg
   else
     tmp = zeros(cfg.numrandomization*10, Nrepl/Nrep(1));
     for i=1:cfg.numrandomization*10
-      tmp(i,:) = sort(randsample(1:Nrepl/Nrep(1), Nrepl/Nrep(1), true));
+      tmp(i,:) = sort(randi(Nrepl/Nrep(1), 1, Nrepl/Nrep(1)));
     end
     
     tmp = unique(tmp, 'rows');
-    fprintf('found %d unique rows in bootstrap matrix of %d bootstraps', size(tmp,1), cfg.numrandomization*10);
+    fprintf('found %d unique rows in bootstrap matrix of %d bootstraps\n', size(tmp,1), cfg.numrandomization*10);
     
     if size(tmp,1)<cfg.numrandomization
       fprintf('using only %d unique bootstraps\n', size(tmp,1));
       cfg.numrandomization = size(tmp,1);
       index = 1:size(tmp,1);
     else
+      % do a quick check on the number of unique units per row
+      nunique = zeros(size(tmp,1),1);
+      for i=1:size(tmp,1)
+        nunique(i,1) = numel(unique(tmp(i,:)));
+      end
+      ununique = unique(nunique);
+      for i=1:numel(ununique)
+        nnunique(i,1) = sum(nunique==ununique(i));
+      end
+      fprintf('range of unique units across bootstraps is %d - %d\n', min(nunique), max(nunique));
+      fprintf('discarding bootstraps with <= 10 different units, selecting from %d bootstraps\n', sum(nunique>=10));
+      tmp = tmp(nunique>=10,:);
+
       index = randperm(size(tmp,1));
       index = index(1:cfg.numrandomization);
     end
@@ -298,7 +322,7 @@ elseif length(cfg.uvar)==1 && strcmp(cfg.resampling, 'bootstrap') && isempty(cfg
   end
   
 else
-  error('Unsupported configuration for resampling.');
+  ft_error('Unsupported configuration for resampling.');
 end
 
 if ~isempty(cfg.wvar)
@@ -319,10 +343,10 @@ end
 % but important is that the relative requencies of the condition sequences remains the same
 if strcmp(efficient, 'yes')
   if numel(cfg.ivar)<1
-    error('this reqiures at least one independent variable to be specified (ivar)');
+    ft_error('this reqiures at least one independent variable to be specified (ivar)');
   end
   if numel(cfg.uvar)>0
-    error('this is not yet supported in combination with a unit of observation (uvar)');
+    ft_error('this is not yet supported in combination with a unit of observation (uvar)');
   end
   
   original = zeros(size(resample,1), numel(cfg.ivar)*size(resample,2));
@@ -353,4 +377,3 @@ if strcmp(efficient, 'yes')
     fprintf('the reduced set has different relative frequencies of the conditions, retaining the original permutations\n')
   end
 end % if efficient
-

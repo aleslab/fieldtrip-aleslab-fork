@@ -48,14 +48,14 @@ function [numA, numB, indA, indB] = spikesort(numA, numB, varargin)
 %
 % $Id$
 
-% this can be used for printing detailled user feedback
+% this can be used for printing detailed user feedback
 fb = false;
 
 % get the options
 presort = ft_getopt(varargin, 'presort');
 
 if any(size(numA)~=size(numB))
-  error('input dimensions should be the same');
+  ft_error('input dimensions should be the same');
 end
 
 bottom      = 1;

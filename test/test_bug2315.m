@@ -1,16 +1,21 @@
 function test_bug2315
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_databrowser ft_prepare_layout
+% DATA private
 
-% TEST ft_databrowser ft_prepare_layout
+load(dccnpath('/project/3031000.02/test/dataFIC.mat'));
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/dataFIC.mat'));
+%%
 
 cfg = [];
-cfg.viewmode = '3column';
+cfg.viewmode = 'ordered';
+cfg.columns = 5;
 cfg.channel = 1:15;
 ft_databrowser(cfg, dataFIC)
+
+%%
 
 cfg = [];
 cfg.viewmode = 'CTF151';

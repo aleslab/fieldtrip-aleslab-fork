@@ -3,15 +3,14 @@ function dataout = ft_annotate(cfg, datain)
 % FT_ANNOTATE returns the same output data as the user has provided as input, but allows
 % to add comments to that data structure. These comments are stored along with the other
 % provenance information and can be displayed with FT_ANALYSISPIPELINE. Adding comments
-% is especially useful if you have manually (i.e. in plain MATLAB) modified ythe data
+% is especially useful if you have manually (i.e. in plain MATLAB) modified the data
 % structure, whereby some provenance information is missing.
 %
 % Use as
-%   outdata = ft_examplefunction(cfg, indata)
-% where the input data structure can be any of the FieldTrip data structures and where
-% cfg is a configuratioun structure that should contain
-%
-%  cfg.comment    = string
+%   outdata = ft_annotate(cfg, indata)
+% where the input data structure can be any of the FieldTrip data structures and
+% the configuration structure should contain
+%   cfg.comment    = string
 %
 % To facilitate data-handling and distributed computing you can use
 %   cfg.inputfile   =  ...
@@ -54,7 +53,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar datain
 ft_preamble provenance datain
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -69,12 +67,10 @@ dataout = datain;
 
 
 % this line is meant to provide some information
-% but also to ensure that trackconfig does not remove the cfg.comment field
 fprintf('adding the comment: %s\n', cfg.comment);
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous datain
 ft_postamble provenance dataout
 ft_postamble history dataout

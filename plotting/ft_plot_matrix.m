@@ -14,11 +14,11 @@ function ft_plot_matrix(varargin)
 % Optional arguments should come in key-value pairs and can include
 %   'clim'            = 1x2 vector with color limits (default is automatic)
 %   'highlight'       = a logical matrix of size C, where 0 means that the corresponding values in C are highlighted according to the highlightstyle
-%   'highlightstyle'  = can be 'saturation', 'opacity' or 'outline' (default = 'opacity')
-%   'box'             = draw a box around the local axes, can be 'yes' or 'no'
-%   'tag'             = string, the name assigned to the object. All tags with the same name can be deleted in a figure, without deleting other parts of the figure.
+%   'highlightstyle'  = can be 'saturation', 'opacity', 'outline' or 'colormix' (default = 'opacity')
+%   'tag'             = string, the tag assigned to the plotted elements (default = '')
 %
-% It is possible to plot the object in a local pseudo-axis (c.f. subplot), which is specfied as follows
+% It is possible to plot the object in a local pseudo-axis (c.f. subplot), which is specified as follows
+%   'box'             = draw a box around the local axes, can be 'yes' or 'no'
 %   'hpos'            = horizontal position of the center of the local axes
 %   'vpos'            = vertical position of the center of the local axes
 %   'width'           = width of the local axes
@@ -37,9 +37,9 @@ function ft_plot_matrix(varargin)
 % Example
 %   ft_plot_matrix(randn(30,50), 'width', 1, 'height', 1, 'hpos', 0, 'vpos', 0)
 %
-% See also FT_PLOT_VECTOR, IMAGESC
+% See also FT_PLOT_VECTOR, IMAGESC, SURF
 
-% Copyrights (C) 2009-2011, Robert Oostenveld
+% Copyrights (C) 2009-2022, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -58,8 +58,6 @@ function ft_plot_matrix(varargin)
 %    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
 %
 % $Id$
-
-ws = warning('on', 'MATLAB:divideByZero');
 
 if nargin>2 && all(cellfun(@isnumeric, varargin(1:3)))
   % the function was called like imagesc(x, y, c, ...)
@@ -96,7 +94,7 @@ fontweight      = ft_getopt(varargin, 'fontweight', get(0, 'defaulttextfontweigh
 fontunits       = ft_getopt(varargin, 'fontunits',  get(0, 'defaulttextfontunits'));
 
 if ~isempty(highlight) && ~isequal(size(highlight), size(cdat))
-  error('the dimensions of the highlight should be identical to the dimensions of the data');
+  ft_error('the dimensions of the highlight should be identical to the dimensions of the data');
 end
 
 % axis   = ft_getopt(varargin, 'axis', false);
@@ -125,7 +123,7 @@ if ischar(hlim)
       hlim = max(abs(hdat));
       hlim = [-hlim hlim];
     otherwise
-      error('unsupported option for hlim')
+      ft_error('unsupported option for hlim')
   end % switch
 end % if ischar
 
@@ -148,7 +146,7 @@ if ischar(vlim)
       vlim = max(abs(vdat));
       vlim = [-vlim vlim];
     otherwise
-      error('unsupported option for vlim')
+      ft_error('unsupported option for vlim')
   end % switch
 end % if ischar
 
@@ -171,7 +169,7 @@ if ischar(clim)
       clim = max(abs(cdat(:)));
       clim = [-clim clim];
     otherwise
-      error('unsupported option for clim')
+      ft_error('unsupported option for clim')
   end % switch
 end % if ischar
 
@@ -251,6 +249,9 @@ vdat = vdat .* height;
 % then shift to the new vertical position
 vdat = vdat + vpos;
 
+% uimagesc is in external/fileexchange
+ft_hastoolbox('fileexchange', 1);
+
 % the uimagesc-call needs to be here to avoid calling it several times in switch-highlight
 if isempty(highlight)
   h = uimagesc(hdat, vdat, cdat, clim);
@@ -272,39 +273,21 @@ if ~isempty(highlight)
         set(h, 'AlphaDataMapping', 'scaled');
         alim([0 1]);
       end
-      
+
     case 'saturation'
-      % This approach changes the color of pixels to white, regardless of colormap, without using opengl
-      % It does by converting by:
-      % 1) convert the to-be-plotted data to their respective rgb color values (determined by colormap)
-      % 2) convert these rgb color values to hsv values, hue-saturation-value
-      % 3) for to-be-masked-pixels, set saturation to 0 and value to 1 (hue is irrelevant when they are)
-      % 4) convert the hsv values back to rgb values
-      % 5) plot these values
-      
-      % enforce mask properties (satmask is 0 when a pixel needs to be masked, 1 if otherwise)
-      satmask = round(double(highlight));   % enforce binary white-masking, the hsv approach cannot be used for 'white-shading'
-      satmask(isnan(cdat)) = false;         % make sure NaNs are plotted as white pixels, even when using non-integer mask values
-      
-      % do 1, by converting the data-values to zero-based indices of the colormap
-      ncolors = size(get(gcf,'colormap'),1); % determines range of index, if a figure has been created by the caller function, gcf changes nothing, if not, a figure is created (which the below would do otherwise)
-      indcdat = (cdat + -clim(1)) * (ncolors / (-clim(1) + clim(2))); % transform cdat-values to have a 0-(ncolors-1) range (range depends on colormap used, and thus also on clim)
-      rgbcdat = ind2rgb(uint8(floor(indcdat)), colormap);
-      % do 2
-      hsvcdat = rgb2hsv(rgbcdat);
-      % do 3
-      hsvs = hsvcdat(:,:,2);
-      hsvs(~satmask) = 0;
-      hsvv = hsvcdat(:,:,3);
-      hsvv(~satmask) = 1;
-      hsvcdat(:,:,2) = hsvs;
-      hsvcdat(:,:,3) = hsvv;
-      % do 4
-      rgbcdat = hsv2rgb(hsvcdat);
-      % do 5
-      h = uimagesc(hdat, vdat, rgbcdat,clim);
+      cmap    = get(gcf, 'colormap');
+      rgbcdat = cdat2rgb(cdat, cmap, clim, highlight);
+
+      h = uimagesc(hdat, vdat, rgbcdat, clim);
       set(h,'tag',tag);
-      
+
+    case 'colormix'
+      cmap    = get(gcf, 'colormap');
+      rgbcdat = bg_rgba2rgb([1 1 1], cdat, cmap, clim, highlight, 'rampup', [0 1]);
+
+      h = uimagesc(hdat, vdat, rgbcdat, clim);
+      set(h,'tag',tag);
+
     case 'outline'
       % the significant voxels could be outlined with a black contour
       % plot outline
@@ -323,9 +306,9 @@ if ~isempty(highlight)
       if ~holdflag
         hold off % revert to the previous hold state
       end
-      
+
     otherwise
-      error('unsupported highlightstyle')
+      ft_error('unsupported highlightstyle')
   end % switch highlightstyle
 end
 
@@ -346,5 +329,3 @@ if box
   boxposition(4) = vpos + height/2;
   ft_plot_box(boxposition);
 end
-
-warning(ws); % revert to original state

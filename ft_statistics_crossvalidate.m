@@ -1,14 +1,25 @@
 function [stat, cfg] = ft_statistics_crossvalidate(cfg, dat, design)
 
 % FT_STATISTICS_CROSSVALIDATE performs cross-validation using a prespecified
-% multivariate analysis given by cfg.mva
+% multivariate analysis. It is not recommended to call this function directly,
+% but instead you should call the function that is associated with the type of data on 
+% which you want to perform the test. This is because important data bookkeeping 
+% operations on the data are performed in the higher-level functions, which are
+% assumed to have been handled correctly for the input arguments into this function. 
+% Also, notably, a prespecified randomseed in the cfg is handled in the higher
+% level function, not here.
 %
 % Use as
 %   stat = ft_timelockstatistics(cfg, data1, data2, data3, ...)
 %   stat = ft_freqstatistics    (cfg, data1, data2, data3, ...)
 %   stat = ft_sourcestatistics  (cfg, data1, data2, data3, ...)
 %
-% Options:
+% where the data is obtained from FT_TIMELOCKANALYSIS, FT_FREQANALYSIS or
+% FT_SOURCEANALYSIS respectively, or from FT_TIMELOCKGRANDAVERAGE,
+% FT_FREQGRANDAVERAGE or FT_SOURCEGRANDAVERAGE respectively 
+% and with cfg.method = 'crossvalidate'
+%
+% The configuration options that can be specified are:
 %   cfg.mva           = a multivariate analysis (default = {dml.standardizer dml.svm})
 %   cfg.statistic     = a cell-array of statistics to report (default = {'accuracy' 'binomial'})
 %   cfg.nfolds        = number of cross-validation folds (default = 5)
@@ -16,12 +27,15 @@ function [stat, cfg] = ft_statistics_crossvalidate(cfg, dat, design)
 %                       training and downsample often occurring classes
 %                       during testing (default = false)
 %
-% Returns:
-%   stat.statistic    = the statistics to report
-%   stat.model        = the models associated with this multivariate analysis
+% This returns:
+%   stat.statistic = the statistics to report
+%   stat.model     = the models associated with this multivariate analysis
 %
+% See also FT_TIMELOCKSTATISTICS, FT_FREQSTATISTICS, FT_SOURCESTATISTICS
+% FT_STATISTICS_ANALYTIC, FT_STATISTICS_MONTECARLO, FT_STATISTICS_MVPA,
+% FT_STATISTICS_CROSSVALIDATE
 
-% Copyright (c) 2007-2011, Marcel van Gerven, F.C. Donders Centre
+% Copyright (c) 2007-2011, F.C. Donders Centre, Marcel van Gerven
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -41,10 +55,26 @@ function [stat, cfg] = ft_statistics_crossvalidate(cfg, dat, design)
 %
 % $Id$
 
+% do a sanity check on the input data
+assert(isnumeric(dat),    'this function requires numeric data as input, you probably want to use FT_TIMELOCKSTATISTICS, FT_FREQSTATISTICS or FT_SOURCESTATISTICS instead');
+assert(isnumeric(design), 'this function requires numeric data as input, you probably want to use FT_TIMELOCKSTATISTICS, FT_FREQSTATISTICS or FT_SOURCESTATISTICS instead');
+
+% check whether the function has been called from ft_timelockstatistics, ft_freqstatistics, or ft_sourcestatistics
+st = dbstack;
+m  = mfilename;
+if isscalar(st)
+  ft_warning('It seems that %s has been called directly from the command line. This is not recommended, unless you know what you are doing', m);
+elseif numel(st)>1 && ~ismember(st(2).name, {'ft_freqstatistics' 'ft_timelockstatistics' 'ft_sourcestatistics'})
+  ft_warning('It seems that %s has not been called from one of the FT_XXXSTATISTICS functions. This is not recommended, unless you know what you are doing', m);
+end
+
 cfg.mva       = ft_getopt(cfg, 'mva');
 cfg.statistic = ft_getopt(cfg, 'statistic', {'accuracy', 'binomial'});
 cfg.nfolds    = ft_getopt(cfg, 'nfolds',   5);
 cfg.resample  = ft_getopt(cfg, 'resample', false);
+cfg.cv        = ft_getopt(cfg, 'cv', []);
+cfg.cv.type   = ft_getopt(cfg.cv, 'type', 'nfold');
+
 
 % specify classification procedure or ensure it's the correct object
 if isempty(cfg.mva)
@@ -54,16 +84,19 @@ elseif ~isa(cfg.mva,'dml.analysis')
   cfg.mva = dml.analysis(cfg.mva);
 end
 
-cv = dml.crossvalidator('mva', cfg.mva, 'type', 'nfold', 'folds', cfg.nfolds,...
-  'resample', cfg.resample, 'compact', true, 'verbose', true);
+cv_options = {'mva', cfg.mva, 'type', cfg.cv.type, 'resample', cfg.resample, 'compact', true, 'verbose', true};
+if strcmp(cfg.cv.type, 'nfold')
+  cv_options = cat(2, cv_options, {'folds', cfg.nfolds});
+end
+cv = dml.crossvalidator(cv_options{:});
 
 if any(isinf(dat(:)))
-  warning('Inf encountered; replacing by zeros');
+  ft_warning('Inf encountered; replacing by zeros');
   dat(isinf(dat(:))) = 0;
 end
 
 if any(isnan(dat(:)))
-  warning('Nan encountered; replacing by zeros');
+  ft_warning('Nan encountered; replacing by zeros');
   dat(isnan(dat(:))) = 0;
 end
 
@@ -80,16 +113,37 @@ end
 stat.model = cv.model;
 
 fn = fieldnames(stat.model{1});
-if any(strcmp(fn, 'weights'))
-  % create the 'encoding' matrix from the weights, as per Haufe 2014.
-  covdat = cov(dat');
-  for i=1:length(stat.model)
-    W = stat.model{i}.weights;
-    M = dat'*W;
-    covM = cov(M);
-    stat.model{i}.weightsinv = covdat*W/covM;
+if any(ismember(fn,  {'weights', 'primal'})),
+  selfn = find(ismember(fn, {'weights', 'primal'}));
+  
+  % the mean subtraction is needed only once, but speeds up the covariance
+  % computation
+  dat = bsxfun(@minus, dat, nanmean(dat,2)); 
+  dat_transp = dat.';
+  for j=1:numel(selfn)
+    % create the 'encoding' matrix from the weights, as per Haufe 2014.
+    %covdat = cov(dat');
+    for i=1:length(stat.model)
+      i
+      W = stat.model{i}.(fn{selfn});
+      
+      sW   = size(W);
+      sdat = size(dat);
+      if sW(2)==sdat(1) && sW(1)~=sdat(1)
+        W = transpose(W);
+      end
+      
+      M    = dat'*W;
+      covM = cov(M);
+      WcovM = (W/covM)./(size(dat,2)-1); % with the correction term for the covariance computation
+      
+      %stat.model{i}.(sprintf('%sinv',fn{selfn})) = covdat*W/covM;
+      stat.model{i}.(sprintf('%sinv',fn{selfn})) = dat*(dat_transp*WcovM);
+      
+    end
   end
 end
+fn = fieldnames(stat.model{1}); % update the fieldnames, because some might have been added
 
 fn = fieldnames(stat.model{1}); % may now also contain weightsinv
 for i=1:length(stat.model)

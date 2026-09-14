@@ -2,18 +2,18 @@ function test_tutorial_tmseeg
 
 % MEM 16gb
 % WALLTIME 01:20:00
-
-% TEST ft_math ft_interpolatenan
+% DEPENDENCY ft_math ft_interpolatenan
+% DATA public
 
 triggers = {'S  1', 'S  3'}; % These values correspond to the markers placed in this dataset
 
 cfg = [];
-cfg.dataset                 = dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/tms/sp/jimher_toolkit_demo_dataset_.eeg');
+cfg.dataset                 = dccnpath('/project/3031000.02/external/download/tutorial/tms/sp/jimher_toolkit_demo_dataset_.eeg');
 cfg.continuous              = 'yes';
 cfg.trialdef.prestim        = .5;   % Data to read in prior to event onset
 cfg.trialdef.poststim       = 1.5;  % Data to read in after event onset
-cfg.trialdef.eventtype     = 'Stimulus' ;
-cfg.trialdef.eventvalue     = triggers ;
+cfg.trialdef.eventtype     = 'Stimulus';
+cfg.trialdef.eventvalue     = triggers;
 cfg = ft_definetrial(cfg); % Create trial structure
 
 % We can now use this trial structure (located in cfg.trl) to read our trials from disk into memory. Because we will need this trial structure later, we will save it into another variable.
@@ -46,7 +46,7 @@ data_tms_avg = ft_timelockanalysis(cfg, data_tms_raw);
 % clear data_tms_raw to save memory
 clear data_tms_raw
 
-% plot all in seperate window
+% plot all in separate window
 for i=1:numel(data_tms_avg.label) % Loop through all channels
   figure;
   plot(data_tms_avg.time, data_tms_avg.avg(i,:)); % Plot all data
@@ -55,7 +55,7 @@ for i=1:numel(data_tms_avg.label) % Loop through all channels
   title(['Channel ' data_tms_avg.label{i}]);
   ylabel('Amplitude (uV)')
   xlabel('Time (s)');
-end;
+end
 
 % close all windows
 close all;
@@ -104,7 +104,7 @@ artifacts = [ringing; muscle; decay; recharge];
 for i=1:numel(labels);
   highlight_idx = [nearest(data_tms_avg.time,artifacts(i,1)) nearest(data_tms_avg.time,artifacts(i,2)) ];
   plot(data_tms_avg.time(highlight_idx(1):highlight_idx(2)), data_tms_avg.avg(channel_idx,highlight_idx(1):highlight_idx(2)),colors(i));
-end;
+end
 legend(['raw data', labels]);
 
 
@@ -114,11 +114,11 @@ legend(['raw data', labels]);
 trigger = {'S  1','S  3'};
 cfg                         = [];
 cfg.method                  = 'marker';
-cfg.dataset                 = dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/tms/sp/jimher_toolkit_demo_dataset_.eeg');
+cfg.dataset                 = dccnpath('/project/3031000.02/external/download/tutorial/tms/sp/jimher_toolkit_demo_dataset_.eeg');
 cfg.prestim                 = .001;
 cfg.poststim                = .006;
 cfg.trialdef.eventtype      = 'Stimulus';
-cfg.trialdef.eventvalue     = trigger ;
+cfg.trialdef.eventvalue     = trigger;
 cfg_ringing = ft_artifact_tms(cfg); % Detect TMS artifacts
 
 % Recharge
@@ -128,7 +128,7 @@ cfg_recharge = ft_artifact_tms(cfg); % Detect TMS artifacts
 
 % Combine into one structure
 cfg_artifact = [];
-cfg_artifact.dataset = dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/tms/sp/jimher_toolkit_demo_dataset_.eeg');
+cfg_artifact.dataset = dccnpath('/project/3031000.02/external/download/tutorial/tms/sp/jimher_toolkit_demo_dataset_.eeg');
 cfg_artifact.artfctdef.ringing.artifact = cfg_ringing.artfctdef.tms.artifact; % Add ringing/step response artifact
 cfg_artifact.artfctdef.recharge.artifact   = cfg_recharge.artfctdef.tms.artifact; % Add recharge artifact
 
@@ -163,7 +163,7 @@ if false
   % raw
   cfg = [];
   cfg.artfctdef = cfg_artifact.artfctdef;
-  cfg.dataset = dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/tms/sp/jimher_toolkit_demo_dataset_.eeg');
+  cfg.dataset = dccnpath('/project/3031000.02/external/download/tutorial/tms/sp/jimher_toolkit_demo_dataset_.eeg');
   ft_databrowser(cfg);
 end
 
@@ -179,7 +179,7 @@ close all;
 %
 % comp_tms = ft_conentanalysis(cfg, data_tms_segmented);
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/tms/sp/comp_tms.mat'));
+load(dccnpath('/project/3031000.02/external/download/tutorial/tms/sp/comp_tms.mat'));
 
 %save('comp_tms','comp_tms','-v7.3');
 
@@ -243,7 +243,7 @@ for i=1:numel(data_tms_clean_avg.label) % Loop through all channels
   title(['Channel ' data_tms_clean_avg.label{i}]);
   ylabel('Amplitude (uV)')
   xlabel('Time (s)');
-end;
+end
 
 
 %% Restructure trials and interpolate
@@ -258,7 +258,7 @@ muscle_window = [0.006 0.015];
 muscle_window_idx = [nearest(data_tms_clean.time{1},muscle_window(1)) nearest(data_tms_clean.time{1},muscle_window(2))];
 for i=1:numel(data_tms_clean.trial)
   data_tms_clean.trial{i}(:,muscle_window_idx(1):muscle_window_idx(2))=nan;
-end;
+end
 
 % Interpolate nans using cubic interpolation
 cfg = [];
@@ -285,7 +285,7 @@ for i=1:numel(data_tms_avg.label) % Loop through all channels
   ylabel('Amplitude (uV)')
   xlabel('Time (s)');
   legend({'Raw' 'Cleaned'});
-end;
+end
 
 %% Apply rest of processing steps
 cfg = [];
@@ -358,8 +358,8 @@ contract_avg = ft_timelockanalysis(cfg, data_tms_clean);
 % GMFP calculation
 cfg = [];
 cfg.method = 'amplitude';
-relax_gmfp = ft_globalmeanfield(cfg, relax_avg); 
-contract_gmfp = ft_globalmeanfield(cfg, contract_avg); 
+relax_gmfp = ft_globalmeanfield(cfg, relax_avg);
+contract_gmfp = ft_globalmeanfield(cfg, contract_avg);
 
 %Plot GMFP
 figure;
@@ -370,7 +370,7 @@ xlabel('time (s)');
 ylabel('GMFP (uv^2)');
 legend({'Relax' 'Contract'});
 xlim([-0.1 0.6]);
-ylim([0 3]); 
+ylim([0 3]);
 
 
 %% Analysis - 3. TFRs
@@ -438,4 +438,3 @@ ft_singleplotTFR(cfg, difference_freq);
 title('Contract - Relax');
 ylabel('Frequency (Hz)');
 xlabel('time (s)');
-

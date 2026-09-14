@@ -1,6 +1,8 @@
-function passed = ft_test_run(varargin)
+function [result] = ft_test_run(varargin)
 
-% FT_TEST_RUN
+% FT_TEST_RUN documentation is included inside ft_test documentation.
+% 
+% See also FT_TEST
 
 % Copyright (C) 2017, Robert Oostenveld
 %
@@ -24,10 +26,10 @@ function passed = ft_test_run(varargin)
 
 narginchk(1, inf);
 command = varargin{1};
-assert(isequal(command, 'run'));
+assert(isequal(command, 'run') || isequal(command, 'inventorize'));
 varargin = varargin(2:end);
 
-optbeg = find(ismember(varargin, {'dependency', 'dccnpath', 'maxmem', 'maxwalltime', 'upload', 'assertclean'}));
+optbeg = find(ismember(varargin(1:2:end), {'dependency', 'dccnpath', 'maxmem', 'maxwalltime', 'data', 'upload', 'sort', 'returnerror'}));
 if ~isempty(optbeg)
   optarg   = varargin(optbeg:end);
   varargin = varargin(1:optbeg-1);
@@ -43,17 +45,24 @@ dependency  = ft_getopt(optarg, 'dependency', {});
 hasdccnpath = ft_getopt(optarg, 'dccnpath');  % default is handled below
 maxmem      = ft_getopt(optarg, 'maxmem', inf);
 maxwalltime = ft_getopt(optarg, 'maxwalltime', inf);
-upload      = ft_getopt(optarg, 'upload', 'yes');
-assertclean = ft_getopt(optarg, 'assertclean', 'yes');
+data        = ft_getopt(optarg, 'data', {'no', 'public', 'private'});
+upload      = ft_getopt(optarg, 'upload', 'yes'); % this will be set to 'no' in case FieldTrip version is not clean
+sortarg     = ft_getopt(optarg, 'sort', 'alphabetical');
+returnerror = ft_getopt(optarg, 'returnerror', 'no');
 
 if ischar(dependency)
   % this should be a cell-array
   dependency = {dependency};
 end
 
+if ischar(data)
+  % this should be a cell-array
+  data = {data};
+end
+
 if isempty(hasdccnpath)
   % true when central storage is available, false otherwise
-  hasdccnpath = exist(dccnpath('/home/common/matlab/fieldtrip/data/'), 'dir');
+  hasdccnpath = exist(dccnpath('/project/3031000.02'), 'dir');
 end
 
 if ischar(maxwalltime)
@@ -69,15 +78,11 @@ end
 % get the version and the path
 [revision, ftpath] = ft_version;
 
-% testing a work-in-progress version is not supported
-if istrue(assertclean)
-  assert(istrue(ft_version('clean')), 'this requires all local changes to be committed');
-end
-
 %% determine the list of functions to test
 if ~isempty(varargin) && exist(varargin{1}, 'file')
   functionlist = varargin;
 else
+  addpath(fullfile(ftpath, 'test'));
   d = dir(fullfile(ftpath, 'test', 'test_*.m'));
   functionlist = {d.name}';
   for i=1:numel(functionlist)
@@ -91,13 +96,14 @@ for i=1:numel(functionlist)
   filelist{i} = which(functionlist{i});
 end
 
-fprintf('considering %d test functions for execution\n', numel(filelist));
+fprintf('considering %d test scripts\n', numel(filelist));
 
 %% make a subselection based on the filters
 dep  = true(size(filelist));
 file = false(size(filelist)); % by default ignore file reads
 mem  = zeros(size(filelist));
 tim  = zeros(size(filelist));
+dat  = repmat({'unknown'}, size(filelist)); % not to be confused with data
 
 for i=1:numel(filelist)
   fid = fopen(filelist{i}, 'rt');
@@ -114,14 +120,14 @@ for i=1:numel(filelist)
   for k=1:numel(line)
     for j=1:numel(dependency)
       % search for the dependencies in each of the test functions
-      [s, e] = regexp(line{k}, sprintf('%% TEST.*%s.*', dependency{j}), 'once', 'start', 'end');
+      [s, e] = regexp(line{k}, sprintf('%% DEPENDENCY.*%s.*', dependency{j}), 'once', 'start', 'end');
       if ~isempty(s)
         dep(i) = true;
       end
     end
     
     if ~istrue(hasdccnpath)
-      % search for the occurence of the DCCNPATH function in each of the test functions
+      % search for the occurrence of the DCCNPATH function in each of the test functions
       [s, e] = regexp(line{k}, 'dccnpath', 'once', 'start', 'end');
       if ~isempty(s)
         file(i) = true;
@@ -139,26 +145,84 @@ for i=1:numel(filelist)
       s = s + length('% MEM'); % strip this part
       mem(i) = str2mem(line{k}(s:e));
     end
+
+    [s, e] = regexp(line{k}, '% DATA.*', 'once', 'start', 'end');
+    if ~isempty(s)
+      s = s + length('% DATA'); % strip this part
+      dat{i} = line{k}(s:e);
+    end
   end % for each line
   
 end % for each function/file
 
-fprintf('%3d scripts are excluded due to the dependencies\n', sum(~dep));
-fprintf('%3d scripts are excluded due to loading files from the DCCN path\n',  sum(file));
+fprintf('%3d scripts are excluded due to the dependencies\n',                  sum(~dep));
 fprintf('%3d scripts are excluded due to the requirements for memory\n',       sum(mem>maxmem));
-fprintf('%3d scripts are excluded due to the requirements for walltime \n',    sum(tim>maxwalltime));
+fprintf('%3d scripts are excluded due to the requirements for walltime\n',     sum(tim>maxwalltime));
+fprintf('%3d scripts are excluded due to the requirements for data\n',         sum(~contains(dat, data)));
+fprintf('%3d scripts are excluded due to loading files from the DCCN path\n',  sum(file));
 
 % make selection of test scripts, remove scripts that exceed walltime or memory
-sel  = true(size(filelist));
-sel(tim>maxwalltime) = false;
-sel(mem>maxmem)      = false;
-sel(dep==false)      = false;
-sel(file==true)      = false;
+sel                       = true(size(filelist));
+sel(tim>maxwalltime)      = false;
+sel(mem>maxmem)           = false;
+sel(~contains(dat, data)) = false;
+sel(dep==false)           = false;
+sel(file==true)           = false;
 
 % make the subselection of functions to test
 functionlist = functionlist(sel);
+tim = tim(sel);
+mem = mem(sel);
+dat = dat(sel);
 
-fprintf('executing %d test scripts\n', numel(functionlist));
+switch (sortarg)
+  case {'alphabet' 'alphabetic' 'alphabetical'}
+    [functionlist, indx] = sort(functionlist);
+    tim = tim(indx);
+    mem = mem(indx);
+    dat = dat(indx);
+  case {'mem' 'memory'}
+    [mem, indx]  = sort(mem);
+    tim          = tim(indx);
+    dat          = dat(indx);
+    functionlist = functionlist(indx);
+  case {'walltime' 'time'}
+    [tim, indx]  = sort(tim);
+    mem          = mem(indx);
+    dat          = dat(indx);
+    functionlist = functionlist(indx);
+  case 'random'
+    indx = randperm(numel(functionlist));
+    functionlist = functionlist(indx);
+    tim          = tim(indx);
+    mem          = mem(indx);
+    dat          = dat(indx);
+  otherwise
+    ft_error('incorrect specification for ''sort''');
+end
+
+% this will hold all results
+result = [];
+
+if strcmp(command, 'inventorize')
+  % do not execute anything, only return the function names
+  for i=1:numel(functionlist)
+    result(i).functionname = functionlist{i};
+    result(i).mem          = mem(i);
+    result(i).walltime     = tim(i);
+    result(i).data         = dat{i};
+  end
+  fprintf('selecting %d test scripts\n', numel(functionlist));
+  return
+else
+  fprintf('executing %d test scripts\n', numel(functionlist));
+end
+
+% uploading results to the dashboard from a work-in-progress version is not supported
+if istrue(upload) && ~istrue(ft_version('clean'))
+  warning('FieldTrip version is not clean, not uploading results to the dashboard')
+  upload = 'no';
+end
 
 %% run over all tests
 for i=1:numel(functionlist)
@@ -175,26 +239,27 @@ for i=1:numel(functionlist)
   catch me
     passed = false;
     runtime = round(toc(stopwatch));
-    fprintf('=== %s FAILED in %d seconds\n', functionlist{i}, runtime);
     % show the error with the stack trace
     fprintf('Error using %s (line %d)\n', me.stack(1).name, me.stack(1).line);
     disp(me.message)
     for j=2:numel(me.stack)
       fprintf('Error in %s (line %d)\n', me.stack(j).name, me.stack(j).line);
     end
+    fprintf('=== %s FAILED in %d seconds\n', functionlist{i}, runtime);
   end
   close all
   
-  result = [];
-  result.matlabversion    = version('-release');
-  result.fieldtripversion = revision;
-  result.branch           = ft_version('branch');
-  result.arch             = computer('arch');
-  result.hostname         = gethostname;
-  result.user             = getusername;
-  result.passed           = passed;
-  result.runtime          = runtime;
-  result.functionname     = functionlist{i};
+  result(i).matlabversion    = version('-release');
+  result(i).fieldtripversion = revision;
+  result(i).branch           = ft_version('branch');
+  result(i).arch             = computer('arch');
+  result(i).hostname         = gethostname;
+  result(i).user             = getusername;
+  result(i).passed           = passed;
+  result(i).runtime          = runtime;
+  result(i).functionname     = functionlist{i};
+  result(i).mem              = mem(i);
+  result(i).walltime         = tim(i);
   
   if istrue(upload)
     try
@@ -203,12 +268,25 @@ for i=1:numel(functionlist)
     catch
       options = [];
     end
-    url = 'http://dashboard.fieldtriptoolbox.org/api/';
-    webwrite(url, result, options);
-  else
-    warning('not uploading results to the FieldTrip dashboard')
+    url = 'https://dashboard.fieldtriptoolbox.org/api/';
+    webwrite(url, result(i), options);
   end
+  
+  if strcmp(returnerror, 'immediate') && ~passed
+    % report only on the tests completed sofar and give an error
+    printstruct_as_table(result);
+    rethrow(me);
+  end
+  
 end
+
+if strcmp(returnerror, 'final') && any(~[result.passed])
+  % report on the complete batch and give an error
+  printstruct_as_table(result);
+  failed = find(~[result.passed]);
+  error('%d of the test scripts failed', numel(failed));
+end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
@@ -221,6 +299,7 @@ if isnan(walltime)
   hms = sscanf(str, '%d:%d:%d'); % hours, minutes, seconds
   walltime = 60*60*hms(1) + 60*hms(2) + hms(3);
 end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION

@@ -1,19 +1,18 @@
 function test_bug2096
 
-% MEM 4000mb
+% MEM 4gb
 % WALLTIME 00:20:00
+% DEPENDENCY ft_sourcewrite ft_read_cifti ft_write_cifti
+% DATA private
 
-% TEST ft_sourcewrite ft_read_cifti ft_write_cifti
+[ftver, ftpath] = ft_version;
+templatedir  = fullfile(ftpath, 'template');
 
-% needed for the dccnpath function, since we will change directory later on
-addpath(fileparts(mfilename('fullpath')));
-
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/bug2096'));
+cd(dccnpath('/project/3031000.02/test/bug2096'));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % general purpose tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-clear all; close all
 
 %%
 source = [];
@@ -47,7 +46,7 @@ source2 = ft_read_cifti('test_bug2096b.pow.dscalar.nii');
 % assert(isequal(source1, source2)); % numerical differences
 
 %%
-[pnt, tri] = icosahedron;
+[pnt, tri] = mesh_sphere;
 
 source = [];
 source.pos    = pnt;
@@ -128,11 +127,7 @@ ft_sourcewrite(cfg, source);
 source1 = ft_read_cifti('test_bug2096.timeseries.dtseries.nii');
 
 %%
-try
-  parcellation = ft_read_atlas(dccnpath('/home/common/matlab/fieldtrip/template/atlas/aal/ROI_MNI_V4.nii'));
-catch
-  parcellation = ft_read_atlas(fullfile(getenv('HOME'), '/matlab/fieldtrip/template/atlas/aal/ROI_MNI_V4.nii'));
-end
+parcellation = ft_read_atlas(fullfile(templatedir, 'atlas', 'aal', 'ROI_MNI_V4.nii'));
 source = ft_checkdata(parcellation, 'datatype', 'source');
 source = removefields(source, {'tissue', 'tissuelabel'});
 source.pow = randn(prod(parcellation.dim), 1);
@@ -193,7 +188,7 @@ sourcep2 = ft_read_cifti('test_bug2096b.pow.pscalar.nii');
 clear all; close all
 
 %% test the dscalar output
-[pnt, tri] = icosahedron;
+[pnt, tri] = mesh_sphere;
 pntL = pnt; pntL(:,1) = pntL(:,1) - 1; % shift along X
 pntR = pnt; pntR(:,1) = pntR(:,1) + 1; % shift along X
 
@@ -216,7 +211,7 @@ source1 = ft_read_cifti('test_bug2096.activity.dscalar.nii');
 ft_plot_mesh(source1, 'vertexcolor', source1.activity(:,1), 'edgecolor', 'none')
 
 %% test the dtsetries output
-[pnt, tri] = icosahedron;
+[pnt, tri] = mesh_sphere;
 pntL = pnt; pntL(:,1) = pntL(:,1) - 1; % shift along X
 pntR = pnt; pntR(:,1) = pntR(:,1) + 1; % shift along X
 
@@ -242,7 +237,7 @@ source1 = ft_read_cifti('test_bug2096.timeseries.dtseries.nii');
 ft_plot_mesh(source1, 'vertexcolor', source1.timeseries(:,1), 'edgecolor', 'none')
 
 %% test the dconn output
-[pnt, tri] = icosahedron;
+[pnt, tri] = mesh_sphere;
 pntL = pnt; pntL(:,1) = pntL(:,1) - 1; % shift along X
 pntR = pnt; pntR(:,1) = pntR(:,1) + 1; % shift along X
 
@@ -268,7 +263,7 @@ source1 = ft_read_cifti('test_bug2096.imagcoh.dconn.nii');
 clear all; close all
 
 %% test the pscalar output
-[pnt, tri] = icosahedron;
+[pnt, tri] = mesh_sphere;
 pntL = pnt; pntL(:,1) = pntL(:,1) - 1; % shift along X
 pntR = pnt; pntR(:,1) = pntR(:,1) + 1; % shift along X
 
@@ -299,7 +294,7 @@ figure
 ft_plot_mesh(source1.brainordinate, 'vertexcolor', source1.brainordinate.parcellation(:), 'edgecolor', 'none')
 
 %% test the ptsetries output
-[pnt, tri] = icosahedron;
+[pnt, tri] = mesh_sphere;
 pntL = pnt; pntL(:,1) = pntL(:,1) - 1; % shift along X
 pntR = pnt; pntR(:,1) = pntR(:,1) + 1; % shift along X
 
@@ -333,7 +328,7 @@ figure
 ft_plot_mesh(source1.brainordinate, 'vertexcolor', source1.brainordinate.parcellation, 'edgecolor', 'none')
 
 %% test the pconn output
-[pnt, tri] = icosahedron;
+[pnt, tri] = mesh_sphere;
 pntL = pnt; pntL(:,1) = pntL(:,1) - 1; % shift along X
 pntR = pnt; pntR(:,1) = pntR(:,1) + 1; % shift along X
 
@@ -368,7 +363,7 @@ ft_plot_mesh(source1.brainordinate, 'vertexcolor', source1.brainordinate.parcell
 clear all; close all
 
 %% version 1
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/bug2096/cifti1'));
+cd(dccnpath('/project/3031000.02/test/bug2096/cifti1'));
 
 % cii1 = ft_read_cifti('DenseConnectome.dconn.nii');            % this one is disabled because it is 10GB large
 % cii2 = ft_read_cifti('DenseTimeSeries.dtseries.nii');         % this one is disabled because the file contains an internal error (number of greynodes is not consistent with size of data)
@@ -377,7 +372,7 @@ cii4 = ft_read_cifti('BOLD_REST2_LR.dtseries.nii');
 cii5 = ft_read_cifti('BOLD_REST2_LR_Atlas.dtseries.nii');
 
 %% version 2
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/bug2096/cifti2'));
+cd(dccnpath('/project/3031000.02/test/bug2096/cifti2'));
 
 cii1 = ft_read_cifti('ones.dscalar.nii');
 cii2 = ft_read_cifti('Conte69.MyelinAndCorrThickness.32k_fs_LR.dscalar.nii');
@@ -386,7 +381,7 @@ cii4 = ft_read_cifti('Conte69.MyelinAndCorrThickness.32k_fs_LR.ptseries.nii');
 cii5 = ft_read_cifti('Conte69.parcellations_VGD11b.32k_fs_LR.dlabel.nii');
 
 %% release data
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/bug2096/hcp_release/fsaverage_LR32k'));
+cd(dccnpath('/project/3031000.02/test/bug2096/hcp_release/fsaverage_LR32k'));
 
 filename = {
   '177746.ArealDistortion.32k_fs_LR.dscalar.nii'
@@ -430,7 +425,7 @@ for i=1:length(filename)
 end
 
 %% MEG specific development data from DVE
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test/bug2096/hcp_devel/TestParcelsForMEG'));
+cd(dccnpath('/project/3031000.02/test/bug2096/hcp_devel/TestParcelsForMEG'));
 
 filename = {
   '3T_Q1-Q6related468_MSMsulc_d100_ts2_Znet2.pconn.nii'

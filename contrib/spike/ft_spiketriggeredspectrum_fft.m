@@ -43,7 +43,7 @@ function [sts] = ft_spiketriggeredspectrum_fft(cfg, data, spike)
 %
 % This function uses a NaN-aware spectral estimation technique, which will default to the
 % standard Matlab FFT routine if no NaNs are present. The fft_along_rows subfunction below
-% demonstrates the expected function behaviour.
+% demonstrates the expected function behavior.
 %
 % See FT_SPIKETRIGGEREDINTERPOLATION to remove segments of LFP around spikes.
 % See FT_SPIKETRIGGEREDSPECTRUM_CONVOL for an alternative implementation based
@@ -78,7 +78,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance data spike
-ft_preamble trackconfig
+
 
 % check input data structure
 data = ft_checkdata(data,'datatype', 'raw', 'feedback', 'yes');
@@ -138,8 +138,11 @@ if nargin==2
   end    
   
   % select the data and convert to a spike structure
-  data_spk = ft_selectdata(data,'channel', cfg.spikechannel);
-  data     = ft_selectdata(data,'channel', cfg.channel); % leave only LFP
+  tmpcfg = [];
+  tmpcfg.channel = cfg.spikechannel;
+  data_spk = ft_selectdata(tmpcfg, data);
+  tmpcfg.channel = cfg.channel;
+  data     = ft_selectdata(tmpcfg, data); % leave only LFP
   spike    = ft_checkdata(data_spk,'datatype', 'spike');
   clear data_spk % remove the continuous data
 else
@@ -277,7 +280,7 @@ sts.trialtime = spike.trialtime;
 sts.label     = spike.label(spikesel);
 
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
+
 ft_postamble previous   data
 ft_postamble provenance sts
 ft_postamble history    sts

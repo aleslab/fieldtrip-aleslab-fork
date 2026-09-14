@@ -9,27 +9,32 @@ function [cfg] = ft_neighbourplot(cfg, data)
 % or as
 %   ft_neighbourplot(cfg, data)
 %
-% where the configuration can contain
+% Where the configuration can contain
 %   cfg.verbose       = string, 'yes' or 'no', whether the function will print feedback text in the command window
 %   cfg.neighbours    = neighbourhood structure, see FT_PREPARE_NEIGHBOURS (optional)
-%   cfg.visible       = string, 'on' or 'off', whether figure will be visible (default = 'on')
-%   cfg.enableedit    = string, 'yes' or 'no', allows the user to flexibly add or remove edges between vertices (default = 'no')
-%                       
+%   cfg.enableedit    = string, 'yes' or 'no', allows you to interactively add or remove edges between vertices (default = 'no')
+%   cfg.visible       = string, 'on' or 'off' whether figure will be visible (default = 'on')
+%   cfg.figure        = 'yes' or 'no', whether to open a new figure. You can also specify a figure handle from FIGURE, GCF or SUBPLOT. (default = 'yes')
+%   cfg.figurename    = string, title of the figure window
+%   cfg.position      = location and size of the figure, specified as [left bottom width height] (default is automatic)
+%   cfg.renderer      = string, 'opengl', 'zbuffer', 'painters', see MATLAB Figure Properties. If this function crashes, you should try 'painters'.
+%
 % and either one of the following options
 %   cfg.layout        = filename of the layout, see FT_PREPARE_LAYOUT
-%   cfg.elec          = structure with electrode definition
-%   cfg.grad          = structure with gradiometer definition
-%   cfg.elecfile      = filename containing electrode definition
-%   cfg.gradfile      = filename containing gradiometer definition
+%   cfg.elec          = structure with electrode positions or filename, see FT_READ_SENS
+%   cfg.grad          = structure with gradiometer definition or filename, see FT_READ_SENS
+%   cfg.opto          = structure with gradiometer definition or filename, see FT_READ_SENS
 %
 % If cfg.neighbours is not defined, this function will call
 % FT_PREPARE_NEIGHBOURS to determine the channel neighbours. The
 % following data fields may also be used by FT_PREPARE_NEIGHBOURS
-%   data.elec     = structure with EEG electrode positions
-%   data.grad     = structure with MEG gradiometer positions
+%   data.elec         = structure with electrode positions
+%   data.grad         = structure with gradiometer definition
+%   data.opto         = structure with optode definition
+%
 % If cfg.neighbours is empty, no neighbouring sensors are assumed.
 %
-% Use cfg.enableedit to create or extend your own neighbourtemplate
+% Use cfg.enableedit to interactively add or remove edges in your own neighbour structure.
 %
 % See also FT_PREPARE_NEIGHBOURS, FT_PREPARE_LAYOUT
 
@@ -60,9 +65,8 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble debug
-ft_preamble loadvar    data
+ft_preamble loadvar data
 ft_preamble provenance data
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -77,9 +81,18 @@ if hasdata
   data = ft_checkdata(data);
 end
 
+% check if the input cfg is valid for this function
+cfg = ft_checkconfig(cfg, 'renamed', {'elecfile', 'elec'});
+cfg = ft_checkconfig(cfg, 'renamed', {'gradfile', 'grad'});
+cfg = ft_checkconfig(cfg, 'renamed', {'optofile', 'opto'});
+cfg = ft_checkconfig(cfg, 'renamed', {'newfigure', 'figure'});
+
 % set the defaults
+cfg.verbose    = ft_getopt(cfg, 'verbose', 'no');
 cfg.enableedit = ft_getopt(cfg, 'enableedit', 'no');
 cfg.visible    = ft_getopt(cfg, 'visible', 'on');
+cfg.renderer   = ft_getopt(cfg, 'renderer', []); % let MATLAB decide on the default
+cfg.figurename = ft_getopt(cfg, 'figurename', '');
 
 if isfield(cfg, 'neighbours')
   cfg.neighbours = cfg.neighbours;
@@ -89,18 +102,13 @@ else
   cfg.neighbours = ft_prepare_neighbours(cfg);
 end
 
-if ~isfield(cfg, 'verbose')
-  cfg.verbose = 'no';
-elseif strcmp(cfg.verbose, 'yes')
-  cfg.verbose = true;
-end
-
 % get the the grad or elec
 if hasdata
   sens = ft_fetch_sens(cfg, data);
 else
   sens = ft_fetch_sens(cfg);
 end
+
 % insert sensors that are not in neighbourhood structure
 if isempty(cfg.neighbours)
   nsel = 1:numel(sens.label);
@@ -124,11 +132,33 @@ else
   % use 3-dimensional data for plotting
   proj = sens.chanpos;
 end
-hf = figure('visible', cfg.visible);
+
+% this is needed for the figure title
+if isfield(cfg, 'dataname') && ~isempty(cfg.dataname)
+  dataname = cfg.dataname;
+elseif isfield(cfg, 'inputfile') && ~isempty(cfg.inputfile)
+  dataname = cfg.inputfile;
+elseif nargin>1
+  dataname = arrayfun(@inputname, 2:nargin, 'UniformOutput', false);
+else
+  dataname = {};
+end
+
+% set the figure window title, if not defined by user
+if isempty(cfg.figurename) && ~isempty(dataname)
+  cfg.figurename = sprintf('%s: %s', mfilename, join_str(', ', dataname));
+else
+  cfg.figurename = sprintf('%s:', mfilename);
+end
+
+% open a new figure with the specified settings
+hf = open_figure(keepfields(cfg, {'figure', 'position', 'visible', 'renderer' 'figurename'}));
+
 axis equal
 axis vis3d
 axis off
-hold on;
+hold on
+
 hl = [];
 for i=1:length(cfg.neighbours)
   this = cfg.neighbours(i);
@@ -184,10 +214,11 @@ for i=1:length(cfg.neighbours)
       'UserData',         i,                        ...
       'ButtonDownFcn',    @showLabelInTitle);
   else
-    error('Channel coordinates are too high dimensional');
+    ft_error('Channel coordinates are too high dimensional');
   end
 end
-hold off;
+
+hold off
 title('[Click on a sensor to see its label]');
 
 % store what is needed in UserData of figure
@@ -211,7 +242,8 @@ if istrue(cfg.enableedit)
   hf = getparent(hf);
   delete(hf);
 end
-% in any case remove SCALE and COMNT
+
+% remove SCALE and COMNT
 desired = ft_channelselection({'all', '-SCALE', '-COMNT'}, {cfg.neighbours.label});
 
 neighb_idx = ismember({cfg.neighbours.label}, desired);
@@ -219,11 +251,17 @@ cfg.neighbours = cfg.neighbours(neighb_idx);
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous data
 ft_postamble provenance
+ft_postamble savefig
 
-end % main function
+% add a menu to the figure, but only if the current figure does not have subplots
+menu_fieldtrip(gcf, cfg, false);
+
+if ~ft_nargout
+  % don't return anything
+  clear cfg
+end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -251,7 +289,7 @@ elseif isempty(lastSensId) || ~istrue(cfg.enableedit)
   else
     title(['Selected channel: ' cfg.neighbours(curSensId).label]);
   end
-  if cfg.verbose
+  if istrue(cfg.verbose)
     str = sprintf('%s, ', cfg.neighbours(curSensId).neighblabel{:});
     if length(str)>2
       % remove the last comma and space
@@ -347,10 +385,10 @@ elseif istrue(cfg.enableedit)
       'UserData',         lastSensId,                        ...
       'ButtonDownFcn',    @showLabelInTitle);
   else
-    error('Channel coordinates are too high dimensional');
+    ft_error('Channel coordinates are too high dimensional');
   end
 
-  if cfg.verbose
+  if istrue(cfg.verbose)
     str = sprintf('%s, ', cfg.neighbours(curSensId).neighblabel{:});
     if length(str)>2
       % remove the last comma and space
@@ -374,7 +412,6 @@ else
 end
 
 set(gcf, 'UserData', userdata);
-end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
@@ -385,7 +422,6 @@ h   = getparent(h);
 userdata.quit = true;
 set(h, 'UserData', userdata);
 uiresume
-end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
@@ -395,5 +431,4 @@ p = h;
 while p~=0
   h = p;
   p = get(h, 'parent');
-end
 end

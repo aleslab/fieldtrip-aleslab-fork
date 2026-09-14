@@ -1,6 +1,6 @@
 function [hdr] = ft_fetch_header(data)
 
-% FT_FETCH_HEADER mimics the behaviour of FT_READ_HEADER, but for a FieldTrip
+% FT_FETCH_HEADER mimics the behavior of FT_READ_HEADER, but for a FieldTrip
 % raw data structure instead of a file on disk.
 %
 % Use as
@@ -37,21 +37,50 @@ for trllop=1:trlnum
   trllen(trllop) = size(data.trial{trllop},2);
 end
 
-% try to get trial definition according to original data file
 if isfield(data, 'sampleinfo')
+  % construct the trial definition according to thew samples from the original data file
   trl = data.sampleinfo;
+  trl(:,3) = 0;
 else
-  trl = [1 sum(trllen)];
+  % construct the trial definition as if it is a continuous piece of data
+  trl = [1 sum(trllen) 0];
 end
 
-% fill in hdr.nChans
-hdr.nChans = length(data.label);
+% fill in some header details
+hdr.Fs     = data.fsample;
+hdr.label  = data.label(:);
+hdr.nChans = numel(data.label);
 
-% fill in hdr.label
-hdr.label = data.label;
+% fill in the channel type
+if isfield(data, 'chantype')
+  hdr.chantype = data.chantype(:);
+elseif isfield(data, 'hdr') && isfield(data.hdr, 'chantype')
+  % keep them ordered according to the FieldTrip data structure, which might differ from the original header
+  [datindx, hdrindx] = match_str(data.label, data.hdr.label);
+  hdr.chantype = repmat({'unknown'}, hdr.nChans, 1);
+  hdr.chantype(datindx) = data.hdr.chantype(hdrindx);
+else
+  % try to determine them on the basis of heuristics
+  hdr.chantype = ft_chantype(data);
+end
 
-% fill in hdr.Fs (sample frequency)
-hdr.Fs = data.fsample;
+% fill in the channel unit
+if isfield(data, 'chanunit')
+  hdr.chanunit = data.chanunit(:);
+elseif isfield(data, 'hdr') && isfield(data.hdr, 'chanunit')
+  % keep them ordered according to the FieldTrip data structure, which might differ from the original header
+  [datindx, hdrindx] = match_str(data.label, data.hdr.label);
+  hdr.chanunit = repmat({'unknown'}, hdr.nChans, 1);
+  hdr.chanunit(datindx) = data.hdr.chanunit(hdrindx);
+else
+  % try to determine them on the basis of heuristics
+  hdr.chanunit = ft_chanunit(data);
+end
+
+% retain the original header details
+if isfield(data, 'hdr') && isfield(data.hdr, 'orig')
+  hdr.orig = data.hdr.orig;
+end
 
 % determine hdr.nSamples, hdr.nSamplesPre, hdr.nTrials
 % always pretend that it is continuous data
@@ -59,7 +88,7 @@ hdr.nSamples    = max(trl(:,2));
 hdr.nSamplesPre = 0;
 hdr.nTrials     = 1;
 
-% retrieve the gradiometer and/or electrode information
+% retrieve the gradiometer and/or electrode and/or optode information
 if isfield(data, 'grad')
   hdr.grad = data.grad;
 elseif isfield(data, 'hdr') && isfield(data.hdr, 'grad')
@@ -69,6 +98,11 @@ if isfield(data, 'elec')
   hdr.elec = data.elec;
 elseif isfield(data, 'hdr') && isfield(data.hdr, 'elec')
   hdr.elec = data.hdr.elec;
+end
+if isfield(data, 'opto')
+  hdr.opto = data.opto;
+elseif isfield(data, 'hdr') && isfield(data.hdr, 'opto')
+  hdr.opto = data.hdr.opto;
 end
 
 % retrieve the synchronization information

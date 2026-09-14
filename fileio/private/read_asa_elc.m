@@ -29,14 +29,14 @@ function elec = read_asa_elc(fn)
 % and also include Positions2D
 
 
-Npnt = read_asa(fn, 'NumberPositions=', '%d');
-Ntri = read_asa(fn, 'NumberPolygons=', '%d');
-Unit = read_asa(fn, 'UnitPosition', '%s', 1);
-pnt  = read_asa(fn, 'Positions', '%f', Npnt, ':');
-prj  = read_asa(fn, 'Positions2D', '%f', Npnt, ':'); % only in newer files
-tri  = read_asa(fn, 'Polygons', '%d', Ntri);
-lab  = read_asa(fn, 'Labels', '%s', Npnt);
-ref  = read_asa(fn, 'ReferenceChannel', '%s', 1); % only in newer files
+Npnt = read_ini(fn, 'NumberPositions=', '%d');
+Ntri = read_ini(fn, 'NumberPolygons=', '%d');
+Unit = read_ini(fn, 'UnitPosition', '%s', 1);
+pnt  = read_ini(fn, 'Positions', '%f', Npnt, ':');
+prj  = read_ini(fn, 'Positions2D', '%f', Npnt, ':'); % only in newer files
+tri  = read_ini(fn, 'Polygons', '%d', Ntri);
+lab  = read_ini(fn, 'Labels', '%s', Npnt);
+ref  = read_ini(fn, 'ReferenceChannel', '%s', 1); % only in newer files
 
 if strcmpi(Unit,'mm')
   pnt = 1*pnt;
@@ -45,13 +45,13 @@ elseif strcmpi(Unit,'cm')
 elseif strcmpi(Unit,'m')
   pnt = 1000*pnt;
 elseif ~isempty(Unit)
-  error('Unknown unit of distance for electrodes (%s)', Unit);
+  ft_error('Unknown unit of distance for electrodes (%s)', Unit);
 end
 
 tmp = tokenize(lab{1});
 if length(tmp)==size(pnt,1)
   % the electrode labels were on a single line
-  % reformat the electrode labels into an appropriately sized cell array
+  % reformat the electrode labels into an appropriately sized cell-array
   lab = tmp;
 end
 

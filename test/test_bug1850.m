@@ -1,29 +1,30 @@
 function test_bug1850
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_prepare_neighbours ft_channelrepair
+% DEPENDENCY ft_prepare_neighbours ft_channelrepair
+% DATA private
 %
-% http://bugzilla.fcdonders.nl/show_bug.cgi?id=1850
+% http://bugzilla.fieldtriptoolbox.org/show_bug.cgi?id=1850
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/raw/meg/preproc_ctf275.mat'));
+load(dccnpath('/project/3031000.02/test/latest/raw/meg/preproc_ctf275.mat'));
 
-cfg=[];
-cfg.method='template';
-cfg.template='CTF275_neighb.mat';
-n=ft_prepare_neighbours(cfg);
+cfg = [];
+cfg.channel = {'all', '-MRT23', '-MLP57'};
+data = ft_selectdata(cfg, data);
 
-% get the 'full' list of channel names
-for i=1:length(n)
-    allchans{i,:}=n(i).label;
-end
+cfg = [];
+cfg.method = 'template';
+cfg.template = 'CTF275_neighb.mat';
+neighbours = ft_prepare_neighbours(cfg);
 
-missingchans=setdiff(allchans,data.label);
+% get the full list of 275 channel names
+allchans = {neighbours.label};
+missingchans = setdiff(allchans, data.label);
 
-% repair
-cfg=[];
-cfg.missingchannel=missingchans;
-cfg.neighbours=n;
-cfg.method='spline';
-data_r=ft_channelrepair(cfg,data);
+% repair the two channels that were removed
+cfg = [];
+cfg.missingchannel = missingchans;
+cfg.neighbours = neighbours;
+cfg.method = 'spline';
+data_repaired = ft_channelrepair(cfg,data);

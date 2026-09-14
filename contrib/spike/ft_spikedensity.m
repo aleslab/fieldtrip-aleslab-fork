@@ -34,7 +34,7 @@ function [sdf, sdfdata] = ft_spikedensity(cfg, data)
 %                        For cfg.winfunc = 'gauss': the standard deviation in seconds (default =
 %                                         1/4 of window duration in seconds)
 %                        For cfg.winfunc = 'wname' with 'wname' any standard window function
-%                                          see window opts in that function and add as cell array
+%                                          see window opts in that function and add as cell-array
 %                        If cfg.winfunctopt = [], default opts are taken.
 %   cfg.latency        = [begin end] in seconds, 'maxperiod' (default), 'minperiod',
 %                        'prestim'(t>=0), or 'poststim' (t>=0).
@@ -93,7 +93,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance data
-ft_preamble trackconfig
+
 
 % get the default options
 if isfield(cfg,'trials') && isempty(cfg.trials), error('no trials were selected'); end % empty should result in error, not in default
@@ -140,7 +140,7 @@ if nUnits==0, error('no spikechannel selected by means of cfg.spikechannel'); en
 % get the number of trials or change DATA according to cfg.trials
 if  strcmp(cfg.trials,'all')
   cfg.trials = 1:length(data.trial);
-elseif islogical(cfg.trials)
+elseif islogical(cfg.trials) || all(cfg.trials==0 | cfg.trials==1)
   cfg.trials = find(cfg.trials);
 end
 cfg.trials = sort(cfg.trials(:));
@@ -242,7 +242,7 @@ dof      = zeros(nUnits, length(s));
 
 % preallocate, depending on whether nargout is 1 or 2
 if (strcmp(cfg.keeptrials,'yes')), singleTrials = zeros(nTrials,nUnits,size(s,2)); end
-if nargout==2, [sdfdata.trial(1:nTrials) sdfdata.time(1:nTrials)] = deal({[]}); end
+if nargout==2, [sdfdata.trial(1:nTrials), sdfdata.time(1:nTrials)] = deal({[]}); end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                           compute the spike density
@@ -284,7 +284,7 @@ for iTrial = 1:nTrials
     end
     
     % pad with nans if there's variable trial length
-    dofsel = ~isnan(y);%true(1,length(y));
+    dofsel = ~isnan(y); %true(1,length(y));
     if strcmp(cfg.vartriallen,'yes')
       padLeft  = zeros(1, samplesShift(iTrial));
       padRight = zeros(1,(maxNumSamples - nSamples - samplesShift(iTrial)));
@@ -332,7 +332,7 @@ if nargout==2
 end
 
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
+
 ft_postamble previous data
 ft_postamble provenance sfd
 ft_postamble history    sdf

@@ -1,7 +1,7 @@
-function data = ft_removetemplateartifact(cfg, data, template)
+function [data] = ft_removetemplateartifact(cfg, data, template)
 
 % FT_REMOVETEMPLATEARTIFACT removes an artifact from preprocessed data by template
-% subtraction. The template can for example be formed by averaging an ECG triggered
+% subtraction. The template can for example be formed by averaging an ECG-triggered
 % MEG timecourse.
 %
 % Use as
@@ -58,7 +58,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar data template
 ft_preamble provenance data template
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -72,8 +71,11 @@ end
 data     = ft_checkdata(data, 'datatype', 'raw', 'feedback', 'yes', 'hassampleinfo', 'yes');
 template = ft_checkdata(template, 'datatype', 'timelock');
 
-% get the options
-cfg.channel = ft_getopt(cfg, 'method', data.label);
+% check if the input cfg is valid for this function
+cfg = ft_checkconfig(cfg, 'forbidden',  {'channels'}); % prevent accidental typos, see issue 1729
+
+% set the defaults
+cfg.channel = ft_getopt(cfg, 'channel', 'all');
 cfg.feedback = ft_getopt(cfg, 'method', 'text');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -84,10 +86,12 @@ cfg.feedback = ft_getopt(cfg, 'method', 'text');
 cfg.channel = ft_channelselection(cfg.channel, data.label);
 cfg.channel = ft_channelselection(cfg.channel, template.label);
 
-tmpcfg = [];
-tmpcfg.channel = cfg.channel;
+tmpcfg   = keepfields(cfg, {'channel'});
 data     = ft_selectdata(tmpcfg, data);
 template = ft_selectdata(tmpcfg, template);
+% restore the provenance information
+[cfg, data]     = rollback_provenance(cfg, data);
+[cfg, template] = rollback_provenance(cfg, template);
 
 ntrial    = length(data.trial);
 nchan     = length(cfg.channel);
@@ -140,7 +144,6 @@ ft_progress('close');
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   data template
 ft_postamble provenance data
 ft_postamble history    data

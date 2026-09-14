@@ -1,12 +1,12 @@
-function [H, Z, S, psi] = sfactorization_wilson(S,freq,Niterations,tol,fb,init,checkflag)
+function [H, Z, S, psi] = sfactorization_wilson(S,freq,Niterations,tol,fb,init,checkflag,stabilityfix)
 
 % SFACTORIZATION_WILSON performs multivariate non-parametric spectral factorization on
 % cross-spectra, based on Wilson's algorithm.
 %
 % Usage  : [H, Z, S, psi] = sfactorization_wilson(S,freq);
 %
-% Inputs : S (1-sided, 3D-spectral matrix in the form of Channel x Channel x frequency) 
-%        : freq (a vector of frequencies) at which S is given. 
+% Inputs : S (1-sided, 3D-spectral matrix in the form of Channel x Channel x frequency)
+%        : freq (a vector of frequencies) at which S is given.
 %
 % Outputs: H (transfer function)
 %        : Z (noise covariance)
@@ -40,6 +40,7 @@ function [H, Z, S, psi] = sfactorization_wilson(S,freq,Niterations,tol,fb,init,c
 %
 % $Id$
 
+if nargin<8, stabilityfix = false; end
 if nargin<7, checkflag = true;   end
 if nargin<6, init      = 'chol'; end
 if nargin<5, fb        = 'none'; end
@@ -48,11 +49,11 @@ if nargin<3, Niterations = 1000; end
 
 dfreq = round(diff(freq)*1e5)./1e5; % allow for some numeric issues
 if ~all(dfreq==dfreq(1))
-  error('FieldTrip:connectivity:sfactorization_wilson', 'frequency axis is not evenly spaced');
+  ft_error('FieldTrip:connectivity:sfactorization_wilson', 'frequency axis is not evenly spaced');
 end
 
 if freq(1)~=0
-  ft_warning('FieldTrip:connectivity:sfactorization_wilson', 'when performing non-parametric spectral factorization, the frequency axis should ideally start at 0, zero padding the spectral density'); 
+  ft_warning('FieldTrip:connectivity:sfactorization_wilson', 'when performing non-parametric spectral factorization, the frequency axis should ideally start at 0, zero padding the spectral density');
   dfreq = mean(dfreq);
   npad  = freq(1)./dfreq;
   
@@ -60,14 +61,14 @@ if freq(1)~=0
   % expected in the output
   selfreq  = (1:numel(freq)) + npad;
   freq     = [(0:(npad-1))./dfreq freq];
-  S        = cat(3, zeros(size(S,1), size(S,1), npad), S);  
+  S        = cat(3, zeros(size(S,1), size(S,1), npad), S);
 else
   selfreq  = 1:numel(freq);
 end
 
 % check whether the last frequency bin is strictly real-valued.
 % if that's the case, then it is assumed to be the Nyquist frequency
-% and the two-sided spectral density will have an even number of 
+% and the two-sided spectral density will have an even number of
 % frequency bins. if not, in order to preserve hermitian symmetry,
 % the number of frequency bins needs to be odd.
 Send = S(:,:,end);
@@ -89,7 +90,7 @@ I      = eye(m); % Defining m x m identity matrix
 %Step 1: Forming 2-sided spectral densities for ifft routine in matlab
 
 % the input cross-spectral density is assumed to be weighted with a
-% factor of 2 in all non-DC and Nyquist bins, therefore weight the 
+% factor of 2 in all non-DC and Nyquist bins, therefore weight the
 % DC-bin with a factor of 2 to get a correct two-sided representation
 Sarr(:,:,1) = S(:,:,1).*2;
 for f_ind = 2:N
@@ -98,7 +99,7 @@ for f_ind = 2:N
 end
 
 % the input cross-spectral density is assumed to be weighted with a
-% factor of 2 in all non-DC and Nyquist bins, therefore weight the 
+% factor of 2 in all non-DC and Nyquist bins, therefore weight the
 % Nyquist bin with a factor of 2 to get a correct two-sided representation
 if mod(size(Sarr,3),2)==0
   Sarr(:,:,N) = Sarr(:,:,N).*2;
@@ -112,13 +113,13 @@ for k1 = 1:m
   end
 end
 
-%Step 3: Initializing for iterations 
+%Step 3: Initializing for iterations
 gam0 = gam(:,:,1);
 switch init
   case 'chol'
     [tmp, dum] = chol(gam0);
     if dum
-      warning('initialization with ''chol'' for iterations did not work well, using arbitrary starting condition');
+      ft_warning('initialization with ''chol'' for iterations did not work well, using arbitrary starting condition');
       tmp = randn(m,1000); %arbitrary initial condition
       tmp = (tmp*tmp')./1000;
       %tmp = triu(tmp);
@@ -132,12 +133,12 @@ switch init
     %tmp = triu(tmp);
     [tmp, dum] = chol(tmp);
   otherwise
-    error('initialization method should be eithe ''chol'' or ''rand''');
+    ft_error('initialization method should be eithe ''chol'' or ''rand''');
 end
 h = tmp;
 
 for ind = 1:N2
-  psi(:,:,ind) = h; 
+  psi(:,:,ind) = h;
 end
 
 %Step 4: Iterating to get spectral factors
@@ -146,10 +147,10 @@ ft_progress('init', fb, 'computing spectral factorization');
 for iter = 1:Niterations
   ft_progress(iter./Niterations, 'computing iteration %d/%d\n', iter, Niterations);
   for ind = 1:N2
-    %invpsi     = inv(psi(:,:,ind)); 
-    g(:,:,ind) = psi(:,:,ind)\Sarr(:,:,ind)/psi(:,:,ind)'+I;%Eq 3.1
+    %invpsi     = inv(psi(:,:,ind));
+    g(:,:,ind) = psi(:,:,ind)\Sarr(:,:,ind)/psi(:,:,ind)'+I; %Eq 3.1
   end
-  gp = PlusOperator(g,m,N); %gp constitutes positive and half of zero lags 
+  gp = PlusOperator(g,m,N,stabilityfix); %gp constitutes positive and half of zero lags
 
   psi_old = psi;
   for k = 1:N2
@@ -157,14 +158,14 @@ for iter = 1:Niterations
     psierr(k)  = norm(psi(:,:,k)-psi_old(:,:,k),1);
   end
 
-  if checkflag,
+  if checkflag
     psierrf = mean(psierr);
-    if(psierrf<tol), 
+    if(psierrf<tol),
       fprintf('reaching convergence at iteration %d\n',iter);
-      break; 
+      break;
     end % checking convergence
   end
-end 
+end
 ft_progress('close');
 
 %Step 5: Getting covariance matrix from spectral factors
@@ -175,7 +176,7 @@ for k1 = 1:m
 end
 
 %Step 6: Getting noise covariance & transfer function (see Example pp. 424)
-A0    = gamtmp(:,:,1); 
+A0    = gamtmp(:,:,1);
 A0inv = inv(A0);
 
 %Z     = A0*A0.'*fs; %Noise covariance matrix
@@ -198,10 +199,10 @@ if numel(selfreq)~=numel(freq)
 end
 
 %---------------------------------------------------------------------
-function gp = PlusOperator(g,nchan,nfreq)
+function gp = PlusOperator(g,nchan,nfreq,stabilityfix)
 
-% This function is for [ ]+operation: 
-% to take the positive lags & half of the zero lag and reconstitute 
+% This function is for [ ]+operation:
+% to take the positive lags & half of the zero lag and reconstitute
 % M. Dhamala, UF, August 2006
 
 g   = transpose(reshape(g, nchan^2, []));
@@ -214,9 +215,18 @@ beta0 = 0.5*gam(1,:);
 gamp(1,          :) = reshape(triu(reshape(beta0, [nchan nchan])),[1 nchan^2]);
 gamp(nfreq+1:end,:) = 0;
 
+% smooth with a window, only for the long latency boundary: this is a
+% stabilityfix proposed by Martin Vinck
+if stabilityfix
+  w = tukeywin(nfreq*2, 0.5);
+  gamp(1:nfreq,:) = gamp(1:nfreq,:).*repmat(w(nfreq+1:end),[1 nchan^2]);
+else
+  % nothing to be done here
+end
+
 % reconstituting
 gp = fft(gamp);
-gp = reshape(transpose(gp), [nchan nchan numel(gp)/(nchan^2)]); 
+gp = reshape(transpose(gp), [nchan nchan numel(gp)/(nchan^2)]);
 
 %------------------------------------------------------
 %this is the original code; above is vectorized version
@@ -229,7 +239,7 @@ gp = reshape(transpose(gp), [nchan nchan numel(gp)/(nchan^2)]);
 %
 %% taking only the positive lags and half of the zero lag
 %gamp  = gam;
-%beta0 = 0.5*gam(:,:,1); 
+%beta0 = 0.5*gam(:,:,1);
 %gamp(:,:,1) = triu(beta0);  %this is Stau
 %gamp(:,:,nfreq+1:end) = 0;
 %

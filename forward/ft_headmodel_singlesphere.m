@@ -4,9 +4,12 @@ function headmodel = ft_headmodel_singlesphere(mesh, varargin)
 % head by fitting a spherical model to a set of points that describe
 % the head surface.
 %
-% For MEG this implements Cuffin BN, Cohen D.  "Magnetic fields of
-% a dipole in special volume conductor shapes" IEEE Trans Biomed Eng.
-% 1977 Jul;24(4):372-81.
+% For MEG this implements Cuffin BN, Cohen D.  "Magnetic fields of a dipole in
+% special volume conductor shapes" IEEE Trans Biomed Eng. 1977 Jul;24(4):372-81.
+%
+% For EEG this implements R. Kavanagh, T. M. Darccey, D. Lehmann, and D. H. Fender.
+% Evaluation of methods for three-dimensional localization of electric sources in the
+% human brain. IEEE Trans Biomed Eng, 25:421-429, 1978.
 %
 % Use as
 %   headmodel = ft_headmodel_singlesphere(mesh, ...)
@@ -14,11 +17,11 @@ function headmodel = ft_headmodel_singlesphere(mesh, varargin)
 % Optional arguments should be specified in key-value pairs and can include
 %   conductivity     = number, conductivity of the sphere
 %
-% See also FT_PREPARE_VOL_SENS, FT_COMPUTE_LEADFIELD
+% See also FT_PREPARE_HEADMODEL, FT_COMPUTE_LEADFIELD
 
-% FIXME document the EEG case
+% FIXME document both EEG and MEG case
 
-% Copyright (C) 2012-2013, Donders Centre for Cognitive Neuroimaging, Nijmegen, NL
+% Copyright (C) 2012-2022, Donders Centre for Cognitive Neuroimaging, Nijmegen, NL
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -43,7 +46,7 @@ conductivity = ft_getopt(varargin, 'conductivity', 1);
 
 if any(strcmp(varargin(1:2:end), 'unit')) || any(strcmp(varargin(1:2:end), 'units'))
   % the geometrical units should be specified in the input mesh
-  error('the ''unit'' option is not supported any more');
+  ft_error('the ''unit'' option is not supported any more');
 end
 
 if isnumeric(mesh) && size(mesh,2)==3
@@ -58,23 +61,23 @@ end
 % replace pnt with pos
 mesh = fixpos(mesh);
 
-if ~isstruct(mesh) || ~isfield(mesh, 'pos')
-  error('the input mesh should be a set of points or a single triangulated surface')
+if ~isstruct(mesh) || numel(mesh)>1 || ~isfield(mesh, 'pos')
+  ft_error('the input mesh should be a set of points or a single triangulated surface')
 end
 
 if numel(conductivity)~=1
-  error('the conductivity should be a single number')
+  ft_error('the conductivity should be a single number')
 end
 
 if numel(mesh)~=1
-  error('fitting a single sphere requires a single mesh')
+  ft_error('fitting a single sphere requires a single mesh')
 end
 
 % start with an empty volume conductor
 headmodel = [];
 
 % ensure that the mesh has units, estimate them if needed
-mesh = ft_convert_units(mesh);
+mesh = ft_determine_units(mesh);
 
 % copy the geometrical units into the volume conductor
 headmodel.unit = mesh.unit;

@@ -1,11 +1,11 @@
 function test_bug2060
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_read_event read_neuralynx_nev
+% DATA private
 
-% TEST ft_read_event read_neuralynx_nev
-
-filename = dccnpath('/home/common/matlab/fieldtrip/data/test/bug2060/Events.Nev');
+filename = dccnpath('/project/3031000.02/test/bug2060/Events.Nev');
 
 event = ft_read_event(filename);
 

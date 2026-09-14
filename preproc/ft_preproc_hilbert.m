@@ -1,17 +1,16 @@
-function [dat] = ft_preproc_hilbert(dat, option)
+function [dat] = ft_preproc_hilbert(dat, option, handlenan, padnan)
 
-% FT_PREPROC_HILBERT computes the Hilbert transpose of the data and optionally
+% FT_PREPROC_HILBERT computes the Hilbert transform of the data and optionally
 % performs post-processing on the complex representation, e.g. the absolute
 % value of the Hilbert transform of a band-pass filtered signal corresponds
-% with the amplitude envelope.
+% to the amplitude envelope.
 %
 % Use as
 %   [dat] = ft_preproc_hilbert(dat, option)
 % where
 %   dat        data matrix (Nchans X Ntime)
-%   option     string that determines whether and how the Hilbert transform
-%              should be post-processed, can be
-%                'abs'
+%   option     string that determines whether and how the Hilbert transform should be post-processed, can be
+%                'abs' (default)
 %                'complex'
 %                'real'
 %                'imag'
@@ -19,9 +18,15 @@ function [dat] = ft_preproc_hilbert(dat, option)
 %                'absimag'
 %                'angle'
 %
-% The default is to return the absolute value of the Hilbert transform.
+% If the data contains NaNs, the output of the affected channel(s) will be
+% all(NaN).
 %
 % See also PREPROC
+
+% Undocumented and insufficiently tested options:
+%   handlenan  boolean, can be false (default) or true
+%   padnan     scalar, number of samples to pad the edges of the NaN samples, to remove the ringing, (default = 0)
+% FIXME these need to be tested more
 
 % Copyright (C) 2008, Robert Oostenveld
 %
@@ -48,9 +53,22 @@ if nargin<2 || isempty(option)
   option = 'abs';
 end
 
+if nargin<3 || isempty(handlenan)
+  handlenan = false; % FIXME: consider making default true
+end
+
+if nargin<4 || isempty(padnan)
+  padnan = 0;
+end
+
 % preprocessing fails on channels that contain NaN
 if any(isnan(dat(:)))
   ft_warning('FieldTrip:dataContainsNaN', 'data contains NaN values');
+end
+
+if handlenan
+  nonfinite = ~isfinite(dat);
+  dat(nonfinite) = 0;
 end
 
 % use the non-conjugate transpose to be sure
@@ -75,5 +93,12 @@ switch option
     case 'unwrap_angle'
         dat = unwrap(angle(dat./abs(dat)),[],2);
     otherwise
-        error('incorrect specification of the optional input argument');
+        ft_error('incorrect specification of the optional input argument');
+end
+
+if handlenan
+  if padnan ~= 0
+    nonfinite = convn(double(nonfinite), ones(1,padnan), 'same') >0;
+  end
+  dat(nonfinite) = nan;
 end

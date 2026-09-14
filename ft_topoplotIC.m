@@ -13,7 +13,7 @@ function [cfg] = ft_topoplotIC(cfg, comp)
 %   cfg.layout             = specification of the layout, see below
 %
 % The configuration can have the following parameters:
-%   cfg.colormap           = any sized colormap, see COLORMAP
+%   cfg.colormap           = string, or Nx3 matrix, see FT_COLORMAP
 %   cfg.zlim               = plotting limits for color dimension, 'maxmin', 'maxabs', 'zeromax', 'minzero', or [zmin zmax] (default = 'maxmin')
 %   cfg.marker             = 'on', 'labels', 'numbers', 'off'
 %   cfg.markersymbol       = channel marker symbol (default = 'o')
@@ -36,16 +36,19 @@ function [cfg] = ft_topoplotIC(cfg, comp)
 %                            'SouthOutside'       outside bottom
 %                            'EastOutside'        outside right
 %                            'WestOutside'        outside left
+%   cfg.colorbartext       = string indicating the text next to colorbar
 %   cfg.interplimits       = limits for interpolation (default = 'head')
-%                            'electrodes' to furthest electrode
-%                            'head' to edge of head
+%                            'sensors'            to furthest sensor
+%                            'head'               to edge of head
 %   cfg.interpolation      = 'linear','cubic','nearest','v4' (default = 'v4') see GRIDDATA
 %   cfg.style              = plot style (default = 'both')
-%                            'straight' colormap only
-%                            'contour' contour lines only
-%                            'both' (default) both colormap and contour lines
-%                            'fill' constant color between lines
-%                            'blank' only the head shape
+%                            'straight'           colormap only
+%                            'contour'            contour lines only
+%                            'both'               both colormap and contour lines
+%                            'fill'               constant color between lines
+%                            'blank'              only the head shape
+%                            'straight_imsat'     colormap only, vector-graphics friendly
+%                            'both_imsat'         both colormap and contour lines, vector-graphics friendly
 %   cfg.gridscale          = scaling grid size (default = 67)
 %                            determines resolution of figure
 %   cfg.shading            = 'flat' 'interp' (default = 'flat')
@@ -57,9 +60,9 @@ function [cfg] = ft_topoplotIC(cfg, comp)
 %                            'title' to place comment as title
 %                            'layout' to place comment as specified for COMNT in layout
 %                            [x y] coordinates
-%   cfg.title              = string or 'auto' or 'off', specify a figure
-%                            title, or use 'component N' (auto) as the
-%                            title
+%   cfg.title              = string or 'auto' or 'off', specify a figure title, or use 'component N' (default) as the title
+%   cfg.figure             = 'yes', 'no' or 'subplot', whether to open a new figure. You can also specify a figure handle from FIGURE, GCF or SUBPLOT. (default = 'subplot')
+%   cfg.renderer           = string, 'opengl', 'zbuffer', 'painters', see RENDERERINFO (default is automatic, try 'painters' when it crashes)
 %
 % The layout defines how the channels are arranged. You can specify the
 % layout in a variety of ways:
@@ -108,9 +111,8 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble debug
-ft_preamble loadvar comp
+ft_preamble loadvar    comp
 ft_preamble provenance comp
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -121,85 +123,63 @@ end
 % this will remove all time-series information
 comp = ft_checkdata(comp, 'datatype', 'comp');
 
-% check if the input cfg is valid for this function
-cfg = ft_checkconfig(cfg, 'required', 'component');
-
 % set the config defaults
-cfg.title = ft_getopt(cfg, 'title', 'auto');
+cfg.parameter = ft_getopt(cfg, 'parameter', 'topo'); % needed in topoplot_common
+cfg.renderer  = ft_getopt(cfg, 'renderer'); % let MATLAB decide on the default
+cfg.figure    = ft_getopt(cfg, 'figure', 'subplot');
+
+% check if the input cfg is valid for this function
+%cfg = ft_checkconfig(cfg, 'required', 'component');
+cfg = ft_checkconfig(cfg, 'allowedval', {'parameter', 'topo'});
+cfg = ft_checkconfig(cfg, 'renamedval', {'interplimits', 'electrodes', 'sensors'});
 
 % interactive plotting doesn't work for chan_comp dimord.
 if isfield(cfg, 'interactive') && strcmp(cfg.interactive, 'yes')
-  warning('Interactive plotting is not supported.');
+  ft_warning('Interactive plotting is not supported.');
 end
 cfg.interactive = 'no';
 
 % prepare the layout, this should be done only once
-tmpcfg     = removefields(cfg, 'inputfile');
-tmpcomp.label = comp.topolabel; % the input to ft_prepare_layout needs at least a data.label field
-cfg.layout = ft_prepare_layout(tmpcfg, tmpcomp);
-clear tmpcomp;
+tmpcfg = keepfields(cfg, {'layout', 'channel', 'rows', 'columns', 'commentpos', 'skipcomnt', 'scalepos', 'skipscale', 'projection', 'viewpoint', 'rotate', 'width', 'height', 'elec', 'grad', 'opto', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
+cfg.layout = ft_prepare_layout(tmpcfg);
+
+% this is needed for the figure title
+if isfield(cfg, 'dataname') && ~isempty(cfg.dataname)
+  dataname = cfg.dataname;
+elseif isfield(cfg, 'inputfile') && ~isempty(cfg.inputfile)
+  dataname = cfg.inputfile;
+elseif nargin>1
+  dataname = inputname(2); % there's only a single data argument at most
+else
+  dataname = {};
+end
+
+% make sure figure window titles are labeled appropriately, pass this onto the actual plotting function
+cfg.funcname = mfilename;
+cfg.dataname = dataname;
 
 % don't show the callinfo for each separate component
+tmpshowcallinfo = cfg.showcallinfo;
 cfg.showcallinfo = 'no';
 
-% create temporary variable to prevent overwriting the selected components
-selcomp = cfg.component;
-
-% make sure figure window titles are labeled appropriately, pass this onto the actual
-% plotting function if we don't specify this, the window will be called
-% 'ft_topoplotTFR', which is confusing to the user
-cfg.funcname = mfilename;
-if nargin > 1
-  cfg.dataname = {inputname(2)};
-  for k = 3:nargin
-    cfg.dataname{end+1} = inputname(k);
-  end
-end
-
-nplots = numel(selcomp);
-if nplots>1
-  % make multiple plots in a single figure
-  nyplot = ceil(sqrt(nplots));
-  nxplot = ceil(nplots./nyplot);
-  for i = 1:length(selcomp)
-    subplot(nxplot, nyplot, i);
-    cfg.component = selcomp(i);
-
-    % call the common function that is shared with ft_topoplotER and ft_topoplotTFR
-    [cfg] = topoplot_common(cfg, comp);
-
-    if strcmp(cfg.title, 'auto')
-      title(['component ' num2str(selcomp(i))]);
-    elseif ~strcmp(cfg.title, 'off')
-      title(cfg.title);
-    end
-  end % for all components
-
-else
-  cfg.component = selcomp;
-
-  % call the common function that is shared with ft_topoplotER and ft_topoplotTFR
-  [cfg] = topoplot_common(cfg, comp);
-
-  if strcmp(cfg.title, 'auto')
-    title(['component ' num2str(selcomp)]);
-  elseif ~strcmp(cfg.title, 'off')
-    title(cfg.title);
-  end
-end
+cfg = topoplot_common(cfg, comp);
 
 % remove this field again, it is only used for figure labels
 cfg = removefields(cfg, 'funcname');
 
 % show the callinfo for all components together
-cfg.showcallinfo = 'yes';
+cfg.showcallinfo = tmpshowcallinfo;
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous comp
 ft_postamble provenance
+ft_postamble savefig
 
-if ~nargout
+% add a menu to the figure, but only if the current figure does not have subplots
+menu_fieldtrip(gcf, cfg, false);
+
+if ~ft_nargout
+  % don't return anything
   clear cfg
 end

@@ -1,7 +1,9 @@
 function inspect_bug3013
 
-% TEST inspect_bug3013
-% TEST ft_sourceplot ft_plot_ortho
+% WALLTIME 00:10:00
+% MEM 1gb
+% DEPENDENCY ft_sourceplot ft_plot_ortho
+% DATA no
 
 %%
 
@@ -87,5 +89,3 @@ drawnow
 cfg.axisratio = 'data';
 ft_sourceplot(cfg, mri);
 drawnow
-
-

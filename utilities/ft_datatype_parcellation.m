@@ -1,16 +1,17 @@
 function [parcellation] = ft_datatype_parcellation(parcellation, varargin)
 
 % FT_DATATYPE_PARCELLATION describes the FieldTrip MATLAB structure for parcellated
-% cortex-based data and atlases. A parcellation can either be indexed or probabilistic
-% (see below).
+% cortex-based data and atlases. A parcellation can either be indexed or
+% probabilistic (see below). A common use of a parcellation is to look up the label
+% of a location with the peak activity, or to average MEG source reconstructed
+% activity over one parcel that is the region of interest, or over all parcels.
 %
-% A parcellation describes the tissue types for each of the surface elements.
-% Parcellations are often, but not always labeled. A parcellatoin can be used to
-% estimate the activity from MEG data in a known region of interest. A surface-based
-% atlas is basically a very detailled parcellation with an anatomical label for each
-% vertex.
+% A parcellation is a surface-based description with tissue types or classes for each
+% of the surface elements. Parcellations are often, but not always labeled. A
+% surface-based atlas is basically a very detailed parcellation with an anatomical
+% label for each vertex.
 %
-% An example of a surface based Brodmann parcellation looks like this
+% An example of a surface-based Brodmann parcellation looks like this
 %
 %              pos: [8192x3]         positions of the vertices forming the cortical sheet
 %              tri: [16382x3]        triangles of the cortical sheet
@@ -30,7 +31,7 @@ function [parcellation] = ft_datatype_parcellation(parcellation, varargin)
 %  Brodmann_Area_3: [8192x1 logical]   binary map representing the voxels belonging to the specific area
 %  ...
 %
-% The examples above demonstrate that a parcellation can be indexed, i.e. consisting of
+% The examples above demonstrate that a parcellation can be either indexed, consisting of
 % subsequent integer numbers (1, 2, ...) or probabilistic, consisting of real numbers
 % ranging from 0 to 1 that represent probabilities between 0% and 100%. An extreme case
 % is one where the probability is either 0 or 1, in which case the probability can be
@@ -44,7 +45,8 @@ function [parcellation] = ft_datatype_parcellation(parcellation, varargin)
 %   - pos
 %
 % Optional fields:
-%   - tri, coordsys, unit
+%   - any field with dimensions that are consistent with pos
+%   - unit, coordsys, fid, tri
 %
 % Deprecated fields:
 %   - none
@@ -98,25 +100,22 @@ end
 
 switch parcelversion
   case '2012'
+    % ensure that it has individual source positions
+    parcellation = fixpos(parcellation);
 
-    if isfield(parcellation, 'pnt')
-      parcellation.pos = parcellation.pnt;
-      parcellation = rmfield(parcellation, 'pnt');
-    end
-
-    % convert the inside/outside fields, they should be logical rather than an index
     if isfield(parcellation, 'inside')
+      % ensure that it is always logical
       parcellation = fixinside(parcellation, 'logical');
     end
 
     dim = size(parcellation.pos,1);
 
-    % make a list of fields that represent a parcellation
+    % make a list of fields that possibly represent a parcellation
     fn = fieldnames(parcellation);
     fn = setdiff(fn, 'inside'); % exclude the inside field from any conversions
     sel = false(size(fn));
     for i=1:numel(fn)
-      sel(i) = isnumeric(parcellation.(fn{i})) && numel(parcellation.(fn{i}))==dim;
+      sel(i) = (isnumeric(parcellation.(fn{i})) || islogical(parcellation.(fn{i}))) && numel(parcellation.(fn{i}))==dim;
     end
     % only consider numeric fields of the correct size
     fn = fn(sel);
@@ -171,13 +170,13 @@ switch parcelversion
 
   otherwise
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    error('unsupported version "%s" for parcellation datatype', parcelversion);
+    ft_error('unsupported version "%s" for parcellation datatype', parcelversion);
 end
 
 % the parcellation is a speciat type of volume structure, so ensure that it also fulfills the requirements for that
 parcellation = ft_datatype_source(parcellation, 'version', sourceversion);
 
-% For the pass through ft_datatype_volume it is perhaps neccessary to remove
+% For the pass through ft_datatype_volume it is perhaps necessary to remove
 % the fields that are specific for the parcellation and add them later again.
 % At this moment ft_datatype_volume nicely passes all fields, so there is no
 % special handling of the parcellation fields needed.

@@ -48,7 +48,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar varargin
 ft_preamble provenance varargin
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -58,7 +57,7 @@ end
 % input check
 ndatasets = length(varargin);
 if ndatasets<2
-  error('not enough input arguments; there should be at least two');
+  ft_error('not enough input arguments; there should be at least two');
 end
 % check if the input data is valid for this function
 for i = 1:ndatasets
@@ -92,7 +91,7 @@ for i = 1:ndatasets-1
 
       % equal size input check
       if ~isequal(size(data1.stat), size(data2.stat))
-        error('the input arguments have different sizes');
+        ft_error('the input arguments have different sizes');
       end
 
       % prepare the output data structure
@@ -128,7 +127,7 @@ for i = 1:ndatasets-1
 
       % equal size input check
       if ~isequal(size(data1.avg.pow), size(data2.avg.pow))
-        error('the input arguments have different sizes');
+        ft_error('the input arguments have different sizes');
       end
 
       conjunction = data1;
@@ -149,7 +148,7 @@ for i = 1:ndatasets-1
 
       % equal size input check
       if ~isequal(size(data1.stat), size(data2.stat))
-        error('the input arguments have different sizes');
+        ft_error('the input arguments have different sizes');
       end
 
       % prepare the output data structure
@@ -185,7 +184,7 @@ for i = 1:ndatasets-1
 
       % equal size input check
       if ~isequal(size(data1.powspctrm), size(data2.powspctrm))
-        error('the input arguments have different sizes');
+        ft_error('the input arguments have different sizes');
       end
 
       conjunction = data1;
@@ -196,7 +195,7 @@ for i = 1:ndatasets-1
 
       % equal size input check
       if ~isequal(size(data1.avg), size(data2.avg))
-        error('the input arguments have different sizes');
+        ft_error('the input arguments have different sizes');
       end
 
       conjunction = data1;
@@ -220,7 +219,6 @@ end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   varargin
 ft_postamble provenance conjunction
 ft_postamble history    conjunction

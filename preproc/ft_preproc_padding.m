@@ -17,9 +17,13 @@ function [dat] = ft_preproc_padding(dat, padtype, prepadlength, postpadlength)
 % If padlength is used instead of prepadlength and postpadlength, padding
 % will be symmetrical (i.e. padlength = prepadlength = postpadlength)
 %
+% If the data contains NaNs, these are ignored for the computation, but
+% retained in the output. Depending on the type of padding, NaNs may spread
+% to the pads.
+%
 % See also FT_PREPROCESSING
 
-% Copyright (C) 2012, J?rn M. Horschig, Robert Oostenveld, Jan-Mathijs Schoffelen
+% Copyright (C) 2012, Jorn M. Horschig, Robert Oostenveld, Jan-Mathijs Schoffelen
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -47,48 +51,20 @@ if prepadlength == 0 && postpadlength == 0
   return;
 end
 
-nchans = size(dat, 1);
-nsamples = size(dat, 2);
+[nchans, nsamples] = size(dat);
 
 switch(padtype)
   case 'remove'
     dat = dat(:, prepadlength+1:end-postpadlength);
     
   case 'mirror'
-    padbeg = 1:prepadlength;
-    padend = 1:postpadlength;
-    
-    % predata padding
-    begsample = 1;
-    endsample = 0;
-    while prepadlength > begsample % this will be a linear piecewise function consisting of two pieces taking turns
-      endsample                                 = begsample + min(prepadlength-endsample, nsamples-1);
-      padbeg(end-endsample+2:end-begsample+1)   = fliplr(mod(0:(endsample-begsample-1), nsamples)+2);
-      begsample = endsample-1;
-      
-      if prepadlength > begsample
-        endsample                               = begsample + min(prepadlength-endsample+1, nsamples-1);
-        padbeg(end-endsample+1:end-begsample+1) = mod(0:(endsample-begsample), nsamples)+nsamples-endsample+begsample;
-        begsample = endsample+1;
-      end
+    % create an indexvector to index the data with
+    index = (1:(prepadlength+nsamples+postpadlength))-prepadlength;
+    while any(index<1|index>nsamples)
+      index(index<1)        = -index(index<1) + 1;
+      index(index>nsamples) = 2.*nsamples - index(index>nsamples) + 1;
     end
-    
-    % postdata padding
-    begsample = 1;
-    endsample = 0;
-    while postpadlength > begsample % this will be a linear piecewise function consisting of two pieces taking turns
-      endsample                                 = begsample + min(postpadlength-endsample, nsamples-1);
-      padend(begsample:endsample-1)             = fliplr(mod(0:(endsample-begsample-1), nsamples)+nsamples-endsample+begsample);
-      begsample = endsample-1;
-      
-      if postpadlength > begsample
-        endsample                               = begsample + min(postpadlength-endsample+1, nsamples-1);
-        padend(begsample:endsample)             = mod(0:(endsample-begsample), nsamples)+1;
-        begsample = endsample+1;
-      end
-    end
-    
-    dat       = [dat(:, padbeg) dat dat(:, padend)];
+    dat = dat(:, index);
     
   case 'edge'
     dat       = [dat(:,1)*ones(1,prepadlength) dat dat(:,end)*ones(1,postpadlength)];
@@ -111,8 +87,5 @@ switch(padtype)
     dat       = [nan(nchans,prepadlength) dat nan(nchans,postpadlength)];
     
   otherwise
-    error('unknown padding option');
+    ft_error('unknown padding option');
 end
-
-end
-

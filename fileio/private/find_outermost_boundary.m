@@ -6,7 +6,7 @@ function [outermost, inside] = find_outermost_boundary(bnd)
 %
 % [outermost] = find_innermost_boundary(bnd)
 %
-% with the boundaries described by a struct array bnd with
+% with the boundaries described by a struct-array bnd with
 %   bnd(i).pnt  vertices of boundary i (matrix of size Nx3)
 %   bnd(i).tri  triangles of boundary i (matrix of size Mx3)
 
@@ -42,7 +42,7 @@ for j=1:ncmp
   if i==j
     inside(i,j) = 0;
   else
-    inside(i,j) = bounding_mesh(curpos1, curpos, curtri);
+    inside(i,j) = surface_inside(curpos1, curpos, curtri);
   end
 end
 end

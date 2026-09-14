@@ -1,18 +1,15 @@
 function test_tutorial_connectivity
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_connectivityanalysis ft_connectivitysimulation ft_freqanalysis ft_connectivityplot ft_mvaranalysis
+% DEPENDENCY ft_connectivityanalysis ft_connectivitysimulation ft_freqanalysis ft_connectivityplot ft_mvaranalysis
+% DATA no
 
 % This is the first section of the connectivity tutorial, which
 % starts with an MVAR model and then uses parametric and nonparametric 
 % spectral decomposition for coherence and granger
 
 % See also test_tutorial_connectivity2 and test_tutorial_connectivity3
-
-global ft_default;
-ft_default.feedback = 'no';
 
 %% simulate data
 cfg             = [];
@@ -109,7 +106,7 @@ freq          = ft_freqanalysis(cfg, data);
 figure;
 cfg = [];
 cfg.channel = 'signal001';
-ft_singleplotER(cfg, ft_checkdata(freq, 'cmbrepresentation', 'sparsewithpow'))
+ft_singleplotER(cfg, ft_checkdata(freq, 'cmbstyle', 'sparsewithpow'))
 %% connectivityanalysis
 cfg           = [];
 cfg.method    = 'coh';

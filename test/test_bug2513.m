@@ -1,9 +1,11 @@
 function test_bug2513
 
-% WALLTIME 00:40:00
-% MEM 6gb
+% WALLTIME 01:00:00
+% MEM 4gb
+% DEPENDENCY
+% DATA private
 
-datapath = dccnpath('/home/common/matlab/fieldtrip/data/test');
+datapath = dccnpath('/project/3031000.02/test');
 
 % historical preprocessed data
 datahist = dir([datapath filesep '2*']);
@@ -44,7 +46,7 @@ unknown = {};
 failed = [];
 
 %%
-datapath = dccnpath('/home/common/matlab/fieldtrip/data/test');
+datapath = dccnpath('/project/3031000.02/test');
 
 for i=1:length(filelist)
   try

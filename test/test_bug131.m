@@ -1,18 +1,13 @@
 function test_bug131
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_prepare_leadfield
-
-% use FieldTrip defaults instead of personal defaults
-global ft_default;
-ft_default = [];
-ft_default.feedback = 'no';
+% DEPENDENCY ft_prepare_leadfield
+% DATA no
 
 % test the issue related to the scaling of the leadfields in the different implementations
 
-[pnt, tri] = icosahedron162;
+[pnt, tri] = mesh_sphere(162);
 
 % create volume conductor models
 vol = [];
@@ -27,7 +22,7 @@ vol2.unit = 'm';
 vol2.type = 'singleshell';
 
 % create sensor array
-nrm = normals(pnt,tri,'vertex');
+nrm = surface_normals(pnt,tri,'vertex');
 grad.pnt = pnt.*10;
 grad.pnt(pnt(:,3)<0,:) = [];
 grad.ori = nrm(pnt(:,3)>=0,:);
@@ -39,21 +34,21 @@ grad.unit = 'm';
 
 % create dipole grid
 grid = [];
-grid.pos = [0 0 4];
-grid.inside = 1;
-grid.outside = [];
+sourcemodel.pos = [0 0 4];
+sourcemodel.inside = 1;
+sourcemodel.outside = [];
 
 % create leadfield with single sphere
 cfg = [];
-cfg.vol = vol;
-cfg.grid = grid;
+cfg.headmodel = vol;
+cfg.sourcemodel = grid;
 cfg.grad = grad;
 grid1 = ft_prepare_leadfield(cfg);
 
 % create leadfield with singleshell
 cfg = [];
-cfg.vol = vol2;
-cfg.grid = grid;
+cfg.headmodel = vol2;
+cfg.sourcemodel = grid;
 cfg.grad = grad;
 grid2 = ft_prepare_leadfield(cfg);
 
@@ -65,4 +60,3 @@ lf2 = grid2.leadfield{1};
 % yet, this in my understanding then only holds for geometrical objects
 % defined in SI-units, i.e. in meters. This should then be enforced by the
 % higher level function to be able to interpret the units correctly
-

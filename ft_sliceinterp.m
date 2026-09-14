@@ -11,39 +11,34 @@ function [outim] = ft_sliceinterp(cfg, ininterp)
 % where interp is the output of sourceinterpolate and cfg is a structure
 % with any of the following fields:
 %
-% cfg.funparameter  string with the functional parameter of interest (default = 'source')
-% cfg.maskparameter parameter used as opacity mask (default = 'none')
-% cfg.clipmin       value or 'auto' (clipping of source data)
-% cfg.clipmax       value or 'auto' (clipping of source data)
-% cfg.clipsym       'yes' or 'no' (default) symmetrical clipping
-% cfg.colormap      colormap for source overlay (default is jet(128))
-% cfg.colmin        source value mapped to the lowest color (default = 'auto')
-% cfg.colmax        source value mapped to the highest color (default = 'auto')
-% cfg.maskclipmin   value or 'auto' (clipping of mask data)
-% cfg.maskclipmax   value or 'auto' (clipping of mask data)
-% cfg.maskclipsym   'yes' or 'no' (default) symmetrical clipping
-% cfg.maskmap       opacitymap for source overlay
-%                   (default is linspace(0,1,128))
-% cfg.maskcolmin    mask value mapped to the lowest opacity, i.e.
-%                   completely transparent (default ='auto')
-% cfg.maskcolmin    mask value mapped to the highest opacity, i.e.
-%                   non-transparent (default = 'auto')
-% cfg.alpha         value between 0 and 1 or 'adaptive' (default)
-% cfg.nslices       integer value, default is 20
-% cfg.dim           integer value, default is 3 (dimension to slice)
-% cfg.spacemin      'auto' (default) or integer (first slice position)
-% cfg.spacemax      'auto' (default) or integer (last slice position)
-% cfg.resample      integer value, default is 1 (for resolution reduction)
-% cfg.rotate        number of ccw 90 deg slice rotations (default = 0)
-% cfg.title         optional title (default is '')
-% cfg.whitebg       'yes' or 'no' (default = 'yes')
-% cfg.flipdim       flip data along the sliced dimension, 'yes' or 'no'
-%                   (default = 'no')
-% cfg.marker        [Nx3] array defining N marker positions to display
-% cfg.markersize    radius of markers (default = 5);
-% cfg.markercolor   [1x3] marker color in RGB (default = [1 1 1], i.e. white)
-% cfg.interactive   'yes' or 'no' (default), interactive coordinates
-%                   and source values
+% cfg.funparameter  = string with the functional parameter of interest (default = 'source')
+% cfg.maskparameter = parameter used as opacity mask (default = 'none')
+% cfg.clipmin       = value or 'auto' (clipping of source data)
+% cfg.clipmax       = value or 'auto' (clipping of source data)
+% cfg.clipsym       = 'yes' or 'no' (default) symmetrical clipping
+% cfg.colormap      = colormap for source overlay (default is jet(128))
+% cfg.colmin        = source value mapped to the lowest color (default = 'auto')
+% cfg.colmax        = source value mapped to the highest color (default = 'auto')
+% cfg.maskclipmin   = value or 'auto' (clipping of mask data)
+% cfg.maskclipmax   = value or 'auto' (clipping of mask data)
+% cfg.maskclipsym   = 'yes' or 'no' (default) symmetrical clipping
+% cfg.maskmap       = opacitymap for source overlay (default is linspace(0,1,128))
+% cfg.maskcolmin    = mask value mapped to the lowest opacity, i.e. completely transparent (default ='auto')
+% cfg.maskcolmin    = mask value mapped to the highest opacity, i.e. non-transparent (default = 'auto')
+% cfg.alpha         = value between 0 and 1 or 'adaptive' (default)
+% cfg.nslices       = integer value, default is 20
+% cfg.dim           = integer value, default is 3 (dimension to slice)
+% cfg.spacemin      = 'auto' (default) or integer (first slice position)
+% cfg.spacemax      = 'auto' (default) or integer (last slice position)
+% cfg.resample      = integer value, default is 1 (for resolution reduction)
+% cfg.rotate        = number of ccw 90 deg slice rotations (default = 0)
+% cfg.title         = optional title (default is '')
+% cfg.whitebg       = 'yes' or 'no' (default = 'yes')
+% cfg.flipdim       = flip data along the sliced dimension, 'yes' or 'no' (default = 'no')
+% cfg.marker        = [Nx3] array defining N marker positions to display
+% cfg.markersize    = radius of markers (default = 5);
+% cfg.markercolor   = [1x3] marker color in RGB (default = [1 1 1], i.e. white)
+% cfg.interactive   = 'yes' or 'no' (default), interactive coordinates and source values
 %
 % if cfg.alpha is set to 'adaptive' the opacity of the source overlay
 % linearly follows the source value: maxima are opaque and minima are
@@ -83,7 +78,7 @@ function [outim] = ft_sliceinterp(cfg, ininterp)
 %
 % See also FT_SOURCEANALYSIS, FT_VOLUMERESLICE
 
-% Copyright (C) 2004, Markus Siegel, markus.siegel@fcdonders.kun.nl
+% Copyright (C) 2004, Markus Siegel
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -114,7 +109,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar ininterp
 ft_preamble provenance ininterp
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -170,14 +164,14 @@ try, cfg.maskparameter = cfg.maskparameter{1}; end
 if isfield(ininterp,'anatomy');
   interp.anatomy = reshape(ininterp.anatomy, ininterp.dim);
 else
-  error('no anatomical data supplied');
+  ft_error('no anatomical data supplied');
 end
 
 % check functional data
 if ~isempty(cfg.funparameter)
   interp.source = double(reshape(getsubfield(ininterp, cfg.funparameter), ininterp.dim));
 else
-  error('no functional data supplied');
+  ft_error('no functional data supplied');
 end
 
 % check mask data
@@ -369,8 +363,9 @@ end
 % merge anatomy, functional data and mask
 fprintf('constructing overlay...');
 if ischar(cfg.colormap)
-  % replace string by colormap using standard MATLAB function
-  cfg.colormap = colormap(cfg.colormap);
+  cfg.colormap = ft_colormap(cfg.colormap);
+elseif iscell(cfg.colormap)
+  cfg.colormap = ft_colormap(cfg.colormap{:});
 end
 cmap = cfg.colormap;
 cmaplength = size(cmap,1);
@@ -470,7 +465,6 @@ end
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble history ininterp
 ft_postamble provenance
 
@@ -484,14 +478,14 @@ data = guidata(gcf);
 co(2,1) = round(mod(yi,size(data.out,1)));
 co(3,1) = round(mod(xi,size(data.out,2)));
 switch mod(data.cfg.rotate,4)
-case 1,
+case 1
   t1 = co(2);
   co(2) = co(3);
   co(3) = data.sin(3)-t1;
-case 2,
+case 2
   co(2) = data.sin(2)-co(2);
   co(3) = data.sin(3)-co(3);
-case 3,
+case 3
   t1 = co(3);
   co(3) = co(2);
   co(2) = data.sin(2)-t1;
@@ -518,7 +512,7 @@ function [h,nrows,ncols] = slicemon(a) % display the montage w/o image_toolbox
 siz = [size(a,1) size(a,2) size(a,4)];
 nn = sqrt(prod(siz))/siz(2);
 mm = siz(3)/nn;
-if (ceil(nn)-nn) < (ceil(mm)-mm),
+if (ceil(nn)-nn) < (ceil(mm)-mm)
   nn = ceil(nn); mm = ceil(siz(3)/nn);
 else
   mm = ceil(mm); nn = ceil(siz(3)/mm);
@@ -527,10 +521,10 @@ b = a(1,1);
 b(1,1) = 0;
 b = repmat(b, [mm*siz(1), nn*siz(2), size(a,3), 1]);
 rows = 1:siz(1); cols = 1:siz(2);
-for i=0:mm-1,
-  for j=0:nn-1,
+for i=0:mm-1
+  for j=0:nn-1
     k = j+i*nn+1;
-    if k<=siz(3),
+    if k<=siz(3)
       b(rows+i*siz(1),cols+j*siz(2),:) = a(:,:,:,k);
     end
   end

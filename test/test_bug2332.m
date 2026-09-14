@@ -1,14 +1,14 @@
 function test_bug2332
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_apply_montage ft_componentanalysis ft_rejectcomponent
+% DEPENDENCY ft_apply_montage ft_componentanalysis ft_rejectcomponent
+% DATA public
 
 %% read some data
 
 cfg = [];
-cfg.dataset = dccnpath('/home/common/matlab/fieldtrip/data/Subject01.ds');
+cfg.dataset = dccnpath('/project/3031000.02/external/download/test/ctf/Subject01.ds');
 cfg.trl     = [1 1200 0];
 cfg.continuous = 'yes';
 cfg.channel = {'meg', 'megref'};

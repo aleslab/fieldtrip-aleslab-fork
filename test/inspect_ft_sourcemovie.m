@@ -1,17 +1,11 @@
-% function inspect_ft_sourcemovie
+function inspect_ft_sourcemovie
 
 % MEM 24gb
 % WALLTIME 00:10:00
-
-% TEST inspect_ft_sourcemovie
-% TEST ft_sourcemovie ft_sourceanalysis ft_sourceinterpolate ft_volumenormalize ft_prepare_singleshell ft_prepare_leadfield qsubcellfun qsubfeval qsubget
+% DEPENDENCY ft_sourcemovie ft_sourceanalysis ft_sourceinterpolate ft_volumenormalize ft_prepare_singleshell ft_prepare_leadfield qsubcellfun qsubfeval qsubget
+% DATA public
 
 % the frequency and source analysis is based on the tutorials
-
-% use FieldTrip defaults instead of personal defaults
-global ft_default;
-ft_default = [];
-ft_default.feedback = 'no';
 
 % qsub is necessary, add fieldtrip/qsub to path
 [v, p] = ft_version;
@@ -19,10 +13,10 @@ addpath(fullfile(p, 'qsub'));
 
 %%
 
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/timefrequencyanalysis/dataFIC.mat'))
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer/segmentedmri.mat'))
+load(dccnpath('/project/3031000.02/external/download/tutorial/timefrequencyanalysis/dataFIC.mat'))
+load(dccnpath('/project/3031000.02/external/download/tutorial/beamformer/segmentedmri.mat'))
 
-mri = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/data/Subject01.mri'));
+mri = ft_read_mri(dccnpath('/project/3031000.02/external/download/test/ctf/Subject01.mri'));
 
 cfg              = [];
 cfg.output       = 'powandcsd';
@@ -39,12 +33,12 @@ vol = ft_prepare_singleshell(cfg, segmentedmri);
 
 cfg                 = [];
 cfg.grad            = freqFIC.grad;
-cfg.vol             = vol;
+cfg.headmodel       = vol;
 cfg.reducerank      = 2;
 cfg.normalize       = 'yes';
 cfg.channel         = {'MEG','-MLP31', '-MLO12'};
-cfg.grid.resolution = 1; % use a 3-D grid with a 1 cm resolution
-cfg.grid.unit       = 'cm';
+cfg.sourcemodel.resolution = 1; % use a 3-D grid with a 1 cm resolution
+cfg.sourcemodel.unit       = 'cm';
 grid                = ft_prepare_leadfield(cfg);
 
 %% do the source reconstruction

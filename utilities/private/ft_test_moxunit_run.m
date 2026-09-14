@@ -1,6 +1,9 @@
 function passed = ft_test_moxunit_run(unused,varargin)
 
-% FT_TEST_MOXUNIT_RUN
+% FT_TEST_MOXUNIT_RUN documentation is included inside ft_test
+% documentation.
+% 
+% See also FT_TEST
 
 % Copyright (C) 2017, Nikolaas N. Oosterhof
 %
@@ -22,7 +25,7 @@ function passed = ft_test_moxunit_run(unused,varargin)
 %
 % $Id$
 
-    % ensure path is set for MOxUnit fieldtrip test functions, but
+    % ensure path is set for MOxUnit FieldTrip test functions, but
     % set to original state after running this function
 
 
@@ -32,7 +35,7 @@ function passed = ft_test_moxunit_run(unused,varargin)
     check_dependencies();
 
     % By default, running FieldTrip excludes files if their name
-    % starts with 'failed'. Here this default behaviour is mimicked.
+    % starts with 'failed'. Here this default behavior is mimicked.
     override_default_arg={'exclude_if_prefix_equals_failed',true};
     arg=cat(2,override_default_arg,varargin);
 
@@ -44,14 +47,14 @@ function check_dependencies()
 % throw an error if MOxUnit is not available
 
     if isempty(which('moxunit_runtests'))
-        error(['MOxUnit is required; see '...
+        ft_error(['MOxUnit is required; see '...
                     'https://github.com/moxunit/moxunit']);
     end
 
 function fieldtrip_root_dir=get_fieldtrip_root_dir()
     fieldtrip_root_dir=fileparts(which('ft_defaults'));
     if isempty(fieldtrip_root_dir)
-        error('Fieldtrip path is not set');
+        ft_error('Fieldtrip path is not set');
     end
 
 

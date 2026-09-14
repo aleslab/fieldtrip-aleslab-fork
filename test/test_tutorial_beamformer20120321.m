@@ -1,17 +1,14 @@
 function test_tutorial_beamformer20120321
 
-% MEM 10gb
+% MEM 8gb
 % WALLTIME 02:30:00
+% DEPENDENCY ft_redefinetrial ft_freqanalysis ft_volumesegment ft_prepare_singleshell ft_sourceanalysis ft_prepare_leadfield ft_sourceinterpolate ft_sourceplot ft_volumenormalise
+% DATA public
 
-% TEST test_tutorial_beamformer
-% TEST ft_redefinetrial ft_freqanalysis ft_volumesegment ft_prepare_singleshell ft_sourceanalysis ft_prepare_leadfield ft_sourceinterpolate ft_sourceplot ft_volumenormalise
+load(dccnpath('/project/3031000.02/external/download/tutorial/beamformer/data_all.mat'));
 
-% use FieldTrip defaults instead of personal defaults
-global ft_default;
-ft_default = [];
-ft_default.feedback = 'no';
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer/dataFIC.mat'));
+% let's just rename the variable
+dataFIC = data_all;
 
 %% Preprocess time windows of interest
 
@@ -40,8 +37,8 @@ freqPost = ft_freqanalysis(cfg, dataPost);
 
 %% Compute (or load) the forward model)
 
-mri = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/data/Subject01.mri'));
-if ~exist(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer/segmentedmri.mat'), 'file')
+mri = ft_read_mri(dccnpath('/project/3031000.02/external/download/test/ctf/Subject01.mri'));
+if ~exist(dccnpath('/project/3031000.02/external/download/tutorial/beamformer/segmentedmri.mat'), 'file')
   % segment the anatomical MRI
   cfg = [];
   cfg.write        = 'no';
@@ -49,21 +46,24 @@ if ~exist(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer/s
   [segmentedmri] = ft_volumesegment(cfg, mri);
 else
   % use the segmented MRI that is available
-  load(dccnpath('/home/common/matlab/fieldtrip/data/ftp/tutorial/beamformer/segmentedmri.mat'));
+  load(dccnpath('/project/3031000.02/external/download/tutorial/beamformer/segmentedmri.mat'));
 end
 
 %% Prepare head model
 cfg = [];
-vol = ft_prepare_singleshell(cfg, segmentedmri);
+% vol = ft_prepare_singleshell(cfg, segmentedmri);
+cfg.method = 'singleshell';
+vol = ft_prepare_headmodel(cfg, segmentedmri);
+
 
 %% Prepare leadfield
 cfg                 = [];
 cfg.grad            = freqPre.grad;
-cfg.vol             = vol;
+cfg.headmodel       = vol;
 cfg.reducerank      = 2;
 cfg.channel         = {'MEG','-MLP31', '-MLO12'};
-cfg.grid.resolution = 1;   % use a 3-D grid with a 1 cm resolution
-cfg.grid.unit = 'cm';
+cfg.sourcemodel.resolution = 1;   % use a 3-D grid with a 1 cm resolution
+cfg.sourcemodel.unit = 'cm';
 [grid] = ft_prepare_leadfield(cfg);
 
 %% Source analysis
@@ -71,8 +71,8 @@ cfg              = [];
 cfg.frequency    = 18;
 cfg.method       = 'dics';
 cfg.projectnoise = 'yes';
-cfg.grid         = grid;
-cfg.vol          = vol;
+cfg.sourcemodel         = grid;
+cfg.headmodel    = vol;
 cfg.lambda       = 0;
 
 sourcePre  = ft_sourceanalysis(cfg, freqPre );

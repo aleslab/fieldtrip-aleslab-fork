@@ -1,11 +1,11 @@
 function test_ft_math
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_math
+% DATA no
 
-% TEST ft_math
-
-% create some test data
+%% create some test data
 raw1 = [];
 raw1.time = {[1:10], [1:10], [1:10]};
 raw1.trial = {ones(2,10), ones(2,10), ones(2,10)};
@@ -40,12 +40,12 @@ for i=1:10
   source2.mom{i} = ones(3, 20)*2;
 end
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% do operation with one raw input
+%% do operation with one raw input
 
 cfg=[];
 cfg.showcallinfo = 'no';
-cfg.trackconfig  = 'no';
 cfg.parameter = 'trial';
 
 cfg.operation = 'log10';
@@ -71,11 +71,10 @@ tmp = ft_math(cfg, raw1);
 assert(isfield(tmp, cfg.parameter), 'the output parameter is missing');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% do operation with one timelock input
+%% do operation with one timelock input
 
 cfg = [];
 cfg.showcallinfo = 'no';
-cfg.trackconfig  = 'no';
 cfg.parameter    = 'avg';
 
 cfg.operation = 'log10';
@@ -106,11 +105,10 @@ assert(isfield(tmp, cfg.parameter), 'the output parameter is missing');
 assert(isfield(tmp, 'dimord'), 'the output dimord is missing');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% do operation with one timelock input, multiple parameters
+%% do operation with one timelock input, multiple parameters
 
 cfg = [];
 cfg.showcallinfo = 'no';
-cfg.trackconfig  = 'no';
 cfg.parameter    = {'avg', 'var'};
 
 cfg.operation = 'log10';
@@ -121,11 +119,10 @@ assert(isequal(tmp.var, log10(timelock3.var)));
 assert(isequal(tmp.avg, log10(timelock3.avg)));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% do operation with one source input
+%% do operation with one source input
 
 cfg = [];
 cfg.showcallinfo = 'no';
-cfg.trackconfig  = 'no';
 cfg.parameter    = 'mom'; % note that this is {pos}_ori_time
 
 cfg.operation = 'log10';
@@ -156,11 +153,10 @@ assert(isfield(tmp, cfg.parameter), 'the output parameter is missing');
 assert(isfield(tmp, [cfg.parameter 'dimord']), 'the output dimord is missing');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% do operation with two timelock inputs
+%% do operation with two timelock inputs
 
 cfg = [];
 cfg.showcallinfo = 'no';
-cfg.trackconfig  = 'no';
 cfg.parameter    = 'avg';
 
 cfg.operation = 'add';
@@ -185,11 +181,10 @@ assert(isfield(tmp, 'dimord'), 'the output dimord is missing');
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% do operation with two source inputs
+%% do operation with two source inputs
 
 cfg = [];
 cfg.showcallinfo = 'no';
-cfg.trackconfig  = 'no';
 cfg.parameter    = 'mom';
 
 cfg.operation = 'add';
@@ -214,11 +209,10 @@ assert(isfield(tmp, [cfg.parameter 'dimord']), 'the output dimord is missing');
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% do operation with more than two timelock inputs
+%% do operation with more than two timelock inputs
 
 cfg = [];
 cfg.showcallinfo = 'no';
-cfg.trackconfig  = 'no';
 cfg.parameter    = 'avg';
 
 cfg.operation = 'add';
@@ -233,11 +227,10 @@ assert(isfield(tmp, 'dimord'), 'the output dimord is missing');
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% do operation with more than two source inputs
+%% do operation with more than two source inputs
 
 cfg = [];
 cfg.showcallinfo = 'no';
-cfg.trackconfig  = 'no';
 cfg.parameter    = 'mom';
 
 cfg.operation = 'add';
@@ -252,7 +245,7 @@ assert(isfield(tmp, [cfg.parameter 'dimord']), 'the output dimord is missing');
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% check the numerical output of the operation
+%% check the numerical output of the operation
 
 cfg = [];
 cfg.parameter = 'trial';
@@ -267,7 +260,7 @@ tmp = ft_math(cfg, raw1);
 assert(tmp.trial{1}(1)==-1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% idem for a timelock input
+%% idem for a timelock input
 
 cfg = [];
 cfg.parameter = 'avg';
@@ -306,7 +299,7 @@ assert(tmp.avg(1)==9);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% idem for a source structure with a cell array
+%% idem for a source structure with a cell-array
 
 cfg = [];
 cfg.parameter = 'mom';
@@ -342,3 +335,41 @@ cfg.scalar = 2;
 cfg.operation = '(x1+x2)^s';
 tmp = ft_math(cfg, source1, source2);
 assert(tmp.mom{1}(1)==9);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% do operation with a matrix
+
+cfg = [];
+cfg.showcallinfo = 'no';
+cfg.parameter    = 'avg';
+
+cfg.matrix = zeros(size(timelock1.avg));
+
+cfg.operation = 'add';
+tmp = ft_math(cfg, timelock1);
+assert(isequal(timelock1.avg, tmp.avg));
+cfg.operation = 'subtract';
+tmp = ft_math(cfg, timelock1);
+assert(isequal(timelock1.avg, tmp.avg));
+
+cfg.matrix = ones(size(timelock1.avg));
+
+cfg.operation = 'multiply';
+tmp = ft_math(cfg, timelock1);
+assert(isequal(timelock1.avg, tmp.avg));
+cfg.operation = 'divide';
+tmp = ft_math(cfg, timelock1);
+assert(isequal(timelock1.avg, tmp.avg));
+
+try
+  failed = false;
+  cfg = [];
+  cfg.showcallinfo = 'no';
+  cfg.parameter    = 'avg';
+  cfg.operation    = 'log10';
+  cfg.matrix       = randn(3);
+  tmp = ft_math(cfg, timelock1);
+catch
+  failed = true;
+end
+assert(failed, 'this should have failed');

@@ -1,7 +1,9 @@
 function test_bug1114
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY
+% DATA no
 
 % This function parses all FieldTrip main and module functions and determines
 % whether there are any dependencies on fieldtrip/compat or any other
@@ -42,7 +44,7 @@ for dirindex=1:length(dirlist)
   
   compat = false(size(outlist));
   for i=1:length(outlist)
-    compat(i) = ~isempty(regexp(outlist{i}, '/compat', 'once'));
+    compat(i) = ~isempty(regexp(outlist{i}, '/compat/obsolete', 'once'));
   end
   % switch to list indices
   compat = find(compat);

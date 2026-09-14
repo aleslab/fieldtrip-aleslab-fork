@@ -1,10 +1,12 @@
 function test_bug3285
 
 % WALLTIME 00:10:00
-% MEM 2gb
+% MEM 1gb
+% DEPENDENCY
+% DATA private
 
 % load('SubjectUCI29_data.mat', 'data');
-cd(dccnpath('/home/common/matlab/fieldtrip/data/test'));
+cd(dccnpath('/project/3031000.02/test'));
 load bug3285.mat
 
 %%
@@ -13,6 +15,7 @@ cfg               = [];
 cfg.channel       = ft_channelselection({'LPG*', 'LTG*'}, data.label);
 cfg.reref         = 'yes';
 cfg.refchannel    = 'all';
+cfg.updatesens    = 'no';
 reref_grids = ft_preprocessing(cfg, data);
 
 % CORRECT: chansel is not applied to elec struc
@@ -36,7 +39,7 @@ for d = 1:numel(depths)
     0     0     0     0     0     1    -1     0
     0     0     0     0     0     0     1    -1
     ];
-  
+  cfg.updatesens = 'yes';
   reref_depths{d} = ft_preprocessing(cfg, data);
   
   %?CORRECT: montage is applied to elec struc, i.e. tra is updated

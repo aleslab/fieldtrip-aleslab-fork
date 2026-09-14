@@ -1,24 +1,26 @@
 function mesh = ft_defacemesh(cfg, mesh)
 
-% FT_DEFACEVOLUME allows you to de-identify a head
-% surface mesh by erasing specific regions, such as the face and ears. The graphical
-% user interface allows you to position a box over the anatomical data inside which
-% all vertices will be removed. You might have to call this
-% function multiple times when both face and ears need to be removed. Following
-% defacing, you should check the result with FT_PLOT_MESH .
+% FT_DEFACEMESH allows you to de-identify a scalp surface mesh by erasing specific
+% regions, such as the face and ears. The interactive graphical user interface allows
+% you to position a box over the anatomical data inside which all vertices will be
+% removed. You might have to call this function multiple times when both face and
+% ears need to be removed. Following defacing, you should check the result with
+% FT_PLOT_MESH.
 %
 % Use as
-%   mesh = ft_defacevolume(cfg, mesh)
+%   mesh = ft_defacemesh(cfg, mesh)
 %
 % The configuration can contain the following options
-%   cfg.translate  = initial position of the center of the box (default = [0 0 0])
+%   cfg.method     = string, specification of the shape that is used 
+%                    as a boundary for exclusion, can be either 'box' or 'plane' (default = 'box')
+%   cfg.translate  = initial position of the center of the box, or a point on the plane (default = [0 0 0])
 %   cfg.scale      = initial size of the box along each dimension (default is automatic)
-%   cfg.translate  = initial rotation of the box (default = [0 0 0])
-%   cfg.selection  = which voxels to keep, can be 'inside' or 'outside' (default = 'outside')
+%   cfg.rotate     = initial rotation of the box, or the plane (default = [0 0 0])
+%   cfg.selection  = which vertices to keep, can be 'inside' or 'outside' (default = 'outside')
 %
-% See also FT_ANONIMIZEDATA, FT_DEFACEVCOLUME, FT_ANALYSISPIPELINE, FT_PLOT_MESH
+% See also FT_ANONYMIZEDATA, FT_DEFACEVOLUME, FT_ANALYSISPIPELINE, FT_PLOT_MESH
 
-% Copyright (C) 2015-2016, Robert Oostenveld
+% Copyright (C) 2015-2024, Robert Oostenveld and Jan-Mathijs Schoffelen 
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -49,7 +51,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar    mesh
 ft_preamble provenance mesh
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -57,17 +58,24 @@ if ft_abort
 end
 
 % the actual work is done by FT_DEFACEVOLUME
-previous = cfg.showcallinfo;
 tmpcfg = cfg;
 tmpcfg.showcallinfo = 'no';
 mesh = ft_defacevolume(tmpcfg, mesh);
-% restore provenance information
+% remember the output rotate, scale and translate
+rotate    = mesh.cfg.rotate;
+scale     = mesh.cfg.scale;
+translate = mesh.cfg.translate;
+% restore provenance information and put back cfg.callinfo
+tmpcallinfo = cfg.showcallinfo;
 [cfg, mesh] = rollback_provenance(cfg, mesh);
-cfg.showcallinfo = previous;
+% store these in the output configuration
+cfg.showcallinfo = tmpcallinfo;
+cfg.rotate       = rotate;
+cfg.scale        = scale;
+cfg.translate    = translate;
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous mesh
 ft_postamble provenance mesh
 ft_postamble history mesh

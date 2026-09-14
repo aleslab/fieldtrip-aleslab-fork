@@ -36,7 +36,7 @@ function ft_realtime_signalviewer(cfg)
 % If you want to skip all data that was acquired before you start the RT function,
 % but don't want to miss any data that was acquired while the realtime function is
 % started, then you should use jumptoeof=yes and bufferdata=first. If you want to
-% analyse data from a file, then you should use jumptoeof=no and bufferdata=first.
+% analyze data from a file, then you should use jumptoeof=no and bufferdata=first.
 %
 % To stop this realtime function, you have to press Ctrl-C
 
@@ -78,7 +78,7 @@ cfg.olfreq       = ft_getopt(cfg, 'olfreq',       [2 45]);
 cfg.offset       = ft_getopt(cfg, 'offset',       []);      % in units of the data, e.g. uV for the OpenBCI board
 cfg.dftfilter    = ft_getopt(cfg, 'dftfilter',    'no');
 cfg.dftfreq      = ft_getopt(cfg, 'dftfreq',      [50 100 150]);
-
+cfg.ylim         = ft_getopt(cfg, 'ylim',         []);
 
 if ~isfield(cfg, 'dataset') && ~isfield(cfg, 'header') && ~isfield(cfg, 'datafile')
   cfg.dataset = 'buffer://localhost:1972';
@@ -99,7 +99,7 @@ cfg.channel = ft_channelselection(cfg.channel, hdr.label);
 chanindx    = match_str(hdr.label, cfg.channel);
 nchan       = length(chanindx);
 if nchan==0
-  error('no channels were selected');
+  ft_error('no channels were selected');
 end
 
 if numel(cfg.offset)==0
@@ -132,9 +132,9 @@ while true
     endsample  = hdr.nSamples*hdr.nTrials;
   elseif strcmp(cfg.bufferdata, 'first')
     begsample  = prevSample+1;
-    endsample  = prevSample+blocksize ;
+    endsample  = prevSample+blocksize;
   else
-    error('unsupported value for cfg.bufferdata');
+    ft_error('unsupported value for cfg.bufferdata');
   end
   
   % this allows overlapping data segments
@@ -208,12 +208,15 @@ while true
   % shift each of the channels with a given offset
   nchan = size(dat,1);
   for i=1:nchan
-    dat(i,:) = dat(i,:) + (nchan-i-1)*cfg.offset(i);
+    dat(i,:) = dat(i,:) + cfg.offset(i);
   end
   
   % plot the data
   plot(time, dat);
   xlim([time(1) time(end)]);
+  if ~isempty(cfg.ylim)
+    ylim(cfg.ylim);
+  end
   
   if strcmp(cfg.readevent, 'yes')
     for i=1:length(evt)

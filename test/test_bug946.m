@@ -1,9 +1,9 @@
 function test_bug946
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_appenddata
+% DEPENDENCY ft_appenddata
+% DATA no
 
 % make some dummy data
 data1 = [];

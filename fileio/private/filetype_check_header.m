@@ -2,9 +2,9 @@ function [val] = filetype_check_header(filename, head, offset)
 
 % FILETYPE_CHECK_HEADER helper function to determine the file type
 % by reading the first number of bytes of a file and comparing them
-% to a known string (c.f. magic number).
+% to a known string or magic number.
 
-% Copyright (C) 2003-2006 Robert Oostenveld
+% Copyright (C) 2003-2022 Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -24,26 +24,19 @@ function [val] = filetype_check_header(filename, head, offset)
 %
 % $Id$
 
-% these are for remembering the type on subsequent calls with the same input arguments
-persistent previous_argin previous_argout cache
+% these are for speeding up subsequent calls with the same input arguments
+persistent previous_argin previous_argout
 
 if nargin<3
   offset = 0;
 end
 
-if isempty(cache)
-  cache = false;
-end
-
 current_argin = {filename, head, offset};
-if isequal(current_argin, previous_argin) && cache
+if ~isempty(previous_argin) && isequal(current_argin, previous_argin)
   % don't do the detection again, but return the previous value from cache
   val = previous_argout;
   return
 end
-
-% from here on it should use the persistent variables as cache to speed up repeated calls
-cache = true;
 
 if iscell(filename)
   % compare the header of multiple files
@@ -51,17 +44,17 @@ if iscell(filename)
   for i=1:length(filename)
     val(i) = filetype_check_header(filename{i}, head, offset);
   end
-elseif isdir(filename)
+elseif isfolder(filename)
   % a directory cannot have a header
   val = false;
 elseif ~exist(filename, 'file')
-  val = false;  
+  val = false;
   cache = false; % the file does not exist now, but can exist later
 else
   % read the first few bytes from the file and compare them to the desired header
   fid = fopen(filename, 'rb');
   if fid<0
-    ft_warning(sprintf('could not open %s', filename));
+    ft_warning('could not open %s', filename);
     val = false;
   else
     fseek(fid, offset, 'cof');
@@ -82,7 +75,7 @@ else
       [str, siz] = fread(fid, length(head), 'uint8=>char');
       fclose(fid);
       if siz~=length(head)
-        ft_warning(sprintf('could not read the header from %s', filename));
+        ft_warning('could not read the header from %s', filename);
         val = false;
       else
         val = all(str(:)==head(:));

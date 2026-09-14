@@ -1,7 +1,7 @@
 function [argout, optout] = fexec(argin, optin)
 
 % FEXEC is the low-level function that executes the job on the engine or
-% slave. It also tries to change the path and pwd to those on the master
+% worker. It also tries to change the path and pwd to those on the controller
 % and it catches and deals with any errors in the code that is executed.
 %
 % This function should not be called directly.
@@ -40,7 +40,7 @@ lastwarn('');
 lasterr('');
 
 % these will be determined later on, but are set here to empty for better error handling
-masterid = [];
+controllerid = [];
 timallow = [];
 memallow = [];
 
@@ -68,11 +68,11 @@ try
   
   % check whether a watchdog should be set
   % this only applies to the peer distributed computing system
-  masterid = ft_getopt(optin, 'masterid');
+  controllerid = ft_getopt(optin, 'controllerid');
   timallow = ft_getopt(optin, 'timallow');
   memallow = []; % ft_getopt(optin, 'memallow');
-  if ~isempty(masterid) || ~isempty(timallow) || ~isempty(memallow)
-    watchdog(masterid, timallow, memallow);
+  if ~isempty(controllerid) || ~isempty(timallow) || ~isempty(memallow)
+    watchdog(controllerid, timallow, memallow);
   end
   
   % try setting the same path directory
@@ -192,7 +192,7 @@ try
   fprintf('executing job took %f seconds and %d bytes\n', timused, memused);
   
   % collect the output options
-  optout = {'timused', timused, 'memused', memused, 'lastwarn', lastwarn, 'lasterr', '', 'diary', diarystring, 'release', version('-release'), 'pwd', pwd, 'path', path, 'hostname', getenv('HOSTNAME')};
+  optout = {'timused', timused, 'memused', memused, 'lastwarn', lastwarnmsg, 'lasterr', '', 'diary', diarystring, 'release', version('-release'), 'pwd', pwd, 'path', path, 'hostname', getenv('HOSTNAME')};
   
 catch
   % the "catch me" syntax is broken on MATLAB74, this fixes it
@@ -211,7 +211,7 @@ catch
   
   % the output options will include the error
   % note that the error cannot be sent as object, but has to be sent as struct
-  optout = {'lastwarn', lastwarn, 'lasterr', struct(feval_error), 'diary', diarystring, 'release', version('-release'), 'pwd', pwd, 'path', path};
+  optout = {'lastwarn', lastwarnmsg, 'lasterr', struct(feval_error), 'diary', diarystring, 'release', version('-release'), 'pwd', pwd, 'path', path};
   
   % an error was detected while executing the job
   warning('an error was detected during job execution');
@@ -245,7 +245,15 @@ close all hidden;
 clear global
 
 % clear the optional watchdog, which is loaded into memory as a mex file
-if ~isempty(masterid) || ~isempty(timallow) || ~isempty(memallow)
+if ~isempty(controllerid) || ~isempty(timallow) || ~isempty(memallow)
   watchdog(0,0,0); % this is required to unlock it from memory
 end
 
+
+function warnmsg = lastwarnmsg()
+% Construct a more elaborate lastwarn message string from the lastwarn identifier + message
+
+[warnmsg, warnid] = lastwarn;
+if ~isempty(warnmsg)
+  warnmsg = sprintf('%s: %s', warnid, warnmsg);
+end

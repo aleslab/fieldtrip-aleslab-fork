@@ -16,9 +16,9 @@ function [varargout] = ft_plot_text(X, Y, str, varargin)
 %   'verticalalignment'   =
 %   'interpreter'         = string, can be 'none', 'tex' or 'latex' (default = 'none')
 %   'rotation'            =
-%   'tag'                 = string, the name assigned to the object. All tags with the same name can be deleted in a figure, without deleting other parts of the figure.
+%   'tag'                 = string, the tag assigned to the plotted elements (default = '')
 %
-% It is possible to plot the object in a local pseudo-axis (c.f. subplot), which is specfied as follows
+% It is possible to plot the object in a local pseudo-axis (c.f. subplot), which is specified as follows
 %   'hpos'                = horizontal position of the center of the local axes
 %   'vpos'                = vertical position of the center of the local axes
 %   'width'               = width of the local axes
@@ -34,7 +34,7 @@ function [varargout] = ft_plot_text(X, Y, str, varargin)
 %
 % See also FT_PLOT_VECTOR, FT_PLOT_MATRIX, FT_PLOT_LINE, FT_PLOT_BOX
 
-% Copyrights (C) 2009-2011, Robert Oostenveld
+% Copyrights (C) 2009-2022, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -54,8 +54,6 @@ function [varargout] = ft_plot_text(X, Y, str, varargin)
 %
 % $Id$
 
-ws = warning('on', 'MATLAB:divideByZero');
-
 % get the optional input arguments
 hpos                = ft_getopt(varargin, 'hpos');
 vpos                = ft_getopt(varargin, 'vpos');
@@ -65,7 +63,7 @@ hlim                = ft_getopt(varargin, 'hlim');
 vlim                = ft_getopt(varargin, 'vlim');
 tag                 = ft_getopt(varargin, 'tag', '');
 % these have to do with the font
-color               = ft_getopt(varargin, 'color', 'k');
+color               = ft_getopt(varargin, 'fontcolor', 'k');
 fontsize            = ft_getopt(varargin, 'fontsize',   get(0, 'defaulttextfontsize'));
 fontname            = ft_getopt(varargin, 'fontname',   get(0, 'defaulttextfontname'));
 fontweight          = ft_getopt(varargin, 'fontweight', get(0, 'defaulttextfontweight'));
@@ -77,9 +75,7 @@ rotation            = ft_getopt(varargin, 'rotation', 0);
 interpreter         = ft_getopt(varargin, 'interpreter', 'none');
 
 % color management
-if ischar(color) && exist([color '.m'], 'file')
-  color = eval(color);
-end
+if ischar(color), color = colorspec2rgb(color); end
 
 if isempty(hlim) && isempty(vlim) && isempty(hpos) && isempty(vpos) && isempty(height) && isempty(width)
   % no scaling is needed, the input X and Y are already fine
@@ -87,15 +83,14 @@ if isempty(hlim) && isempty(vlim) && isempty(hpos) && isempty(vpos) && isempty(h
   
 else
   % use the full implementation
-  abc = axis;
   if isempty(hlim)
     ft_warning('use hlim/vlim when specifying local axes');
-    hlim = abc([1 2]);
+    hlim = get(gca, 'XLim');
   end
   
   if isempty(vlim)
     ft_warning('use hlim/vlim when specifying local axes');
-    vlim = abc([3 4]);
+    vlim = get(gca, 'YLim');
   end
   
   if isempty(hpos)
@@ -142,5 +137,3 @@ set(h, 'interpreter', interpreter);
 if nargout == 1
   varargout{1} = h;
 end
-
-warning(ws); % revert to original state

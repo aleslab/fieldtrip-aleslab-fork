@@ -2,8 +2,8 @@ function test_bug2971
 
 % MEM 1gb
 % WALLTIME 00:10:00
-
-% TEST ft_sourcestatistics ft_selectdata
+% DEPENDENCY ft_sourcestatistics ft_selectdata
+% DATA no
 
 % should be the same for all source structures
 pos = randn(10,3);

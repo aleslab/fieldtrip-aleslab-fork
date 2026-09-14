@@ -1,7 +1,8 @@
-function str = printstruct(name, val)
+function str = printstruct(name, val, varargin)
 
-% PRINTSTRUCT converts a MATLAB structure into a multi-line string that can be
-% interpreted by MATLAB, resulting in the original structure.
+% PRINTSTRUCT converts a MATLAB structure into a multiple-line string that, when
+% evaluated by MATLAB, results in the original structure. It also works for most
+% other standard MATLAB classes, such as numbers, vectors, matrices, and cell-arrays.
 %
 % Use as
 %   str = printstruct(val)
@@ -21,9 +22,9 @@ function str = printstruct(name, val)
 %
 %   s = printstruct('c', randn(10)>0.5)
 %
-% See also DISP
+% See also DISP, NUM2STR, INT2STR, MAT2STR
 
-% Copyright (C) 2006-2013, Robert Oostenveld
+% Copyright (C) 2006-2024, Robert Oostenveld
 %
 % This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
 % for the documentation and details.
@@ -48,159 +49,250 @@ if nargin==1
   name = inputname(1);
 end
 
-if isa(val, 'config')
-  % this is FieldTrip specific: the @config object resembles a structure but tracks the
-  % access to each field.  In this case it is to be treated as a normal structure.
-  val = struct(val);
-end
+% get the options and set defaults
+transposed    = ft_getopt(varargin, 'transposed', false);     % print a column as a transposed row, or a row as a transposed column
+linebreaks    = ft_getopt(varargin, 'linebreaks', true);      % print with or without linebreaks
+lastnewline   = ft_getopt(varargin, 'lastnewline', false);    % end with a newline
+lastsemicolon = ft_getopt(varargin, 'lastsemicolon', true);   % end with a semicolon
 
-% note here that because we don't know the final size of the string,
-% iteratively appending is actually faster than creating a cell array and
-% subsequently doing a cat(2, strings{:}) (also sprintf() is slow)
+% when called recursively, it should keep the last newline and semicolon intact
+varargin = ft_setopt(varargin, 'lastnewline', true);
+varargin = ft_setopt(varargin, 'lastsemicolon', true);
+
+% Note that because we don't know the final size of the string, iteratively appending
+% is actually faster than creating a cell-array and subsequently doing a cat(2,
+% strings{:}). Note also that sprintf() is slow.
 str = '';
 
-% note further that in the string concatenations I use the numerical value
-% of a newline (\n), which is 10
+% Note further that in the string concatenations I use the numerical value
+% of a newline (\n), which is 10.
 
 if numel(val) == 0
   if iscell(val)
     str = [name ' = {};' 10];
-  else
+  elseif isstruct(val)
+    str = [name ' = [];' 10];
+  elseif isnumeric(val)
     str = [name ' = [];' 10];
   end
+
 elseif isstruct(val)
   if numel(val)>1
+    % print it as a struct-array
     str = cell(size(val));
     for i=1:numel(val)
-      str{i} = printstruct(sprintf('%s(%d)', name, i), val(i));
+      str{i} = printstruct(sprintf('%s(%d)', name, i), val(i), varargin{:});
     end
     str = cat(2, str{:});
-    return
-  else
+  elseif numel(val)==1
     % print it as a named structure
     fn = fieldnames(val);
     for i=1:length(fn)
       fv = val.(fn{i});
       switch class(fv)
-        case 'char'
-          line = printstr([name '.' fn{i}], fv);
+        case {'char' 'string'}
+          line = printstr([name '.' fn{i}], fv, linebreaks, transposed);
         case {'single' 'double' 'int8' 'int16' 'int32' 'int64' 'uint8' 'uint16' 'uint32' 'uint64' 'logical'}
           if ismatrix(fv)
-            line = [name '.' fn{i} ' = ' printmat(fv) ';' 10];
+            line = printmat([name '.' fn{i}], fv, linebreaks, transposed);
           else
-            line = '''FIXME: printing multidimensional arrays is not supported''';
+            ft_warning('multidimensional arrays are not supported');
+            line = [name '.' fn{i} ' = []; % ERROR: multidimensional arrays are not supported.'];
           end
         case 'cell'
-          line = printcell([name '.' fn{i}], fv);
+          line = printcell([name '.' fn{i}], fv, linebreaks, transposed);
         case 'struct'
-          line = [printstruct([name '.' fn{i}], fv) 10];
+          line = [printstruct([name '.' fn{i}], fv, varargin{:}) 10];
         case 'function_handle'
-          line = printstr([name '.' fn{i}], func2str(fv));
+          line = printstr([name '.' fn{i}], func2str(fv), linebreaks, transposed);
+        case 'table'
+          ft_warning('tables are not supported');
+          line = [name '.' fn{i} ' = []; % ERROR: tables are not supported.'];
         otherwise
-          error('unsupported');
+          ft_error('unsupported');
       end
-      if numel(line)>1 && line(end)==10 && line(end-1)==10
-        % do not repeat the end-of-line
-        str = [str line(1:end-1)];
-      else
-        str = [str line];
-      end
+      str = [str line newline];
+    end % for fieldnames
+    if isempty(fn)
+      % print it as an empty structure
+      str = [name ' = struct();'];
     end
   end
+
 elseif ~isstruct(val)
   % print it as a named variable
   switch class(val)
-    case 'char'
-      str = printstr(name, val);
+    case {'char' 'string'}
+      str = printstr(name, val, linebreaks, transposed);
     case {'double' 'single' 'int8' 'int16' 'int32' 'int64' 'uint8' 'uint16' 'uint32' 'uint64' 'logical'}
-      str = [name ' = ' printmat(val)];
+      str = printmat(name, val, linebreaks, transposed);
     case 'cell'
-      str = printcell(name, val);
+      str = printcell(name, val, linebreaks, transposed);
+    case 'table'
+      ft_warning('tables are not supported');
+      str = [name ' = []; % ERROR: tables are not supported.'];
     otherwise
-      error('unsupported');
+      ft_error('unsupported');
   end
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function str = printcell(name, val)
-siz = size(val);
-if isempty(val)
-  str = sprintf('%s = {};\n', name);
-  return;
+% replace double newlines with a single one
+str = strrep(str, [newline newline], newline);
+
+if isempty(name)
+  % remove the ' = ' part from the string
+  str = str(4:end);
 end
-if all(size(val)==1)
-  str = sprintf('%s = { %s };\n', name, printval(val{1}));
-else
-  str = sprintf('%s = {\n', name);
-  for i=1:siz(1)
-    dum = '';
-    for j=1:(siz(2)-1)
-      dum = [dum ' ' printval(val{i,j}) ',']; % add the element with a comma
-    end
-    dum = [dum ' ' printval(val{i,siz(2)})]; % add the last one without comma
-    
-    str = [str dum 10];
-  end
-  str = sprintf('%s};\n', str);
+
+if str(end)==newline && ~lastnewline
+  % remove the last newline
+  str = str(1:end-1);
+end
+
+if str(end)==';' && ~lastsemicolon
+  % remove the last semicolon
+  str = str(1:end-1);
+end
+
+if ~nargout
+  disp(str)
+  clear str
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function str = printstr(name, val)
+function str = printstr(name, val, linebreaks, transposed)
 siz = size(val);
 if siz(1)>1
   str = sprintf('%s = \n', name);
   for i=1:siz(1)
-    str = [str sprintf('  %s\n', printval(val(i,:)))];
+    str = [str sprintf('  %s\n', printval(val(i,:), linebreaks, transposed))];
   end
 elseif siz(1)==1
-  str = sprintf('%s = %s;\n', name, printval(val));
+  str = sprintf('%s = %s;\n', name, printval(val, linebreaks, transposed));
 else
   str = sprintf('%s = '''';\n', name);
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function str = printmat(val)
-if numel(val) == 0
-  str = '[]';
-elseif numel(val) == 1
-  % an integer will never get trailing decimals when using %g
-  str = sprintf('%g', val);
-elseif ismatrix(val)
-  if isa(val, 'double')
-    str = mat2str(val);
-  else
-    % add class information for non-double numeric matrices
-    str = mat2str(val, 'class');
-  end
-  str = strrep(str, ';', [';' 10]);
-else
-  warning('multidimensional arrays are not supported');
-  str = '''FIXME: printing multidimensional arrays is not supported''';
+if ~linebreaks
+  str(str==10) = [];
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function str = printval(val)
+function str = printcell(name, val, linebreaks, transposed)
+siz = size(val);
+if isempty(val)
+  str = sprintf('%s = {};\n', name);
+elseif numel(siz) == 2 && siz(2) == 1 && transposed
+  % print column vector as (non-conjugate) transposed row
+  str = printcell(name, transpose(val), linebreaks, false);
+  str = sprintf('%s'';\n', str(1:end-2));
+elseif numel(siz) == 2 && siz(1) == 1 && transposed
+  % print row vector as (non-conjugate) transposed column
+  str = printcell(name, transpose(val), linebreaks, false);
+  str = sprintf('%s'';\n', str(1:end-2));
+else
+  str = sprintf('%s = {\n', name);
+  for i=1:siz(1)
+    for j=1:(siz(2)-1)
+      dum = printval(val{i,j}, linebreaks, transposed);
+      if endsWith(dum, ';')
+        dum = dum(1:end-1);
+      elseif endsWith(dum, [';' newline])
+        dum = dum(1:end-2);
+      end
+      str = [str ' ' dum ',']; % add the element with a comma
+    end
+    dum = printval(val{i,siz(2)}, linebreaks, transposed);
+    if endsWith(dum, ';')
+      dum = dum(1:end-1);
+    elseif endsWith(dum, [';' newline])
+      dum = dum(1:end-2);
+    end
+    str = [str ' ' dum 10];  % add the last element of each row with a linebreak
+  end
+  if siz(1)==1
+    str(str==10) = [];
+  end
+  str = sprintf('%s };\n', str);
+end
+if ~linebreaks
+  str(str==10) = [];
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function str = printmat(name, val, linebreaks, transposed)
+siz = size(val);
+if numel(val) == 0
+  str = sprintf('%s = [];\n', name);
+elseif numel(val) == 1
+  if isa(val, 'double')
+    % an integer will never get trailing decimals when using %g
+    str = sprintf('%s = %g;', name, val);
+  elseif isa(val, 'logical') && val
+    str = sprintf('%s = true;', name);
+  elseif isa(val, 'logical') && ~val
+    str = sprintf('%s = false;', name);
+  else
+    str = sprintf('%s = %s(%g);', name, class(val), val);
+  end
+elseif numel(siz) == 2 && siz(2) == 1 && transposed
+  % print column vector as (non-conjugate) transposed row
+  str = printmat(name, transpose(val), linebreaks, false);
+  str = sprintf('%s''', str);
+elseif numel(siz) == 2 && siz(1) == 1 && transposed
+  % print row vector as (non-conjugate) transposed column
+  str = printmat(name, transpose(val), linebreaks, false);
+  str = sprintf('%s''', str);
+elseif ismatrix(val)
+  if isa(val, 'double')
+    str = sprintf('%s = %s;', name, mat2str(val));
+  else
+    % add class information for non-double numeric matrices
+    str = sprintf('%s = %s;', name, mat2str(val, 'class'));
+  end
+  % add a newline after each semicolon
+  str = strrep(str, ';', [';' newline]);
+else
+  ft_warning('multidimensional arrays are not supported');
+  str = [name ' = []; % ERROR: multidimensional arrays are not supported.'];
+end
+if ~linebreaks
+  str(str==10) = [];
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function str = printval(val, linebreaks, transposed)
 
 switch class(val)
   case 'char'
     str = ['''' val ''''];
-    
+
+  case 'string'
+    % these use " in the declaration rather than '
+    str = ['"' char(val) '";'];
+
   case {'single' 'double' 'int8' 'int16' 'int32' 'int64' 'uint8' 'uint16' 'uint32' 'uint64' 'logical'}
-    str = printmat(val);
-    
+    str = printmat('', val, linebreaks, transposed);
+    str = str(4:end);
+    if endsWith(str, ';')
+      str = str(1:end-1);
+    end
+
   case 'function_handle'
     str = ['@' func2str(val)];
-    
+
   case 'struct'
     % print it as an anonymous structure
     str = 'struct(';
     fn = fieldnames(val);
     for i=1:numel(fn)
-      str = [str '''' fn{i} '''' ', ' printval(val.(fn{i}))];
+      str = [str '''' fn{i} '''' ', ' printval(val.(fn{i}), linebreaks, transposed)];
     end
     str = [str ')'];
-    
+
   otherwise
-    warning('cannot print unknown object at this level');
-    str = '''FIXME: printing unknown objects is not supported''';
+    ft_error('unsupported');
+end
+
+if ~linebreaks
+  str(str==10) = [];
 end

@@ -7,10 +7,7 @@ function output = read_micromed_trc(filename, begsample, endsample)
 %--------------------------------------------------------------------------
 
 % ---------------- Opening File------------------
-fid=fopen(filename,'rb');
-if fid==-1
-  error('Can''t open *.trc file')
-end
+fid=fopen_or_error(filename,'rb');
 
 %------------------reading patient & recording info----------
 fseek(fid,64,-1);
@@ -59,7 +56,7 @@ header.year=num2str(fread(fid,1,'char')+1900);
 fseek(fid,175,-1);
 header.Header_Type=fread(fid,1,'char');
 if header.Header_Type ~= 4
-  error('*.trc file is not Micromed System98 Header type 4')
+  ft_error('*.trc file is not Micromed System98 Header type 4')
 end
 
 fseek(fid,138,-1);
@@ -142,7 +139,7 @@ if nargin==1
   datend = ftell(fid);
   header.Num_Samples = (datend-datbeg)/(header.Bytes*header.Num_Chan);
   if rem(header.Num_Samples, 1)~=0
-    warning('rounding off the number of samples');
+    ft_warning('rounding off the number of samples');
     header.Num_Samples = floor(header.Num_Samples);
   end
   % output the header
@@ -170,7 +167,7 @@ else
   for iElec = 1 : header.Num_Chan
          data(iElec,:) = ((data(iElec,:)-header.elec(iElec).LogicGnd)/(header.elec(iElec).LogicMax-header.elec(iElec).LogicMin+1)) ...
         *(header.elec(iElec).PhysMax-header.elec(iElec).PhysMin);
-  end;
+  end
   output = data;
   % FIXME why is this value of -32768 subtracted?
   % FIXME some sort of calibration should be applied to get it into microvolt

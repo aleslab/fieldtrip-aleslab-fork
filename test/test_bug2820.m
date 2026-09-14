@@ -1,7 +1,9 @@
-% function test_bug2820
+function test_bug2820
 
 % WALLTIME 00:10:00
-% MEM 2gb
+% MEM 1gb
+% DEPENDENCY
+% DATA no
 
 % it should be is2Dana && ~is2Dfun, so start with a surface
 [ftver, ftpath] = ft_version;

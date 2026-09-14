@@ -220,7 +220,7 @@ for index=[0:7 10 13 14 17 28 29]
       break;
     end
   end
-  if isempty(strfind(ds.res4.chanNames(k,:),'-'));break;end
+  if isempty(k)||isempty(strfind(ds.res4.chanNames(k,:),'-'));break;end
 end
 clear index k chanName;
 
@@ -310,7 +310,7 @@ else
   for chan=1:nChan           %  Convert EEGs from uV to V, SQUIDs from fT to T
     SQUIDtype=any(ds.res4.senres(chan).sensorTypeIndex==[0:7]);
     EEGtype=any(ds.res4.senres(chan).sensorTypeIndex==[8 9]);
-    if EEGtype & (strcmp(unit,'ft') | strtcmp(unit,'phi0'))
+    if EEGtype & (strcmp(unit,'ft') | strcmp(unit,'phi0'))
       alphaG=1e-6;
     elseif SQUIDtype & strcmp(unit,'ft')
       alphaG=1e-15;

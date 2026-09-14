@@ -1,4 +1,4 @@
-function tf = ft_platform_supports(what,varargin)
+function tf = ft_platform_supports(what, varargin)
 
 % FT_PLATFORM_SUPPORTS returns a boolean indicating whether the current platform
 % supports a specific capability
@@ -16,7 +16,7 @@ function tf = ft_platform_supports(what,varargin)
 %   'onCleanup'                     onCleanup(...)
 %   'alim'                          alim(...)
 %   'int32_logical_operations'      bitand(a,b) with a, b of type int32
-%   'graphics_objects'              graphics sysem is object-oriented
+%   'graphics_objects'              graphics system is object-oriented
 %   'libmx_c_interface'             libmx is supported through mex in the C-language (recent MATLAB versions only support C++)
 %   'images'                        all image processing functions in FieldTrip's external/images directory
 %   'signal'                        all signal processing functions in FieldTrip's external/signal directory
@@ -37,8 +37,41 @@ function tf = ft_platform_supports(what,varargin)
 %   'uimenu'                        uimenu(...)
 %   'weboptions'                    weboptions(...)
 %   'parula'                        parula(...)
+%   'datetime'                      datetime structure
+%   'html'                          html rendering in desktop
 %
 % See also FT_VERSION, VERSION, VER, VERLESSTHAN
+
+% Copyright (C) 2006-2021, Robert Oostenveld
+% Copyright (C) 2010, Eelke Spaak
+%
+% This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
+% for the documentation and details.
+%
+% FieldTrip is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+%
+% FieldTrip is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
+%
+% $Id$
+
+% these are for remembering the output on subsequent calls that have the same input arguments
+persistent previous_argin previous_argout
+
+current_argin = {what, varargin};
+if isequal(current_argin, previous_argin)
+  % return the previous output from cache
+  tf = previous_argout{1};
+  return
+end
 
 if ~ischar(what)
   error('first argument must be a string');
@@ -47,6 +80,9 @@ end
 switch what
   case 'matlabversion'
     tf = is_matlab() && matlabversion(varargin{:});
+
+  case 'octaveversion'
+    tf = is_octave() && octaveversion(varargin{:});
     
   case 'exists-in-private-directory'
     tf = is_matlab();
@@ -76,29 +112,39 @@ switch what
 
   case 'images'
     root_dir = fileparts(which('ft_defaults'));
-    external_stats_dir = fullfile(root_dir, 'external', 'images');
-    
-    tf = has_all_functions_in_dir(external_stats_dir, []);
+    if ~isempty(root_dir)
+       external_stats_dir = fullfile(root_dir, 'external', 'images');
+       tf = has_all_functions_in_dir(external_stats_dir, {});
+    else
+      % this probably only works for MATLAB, not for Octave
+      tf = ~isempty(ver('images'));
+    end
     
   case 'signal'
     root_dir = fileparts(which('ft_defaults'));
-    external_stats_dir = fullfile(root_dir, 'external', 'signal');
-    
-    tf = has_all_functions_in_dir(external_stats_dir, []);
-    
+    if ~isempty(root_dir)
+      external_stats_dir = fullfile(root_dir, 'external', 'signal');
+      tf = has_all_functions_in_dir(external_stats_dir, {});
+    else
+      % this probably only works for MATLAB, not for Octave
+      tf = ~isempty(ver('signal'));
+    end
+
   case 'stats'
     root_dir = fileparts(which('ft_defaults'));
-    external_stats_dir = fullfile(root_dir, 'external', 'stats');
-    
-    % these files are only used by other functions in the external/stats directory
-    exclude_mfiles = {
-      'common_size.m'
-      'iscomplex.m'
-      'lgamma.m'
-      };
-    
-    tf = has_all_functions_in_dir(external_stats_dir, exclude_mfiles);
-    
+    if ~isempty(root_dir)
+      external_stats_dir = fullfile(root_dir, 'external', 'stats');
+      % these files are only used by the other functions in the external/stats directory
+      exclude_mfiles = {
+        'common_size.m'
+        'iscomplex.m'
+        };
+      tf = has_all_functions_in_dir(external_stats_dir, exclude_mfiles);
+    else
+      % this probably only works for MATLAB, not for Octave
+      tf = ~isempty(ver('stats'));
+    end
+      
   case 'program_invocation_name'
     % Octave supports program_invocation_name, which returns the path
     % of the binary that was run to start Octave
@@ -156,10 +202,22 @@ switch what
   case 'parula'
     tf = is_matlab() && matlabversion('2014b', Inf);
     
+  case 'datetime'
+    tf = is_matlab() && matlabversion('2014b', Inf);
+
+  case 'html'
+    tf = ~is_octave() && usejava('desktop') && desktop('-inuse');
+    
   otherwise
     error('unsupported value for first argument: %s', what);
     
 end % switch
+
+% remember the current input and output arguments, so that they can be
+% reused on a subsequent call in case the same input argument is given
+current_argout = {tf};
+previous_argin  = current_argin;
+previous_argout = current_argout;
 
 end % function
 
@@ -203,11 +261,31 @@ tf = true;
 
 end % function
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% SUBFUNCTION
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [inInterval] = matlabversion(min, max)
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [inInterval] = octaveversion(min, max)
+% the version does not change, making it persistent speeds up the subsequent calls
+persistent curVer
+
+if nargin<2
+  max = min;
+end
+
+if isempty(curVer)
+  curVer = OCTAVE_VERSION;
+end
+
+% perform comparison with respect to version number
+[major, minor] = parseMatlabVersion(curVer);
+[minMajor, minMinor] = parseMatlabVersion(min);
+[maxMajor, maxMinor] = parseMatlabVersion(max);
+
+inInterval = orderedComparison(minMajor, minMinor, maxMajor, maxMinor, major, minor);
+
+end % function
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MATLABVERSION checks if the current MATLAB version is within the interval
 % specified by min and max.
 %
@@ -226,27 +304,8 @@ function [inInterval] = matlabversion(min, max)
 % etc.
 %
 % See also VERSION, VER, VERLESSTHAN
-
-% Copyright (C) 2006, Robert Oostenveld
-% Copyright (C) 2010, Eelke Spaak
-%
-% This file is part of FieldTrip, see http://www.fieldtriptoolbox.org
-% for the documentation and details.
-%
-% FieldTrip is free software: you can redistribute it and/or modify
-% it under the terms of the GNU General Public License as published by
-% the Free Software Foundation, either version 3 of the License, or
-% (at your option) any later version.
-%
-% FieldTrip is distributed in the hope that it will be useful,
-% but WITHOUT ANY WARRANTY; without even the implied warranty of
-% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-% GNU General Public License for more details.
-%
-% You should have received a copy of the GNU General Public License
-% along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
-%
-% $Id$
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [inInterval] = matlabversion(min, max)
 
 % the version does not change, making it persistent speeds up the subsequent calls
 persistent curVer
@@ -308,8 +367,8 @@ elseif (isnumeric(ver))
   minor = int8((ver - floor(ver)) * 10);
 else % ver is string (e.g. '7.10'), parse accordingly
   [major, rest] = strtok(ver, '.');
-  major = str2num(major);
-  minor = str2num(strtok(rest, '.'));
+  major = str2double(major);
+  minor = str2double(strtok(rest, '.'));
 end
 end % function
 

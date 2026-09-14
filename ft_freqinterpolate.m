@@ -52,7 +52,6 @@ ft_preamble init
 ft_preamble debug
 ft_preamble loadvar freq
 ft_preamble provenance freq
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -86,20 +85,19 @@ for i = 1:size(cfg.foilim,1)
       case 'rpt_chan_freq_time'
         freq.powspctrm(:,:,peakbeg:peakend,:) = nan;
       otherwise
-        error('unsupported dimord');
+        ft_error('unsupported dimord');
     end % switch
 
   elseif strcmp(cfg.method, 'linear')
-    error('not yet implemented');
+    ft_error('not yet implemented');
 
   else
-    error('unsupported method');
+    ft_error('unsupported method');
   end
 end % for each frequency range
 
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous   freq
 ft_postamble provenance freq
 ft_postamble history    freq

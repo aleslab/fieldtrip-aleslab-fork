@@ -5,11 +5,12 @@ function [spectrum, freqoi, timeoi] = ft_specest_tfr(dat, time, varargin)
 % domain.
 %
 % Use as
-%   [spectrum,freqoi,timeoi] = ft_specest_convol(dat,time,...)
-% where
-%   dat       = matrix of chan*sample
+%   [spectrum, freqoi, timeoi] = ft_specest_convol(dat, time, ...)
+% where the input arguments are
+%   dat       = matrix of nchan*nsample
 %   time      = vector, containing time in seconds for each sample
-%   spectrum  = array of chan*freqoi*timeoi of fourier coefficients
+% and the output arguments are
+%   spectrum  = array of nchan*nfreq*ntime of fourier coefficients
 %   freqoi    = vector of frequencies in spectrum
 %   timeoi    = vector of timebins in spectrum
 %
@@ -18,8 +19,8 @@ function [spectrum, freqoi, timeoi] = ft_specest_tfr(dat, time, varargin)
 %   freqoi    = vector, containing frequencies (in Hz)
 %   width     = number or vector, width of the wavelet, determines the temporal and spectral resolution (default = 7)
 %   gwidth    = number, determines the length of the used wavelets in standard deviations of the implicit Gaussian kernel
-%   verbose   = output progress to console (0 or 1, default 1)
 %   polyorder = number, the order of the polynomial to fitted to and removed from the data prior to the fourier transform (default = 0 -> remove DC-component)
+%   verbose   = output progress to console (0 or 1, default 1)
 %
 % See also FT_FREQANALYSIS, FT_SPECEST_MTMFFT, FT_SPECEST_MTMCONVOL, FT_SPECEST_HILBERT, FT_SPECEST_NANFFT, FT_SPECEST_WAVELET
 
@@ -53,17 +54,18 @@ polyorder = ft_getopt(varargin, 'polyorder', 0);
 fbopt     = ft_getopt(varargin, 'feedback');
 verbose   = ft_getopt(varargin, 'verbose', true);
 
-if isempty(fbopt),
+if isempty(fbopt)
   fbopt.i = 1;
   fbopt.n = 1;
 end
+
+verbose = istrue(verbose); % if the calling function has 'yes'/'no'/etc
 
 % Set n's
 [nchan,ndatsample] = size(dat);
 
 % This does not work on integer data
-typ = class(dat);
-if ~strcmp(typ, 'double') && ~strcmp(typ, 'single')
+if ~isa(dat, 'double') && ~isa(dat, 'single')
   dat = cast(dat, 'double');
 end
 
@@ -78,7 +80,7 @@ dattime = ndatsample / fsample; % total time in seconds of input data
 
 % Zero padding
 if round(pad * fsample) < ndatsample
-  error('the padding that you specified is shorter than the data');
+  ft_error('the padding that you specified is shorter than the data');
 end
 if isempty(pad) % if no padding is specified padding is equal to current data length
   pad = dattime;
@@ -189,7 +191,7 @@ for ifreqoi = 1:nfreqoi
   %   else
   %     line([ceil(tline) ceil(tline)],[-max(abs(wavelet)) max(abs(wavelet))],'color','g','linestyle','--');
   %     line([floor(tline) floor(tline)],[-max(abs(wavelet)) max(abs(wavelet))],'color','g','linestyle','--');
-  %   end;
+  %   end
   %   subplot(2,1,2);
   %   plot(angle(wavelet),'color','g');
   %   if mod(tline,2)==0,
@@ -205,9 +207,9 @@ end
 
 % compute spectrum by convolving the wavelets with the data
 spectrum = complex(nan(nchan,nfreqoi,ntimeboi),nan(nchan,nfreqoi,ntimeboi));
+[st, cws] = dbstack;
 for ifreqoi = 1:nfreqoi
   str = sprintf('frequency %d (%.2f Hz)', ifreqoi,freqoi(ifreqoi));
-  [st, cws] = dbstack;
   if length(st)>1 && strcmp(st(2).name, 'ft_freqanalysis') && verbose
     % specest_convol has been called by ft_freqanalysis, meaning that ft_progress has been initialised
     ft_progress(fbopt.i./fbopt.n, ['trial %d, ',str,'\n'], fbopt.i);

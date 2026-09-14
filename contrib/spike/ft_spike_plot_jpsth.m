@@ -26,7 +26,7 @@ function [cfg] = ft_spike_plot_jpsth(cfg, jpsth)
 %     ' gausswin'     use a Gaussian smooth function
 %     ' boxcar'       use a box-car to smooth
 %   cfg.gaussvar    =  variance  (default = 1/16 of window length in sec).
-%   cfg.winlen      =  cfg.window length in seconds (default = 5*binwidth).
+%   cfg.winlen      =  window length in seconds (default = 5*binwidth).
 %     length of our window is 2*round*(cfg.winlen/binwidth)
 %     where binwidth is the binwidth of the jpsth (jpsth.time(2)-jpsth.time(1)).
 %
@@ -63,7 +63,7 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble provenance jpsth
-ft_preamble trackconfig
+
 
 % get the default options
 cfg.channelcmb  = ft_getopt(cfg,'channelcmb', 'all');
@@ -110,7 +110,7 @@ end
 isNaN = 1;
 k = 1;
 while isNaN
-  if any(isnan(jpsth.psth(cmbindx,k))), 
+  if any(isnan(jpsth.psth(cmbindx,k)))
     disp('deleting NaNs at the borders')
     jpsth.psth(:,k) = [];
     dens(k,:) = [];
@@ -124,7 +124,7 @@ end
 isNaN = 1;
 k = size(jpsth.psth,2);
 while isNaN
-  if any(isnan(jpsth.psth(cmbindx,k))), 
+  if any(isnan(jpsth.psth(cmbindx,k)))
     disp('deleting NaNs at the borders')
     jpsth.psth(:,k) = [];
     dens(k,:) = [];
@@ -161,7 +161,7 @@ sampleTime    = mean(diff(jpsth.time)); % get the binwidt
 
 
 % smooth the jpsth with a kernel if requested
-if ~strcmp(cfg.window,'no')
+if ~strcmp(cfg.window, 'no')
   
   % construct the kernel
   winTime       = [fliplr(0:-sampleTime:-cfg.winlen) sampleTime:sampleTime:cfg.winlen];
@@ -258,7 +258,7 @@ end
 
 % create the colorbar if requested
 if strcmp(cfg.colorbar,'yes')
-  caxis([min(dens(:))-0.05 max(dens(:))+0.05])
+  clim([min(dens(:))-0.05 max(dens(:))+0.05])
   colormap(cfg.colormap);                  % create the colormap as the user wants
   H.colorbarHdl = colorbar;                % create a colorbar
   
@@ -320,7 +320,7 @@ set(zoom,'ActionPostCallback',{@mypostcallback,ax,cfg.latency,psthLim});
 set(pan,'ActionPostCallback',{@mypostcallback,ax,cfg.latency,psthLim});
 
 % do the general cleanup and bookkeeping at the end of the function
-ft_postamble trackconfig
+
 ft_postamble previous jpsth
 ft_postamble provenance
 

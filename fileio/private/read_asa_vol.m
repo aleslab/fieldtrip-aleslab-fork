@@ -26,18 +26,18 @@ function vol = read_asa_vol(fn)
 %
 % $Id$
 
-Nbnd  = read_asa(fn, 'NumberBoundaries=', '%d');
-UnitC = read_asa(fn, 'UnitConduct', '%s');
-UnitP = read_asa(fn, 'UnitPosition', '%s');
-cond  = read_asa(fn, 'Conductivities', '%f');
-radii = read_asa(fn, 'Radii', '%f');
-pos   = read_asa(fn, 'Positions', '%f');
-bnd1  = read_asa(fn, 'Boundary1', '%s');
-bnd2  = read_asa(fn, 'Boundary2', '%s');
-bnd3  = read_asa(fn, 'Boundary3', '%s');
-bnd4  = read_asa(fn, 'Boundary4', '%s');
+Nbnd  = read_ini(fn, 'NumberBoundaries=', '%d');
+UnitC = read_ini(fn, 'UnitConduct', '%s');
+UnitP = read_ini(fn, 'UnitPosition', '%s');
+cond  = read_ini(fn, 'Conductivities', '%f');
+radii = read_ini(fn, 'Radii', '%f');
+pos   = read_ini(fn, 'Positions', '%f');
+bnd1  = read_ini(fn, 'Boundary1', '%s');
+bnd2  = read_ini(fn, 'Boundary2', '%s');
+bnd3  = read_ini(fn, 'Boundary3', '%s');
+bnd4  = read_ini(fn, 'Boundary4', '%s');
 
-if ~isempty(radii) | ~isempty(pos)
+if ~isempty(radii) || ~isempty(pos)
   % this appears to be a spherical volume conductor
   if strcmpi(UnitP,'mm')
     radii = 1*radii;
@@ -49,7 +49,7 @@ if ~isempty(radii) | ~isempty(pos)
     radii = 1000*radii;
     pos   = 1000*pos;
   else
-    error(sprintf('Unknown unit of distance for volume (%s)', UnitP));
+    ft_error(sprintf('Unknown unit of distance for volume (%s)', UnitP));
   end
 end
 
@@ -60,7 +60,7 @@ elseif strcmpi(UnitC,'s/cm')
 elseif strcmpi(UnitC,'s/mm')
   cond = cond/1000;
 else
-  error(sprintf('Unknown unit of conductivity for volume (%s)', UnitC));
+  ft_error(sprintf('Unknown unit of conductivity for volume (%s)', UnitC));
 end
 
 if ~isempty(radii)
@@ -84,26 +84,22 @@ else
     vol.bnd(4) = read_asa_bnd(fullfile(path, bnd4));
   end
   if Nbnd>=5
-    error('cannot read more than 4 boundaries');
+    ft_error('cannot read more than 4 boundaries');
   end
 
   % if there is a precomputed matrix, read it from an external file
-  mat_file = read_asa(fn, 'Matrix', '%s');
+  mat_file = read_ini(fn, 'Matrix', '%s');
   if ~isempty(mat_file)
-    nr = read_asa(fullfile(path, mat_file), 'NumberRows=', '%d');
-    nc = read_asa(fullfile(path, mat_file), 'NumberColumns=', '%d');
-    mab_file = read_asa(fullfile(path, mat_file), 'Matrix', '%s');
-    fid = fopen(fullfile(path, mab_file), 'rb', 'ieee-le');
-    if fid==-1
-      error(sprintf('could not open file %s', mab_file));
-    else
-      vol.mat = fread(fid, [nr nc], 'float32');
-      fclose(fid);
-      % remove the factor 2 that ASA assumes in the system matrix
-      vol.mat = vol.mat/2;
-      % scale the system matrix corresponding to vertex coordinates in mm
-      vol.mat = vol.mat*100;
-    end
+    nr = read_ini(fullfile(path, mat_file), 'NumberRows=', '%d');
+    nc = read_ini(fullfile(path, mat_file), 'NumberColumns=', '%d');
+    mab_file = read_ini(fullfile(path, mat_file), 'Matrix', '%s');
+    fid = fopen_or_error(fullfile(path, mab_file), 'rb', 'ieee-le');
+    vol.mat = fread(fid, [nr nc], 'float32');
+    fclose(fid);
+    % remove the factor 2 that ASA assumes in the system matrix
+    vol.mat = vol.mat/2;
+    % scale the system matrix corresponding to vertex coordinates in mm
+    vol.mat = vol.mat*100;
   end
 
   vol.cond   = cond;

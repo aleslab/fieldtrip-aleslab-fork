@@ -120,9 +120,9 @@ while true
       endsample  = hdr.nSamples*hdr.nTrials;
     elseif strcmp(cfg.bufferdata, 'first')
       begsample  = prevSample + 1;
-      endsample  = prevSample + blocksize ;
+      endsample  = prevSample + blocksize;
     else
-      error('unsupported value for cfg.bufferdata');
+      ft_error('unsupported value for cfg.bufferdata');
     end
 
     % this allows overlapping data segments

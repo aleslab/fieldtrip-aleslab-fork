@@ -1,27 +1,28 @@
-function [spectrum,freqoi,timeoi] = ft_specest_wavelet(dat, time, varargin)
+function [spectrum, freqoi, timeoi] = ft_specest_wavelet(dat, time, varargin)
 
 % FT_SPECEST_WAVELET performs time-frequency analysis on any time series trial data
 % using the 'wavelet method' based on Morlet wavelets, doing convolution in the time
 % domain by multiplication in the frequency domain.
 %
 % Use as
-%   [spectrum,freqoi,timeoi] = ft_specest_wavelet(dat,time...)
-% where
+%   [spectrum, freqoi, timeoi] = ft_specest_wavelet(dat, time, ...)
+% where the input arguments are
 %   dat       = matrix of chan*sample
 %   time      = vector, containing time in seconds for each sample
+% and the output arguments are
 %   spectrum  = array of chan*freqoi*timeoi of fourier coefficients
 %   freqoi    = vector of frequencies in spectrum
 %   timeoi    = vector of timebins in spectrum
 %
 % Optional arguments should be specified in key-value pairs and can include
-%   pad       = number, total length of data after zero padding (in seconds)
-%   padtype   = string, indicating type of padding to be used (see ft_preproc_padding, default = 'zero')
-%   freqoi    = vector, containing frequencies of interest
 %   timeoi    = vector, containing time points of interest (in seconds)
+%   freqoi    = vector, containing frequencies of interest
 %   width     = number or vector, width of the wavelet, determines the temporal and spectral resolution
 %   gwidth    = number, determines the length of the used wavelets in standard deviations of the implicit Gaussian kernel
-%   verbose   = output progress to console (0 or 1, default 1)
+%   pad       = number, total length of data after zero padding (in seconds)
+%   padtype   = string, indicating type of padding to be used, can be 'zero', 'mean', 'localmean', 'edge', or 'mirror' (default = 'zero')
 %   polyorder = number, the order of the polynomial to fitted to and removed from the data prior to the fourier transform (default = 0 -> remove DC-component)
+%   verbose   = output progress to console (0 or 1, default 1)
 %
 % See also FT_FREQANALYSIS, FT_SPECEST_MTMCONVOL, FT_SPECEST_TFR, FT_SPECEST_HILBERT, FT_SPECEST_MTMFFT
 
@@ -56,17 +57,18 @@ polyorder = ft_getopt(varargin, 'polyorder', 0);
 fbopt     = ft_getopt(varargin, 'feedback');
 verbose   = ft_getopt(varargin, 'verbose', true);
 
-if isempty(fbopt),
+if isempty(fbopt)
   fbopt.i = 1;
   fbopt.n = 1;
 end
+
+verbose = istrue(verbose); % if the calling function has 'yes'/'no'/etc
 
 % Set n's
 [nchan,ndatsample] = size(dat);
 
 % This does not work on integer data
-typ = class(dat);
-if ~strcmp(typ, 'double') && ~strcmp(typ, 'single')
+if ~isa(dat, 'double') && ~isa(dat, 'single')
   dat = cast(dat, 'double');
 end
 
@@ -81,7 +83,7 @@ dattime = ndatsample / fsample; % total time in seconds of input data
 
 % Zero padding
 if round(pad * fsample) < ndatsample
-  error('the padding that you specified is shorter than the data');
+  ft_error('the padding that you specified is shorter than the data');
 end
 if isempty(pad) % if no padding is specified padding is equal to current data length
   pad = dattime;
@@ -149,7 +151,6 @@ if isnumeric(timeoiinput)
   end
 end
 
-
 % Creating wavelets
 % expand width to array if constant width
 if numel(width) == 1
@@ -191,7 +192,7 @@ for ifreqoi = 1:nfreqoi
   %   else
   %     line([ceil(tline) ceil(tline)],[-max(abs(wavelet)) max(abs(wavelet))],'color','g','linestyle','--');
   %     line([floor(tline) floor(tline)],[-max(abs(wavelet)) max(abs(wavelet))],'color','g','linestyle','--');
-  %   end;
+  %   end
   %   subplot(2,1,2);
   %   plot(angle(wavelet),'color','g');
   %   if mod(tline,2)==0,
@@ -204,14 +205,13 @@ for ifreqoi = 1:nfreqoi
   
 end
 
-
 % Compute fft
 spectrum = complex(nan(nchan,nfreqoi,ntimeboi),nan(nchan,nfreqoi,ntimeboi));
 datspectrum = fft(ft_preproc_padding(dat, padtype, 0, postpad), [], 2);
+[st, cws] = dbstack;
 for ifreqoi = 1:nfreqoi
   str = sprintf('frequency %d (%.2f Hz)', ifreqoi,freqoi(ifreqoi));
   
-  [st, cws] = dbstack;
   if length(st)>1 && strcmp(st(2).name, 'ft_freqanalysis') && verbose
     % specest_convol has been called by ft_freqanalysis, meaning that ft_progress has been initialised
     ft_progress(fbopt.i./fbopt.n, ['trial %d, ',str,'\n'], fbopt.i);
@@ -231,4 +231,3 @@ for ifreqoi = 1:nfreqoi
     spectrum(:,ifreqoi,reqtimeboiind) = dum(:,reqtimeboi);
   end
 end
-

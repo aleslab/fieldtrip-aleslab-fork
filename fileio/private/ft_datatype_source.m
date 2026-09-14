@@ -4,8 +4,8 @@ function [source] = ft_datatype_source(source, varargin)
 % represented at the source level. This is typically obtained with a beamformer of
 % minimum-norm source reconstruction using FT_SOURCEANALYSIS.
 %
-% An example of a source structure obtained after performing DICS (a frequency
-% domain beamformer scanning method) is shown here
+% An example of a source structure obtained after performing DICS (a frequency domain
+% beamformer scan) is shown here
 %
 %           pos: [6732x3 double]       positions at which the source activity could have been estimated
 %        inside: [6732x1 logical]      boolean vector that indicates at which positions the source activity was estimated
@@ -23,17 +23,14 @@ function [source] = ft_datatype_source(source, varargin)
 %   - pos
 %
 % Optional fields:
-%   - time, freq, pow, coh, eta, mom, ori, cumtapcnt, dim, transform, inside, cfg, dimord, other fields with a dimord
+%   - inside, pow, coh, eta, mom, ori, leadfield, filter, or any other field with dimensions that are consistent with pos or dim
+%   - dim, transform, unit, coordsys, time, freq, cumtapcnt, dimord 
 %
 % Deprecated fields:
 %   - method, outside
 %
 % Obsoleted fields:
 %   - xgrid, ygrid, zgrid, transform, latency, frequency
-%
-% Historical fields:
-%   - avg, cfg, cumtapcnt, df, dim, freq, frequency, inside, method,
-%   outside, pos, time, trial, vol, see bug2513
 %
 % Revision history:
 %
@@ -93,12 +90,12 @@ end
 
 % old data structures may use latency/frequency instead of time/freq. It is
 % unclear when these were introduced and removed again, but they were never
-% used by any FieldTrip function itself
-if isfield(source, 'frequency'),
+% used by any FieldTrip function itself.
+if isfield(source, 'frequency')
   source.freq = source.frequency;
   source      = rmfield(source, 'frequency');
 end
-if isfield(source, 'latency'),
+if isfield(source, 'latency')
   source.time = source.latency;
   source      = rmfield(source, 'latency');
 end
@@ -109,8 +106,20 @@ switch version
     % ensure that it has individual source positions
     source = fixpos(source);
     
-    % ensure that it is always logical
-    source = fixinside(source, 'logical');
+    if isfield(source, 'inside')
+      % ensure that it is always logical
+      source = fixinside(source, 'logical');
+    end
+    
+    if isfield(source, 'coordsys')
+      % ensure that it is in lower case
+      source.coordsys = lower(source.coordsys);
+    end
+    
+    if isfield(source, 'unit')
+      % ensure that it is in lower case
+      source.unit = lower(source.unit);
+    end
     
     % remove obsolete fields
     if isfield(source, 'method')
@@ -128,7 +137,7 @@ switch version
     if isfield(source, 'zgrid')
       source = rmfield(source, 'zgrid');
     end
-
+    
     if isfield(source, 'avg') && isstruct(source.avg) && isfield(source, 'trial') && isstruct(source.trial) && ~isempty(intersect(fieldnames(source.avg), fieldnames(source.trial)))
       % it is not possible to convert both since they have the same field names
       ft_warning('removing ''avg'', keeping ''trial''');
@@ -150,14 +159,6 @@ switch version
       source = rmfield(source, 'avg');
     end
     
-    if isfield(source, 'inside')
-      % the inside is by definition logically indexed
-      probe = find(source.inside, 1, 'first');
-    else
-      % just take the first source position
-      probe = 1;
-    end
-    
     if isfield(source, 'trial') && isstruct(source.trial)
       npos = size(source.pos,1);
       
@@ -166,8 +167,8 @@ switch version
       
       for i=1:length(fn)
         % some fields are descriptive and hence identical over trials
-        if strcmp(fn{i}, 'csdlabel')
-          source.csdlabel = dat;
+        if any(strcmp(fn{i}, {'csdlabel' 'label' 'filterdimord' 'leadfielddimord'}))
+          source.(fn{i}) = source.trial(1).(fn{i});
           continue
         end
         
@@ -177,11 +178,14 @@ switch version
         nrpt   = datsiz(1);
         datsiz = datsiz(2:end);
         
-        
         if iscell(dat)
           datsiz(1) = nrpt; % swap the size of pos with the size of rpt
           val  = cell(npos,1);
-          indx = find(source.inside);
+          if isfield(source, 'inside')
+            indx = find(source.inside);
+          else
+            indx = 1:npos;
+          end
           for k=1:length(indx)
             val{indx(k)}          = nan(datsiz);
             val{indx(k)}(1,:,:,:) = dat{indx(k)};
@@ -205,22 +209,22 @@ switch version
             val(:,j,:,:,:) = dat(:,:,:,:);
           end % for all trials
           source.(fn{i}) = val;
-
-%         else
-%           siz = size(dat);
-%           if prod(siz)==npos
-%             siz = [npos nrpt];
-%           elseif siz(1)==npos
-%             siz = [npos nrpt siz(2:end)];
-%           end
-%           val = nan(siz);
-%           % concatenate all data as pos_rpt_etc
-%           val(:,1,:,:,:) = dat(:);
-%           for j=2:length(source.trial)
-%             dat = source.trial(j).(fn{i});
-%             val(:,j,:,:,:) = dat(:);
-%           end % for all trials
-%           source.(fn{i}) = val;
+          
+          %         else
+          %           siz = size(dat);
+          %           if prod(siz)==npos
+          %             siz = [npos nrpt];
+          %           elseif siz(1)==npos
+          %             siz = [npos nrpt siz(2:end)];
+          %           end
+          %           val = nan(siz);
+          %           % concatenate all data as pos_rpt_etc
+          %           val(:,1,:,:,:) = dat(:);
+          %           for j=2:length(source.trial)
+          %             dat = source.trial(j).(fn{i});
+          %             val(:,j,:,:,:) = dat(:);
+          %           end % for all trials
+          %           source.(fn{i}) = val;
           
         end
       end % for each field
@@ -232,23 +236,52 @@ switch version
     % ensure that it has a dimord (or multiple for the different fields)
     source = fixdimord(source);
     
+    if isfield(source, 'inside')
+      % ensure that for positions outside the brain it is [], not nan
+      if isfield(source, 'leadfield')
+        source.leadfield(~source.inside) = {[]};
+      end
+      if isfield(source, 'filter')
+        source.filter(~source.inside) = {[]};
+      end
+    end
+   
+    if isfield(source, 'leadfield') && ~isfield(source, 'label') && isfield(source, 'cfg')
+      % try to determine the channel labels from the cfg
+      label = ft_findcfg(source.cfg, 'channel');
+      if ~isempty(label)
+        source.label = label;
+      end
+    end
+    
+    if isfield(source, 'filter') && ~isfield(source, 'label') && isfield(source, 'cfg')
+      % try to determine the channel labels from the cfg
+      label = ft_findcfg(source.cfg, 'channel');
+      if ~isempty(label)
+        source.label = label;
+      end
+    end
+    
     % ensure that all data fields have the correct dimensions
     fn = getdatfield(source);
     for i=1:numel(fn)
       dimord = getdimord(source, fn{i});
       dimtok = tokenize(dimord, '_');
-      dimsiz = getdimsiz(source, fn{i});
-      dimsiz(end+1:length(dimtok)) = 1; % there can be additional trailing singleton dimensions
+      dimsiz = getdimsiz(source, fn{i}, numel(dimtok));
       if numel(dimsiz)>=3 && strcmp(dimtok{1}, 'dim1') && strcmp(dimtok{2}, 'dim2') && strcmp(dimtok{3}, 'dim3')
         % convert it from voxel-based representation to position-based representation
         try
           source.(fn{i}) = reshape(source.(fn{i}), [prod(dimsiz(1:3)) dimsiz(4:end) 1]);
         catch
-          warning('could not reshape %s to the expected dimensions', fn{i});
+          ft_warning('could not reshape %s to the expected dimensions', fn{i});
         end
       end
     end
-      
+    
+    % ensure that the structure has all required fields
+    for required={'pos'}
+      assert(isfield(source, required), 'required field "%s" is missing', required{:});
+    end
     
   case '2011'
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -332,7 +365,7 @@ switch version
     
   otherwise
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    error('unsupported version "%s" for source datatype', version);
+    ft_error('unsupported version "%s" for source datatype', version);
 end
 
 function pos = grid2pos(xgrid, ygrid, zgrid)

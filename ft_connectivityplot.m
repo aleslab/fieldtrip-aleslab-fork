@@ -6,19 +6,16 @@ function [cfg] = ft_connectivityplot(cfg, varargin)
 %
 % Use as
 %   ft_connectivityplot(cfg, data)
+% where the first input argument is a configuration structure (see below)
+% and the input data is a structure obtained from  FT_CONNECTIVITYANALYSIS
+% using a frequency-domain connectivity metric. Consequently the input data
+% should have a dimord of 'chan_chan_freq', or 'chan_chan_freq_time'.
 %
-% The input data is a structure containing the output to FT_CONNECTIVITYANALYSIS
-% using a frequency domain metric of connectivity. Consequently the input
-% data should have a dimord of 'chan_chan_freq', or 'chan_chan_freq_time'.
-%
-% The cfg can have the following options:
+% The configuration can have the following options
 %   cfg.parameter   = string, the functional parameter to be plotted (default = 'cohspctrm')
-%   cfg.xlim        = selection boundaries over first dimension in data (e.g., freq)
-%                     'maxmin' or [xmin xmax] (default = 'maxmin')
-%   cfg.ylim        = selection boundaries over second dimension in data
-%                     (i.e. ,time, if present), 'maxmin', or [ymin ymax]
-%                     (default = 'maxmin')
-%   cfg.zlim        = plotting limits for color dimension, 'maxmin', 'maxabs' or [zmin zmax] (default = 'maxmin')
+%   cfg.xlim        = 'maxmin', 'maxabs', 'zeromax', 'minzero', or [xmin xmax] (default = 'maxmin')
+%   cfg.ylim        = 'maxmin', 'maxabs', 'zeromax', 'minzero', or [ymin ymax] (default = 'maxmin')
+%   cfg.zlim        = plotting limits for color dimension, 'maxmin', 'maxabs', 'zeromax', 'minzero', or [zmin zmax] (default = 'maxmin')
 %   cfg.channel     = list of channels to be included for the plotting (default = 'all'), see FT_CHANNELSELECTION for details
 %
 % See also FT_CONNECTIVITYANALYSIS, FT_CONNECTIVITYSIMULATION, FT_MULTIPLOTCC, FT_TOPOPLOTCC
@@ -52,8 +49,8 @@ ft_nargout  = nargout;
 ft_defaults
 ft_preamble init
 ft_preamble debug
+ft_preamble loadvar varargin
 ft_preamble provenance varargin
-ft_preamble trackconfig
 
 % the ft_abort variable is set to true or false in ft_preamble_init
 if ft_abort
@@ -61,16 +58,20 @@ if ft_abort
 end
 
 % check if the input cfg is valid for this function
-cfg = ft_checkconfig(cfg, 'renamed', {'zparam', 'parameter'});
-cfg = ft_checkconfig(cfg, 'renamed', {'color',  'graphcolor'}); % to make it consistent with ft_singleplotER
+cfg = ft_checkconfig(cfg, 'forbidden',  {'channels'}); % prevent accidental typos, see issue 1729
+cfg = ft_checkconfig(cfg, 'renamed',    {'zparam',     'parameter'});
+cfg = ft_checkconfig(cfg, 'renamed',    {'color',      'linecolor'});
+cfg = ft_checkconfig(cfg, 'renamed',    {'graphcolor', 'linecolor'});
 
 % set the defaults
-cfg.channel   = ft_getopt(cfg, 'channel',   'all');
-cfg.parameter = ft_getopt(cfg, 'parameter', 'cohspctrm');
-cfg.zlim      = ft_getopt(cfg, 'zlim',      'maxmin');
-cfg.ylim      = ft_getopt(cfg, 'ylim',      'maxmin');
-cfg.xlim      = ft_getopt(cfg, 'xlim',      'maxmin');
-cfg.graphcolor = ft_getopt(cfg, 'graphcolor', 'brgkywrgbkywrgbkywrgbkyw');
+cfg.channel     = ft_getopt(cfg, 'channel',   'all');
+cfg.parameter   = ft_getopt(cfg, 'parameter', 'cohspctrm');
+cfg.zlim        = ft_getopt(cfg, 'zlim',      'maxmin');
+cfg.ylim        = ft_getopt(cfg, 'ylim',      'maxmin');
+cfg.xlim        = ft_getopt(cfg, 'xlim',      'maxmin');
+cfg.linecolor   = ft_getopt(cfg, 'linecolor', 'brgkywrgbkywrgbkywrgbkyw');
+cfg.linestyle   = ft_getopt(cfg, 'linestyle', '-');
+cfg.linewidth   = ft_getopt(cfg, 'linewidth', 0.5);
 
 % check if the input data is valid for this function
 % ensure that the input is correct
@@ -78,6 +79,25 @@ Ndata = numel(varargin);
 dtype = cell(Ndata, 1);
 iname = cell(Ndata+1, 1);
 for k = 1:Ndata
+  if ischar(cfg.parameter)
+    cfg.parameter = repmat({cfg.parameter}, [1 Ndata]);
+  end
+
+  % check whether all requested parameters are the same. If not, rename
+  % this, because otherwise a call to ft_selectdata (below) won't work
+  if ~all(strcmp(cfg.parameter,cfg.parameter{1}))
+    fprintf('different types of connectivity are to be displayed in the same figure\n');
+    varargin{k}.connectivity = varargin{k}.(cfg.parameter{k});
+    varargin{k} = rmfield(varargin{k}, cfg.parameter{k});
+    if isfield(varargin{k}, [cfg.parameter{k} 'dimord'])
+      varargin{k}.connectivitydimord = varargin{k}.([cfg.parameter{k} 'dimord']);
+      varargin{k} = rmfield(varargin{k}, [cfg.parameter{k} 'dimord']);
+    end
+    cfg.parameter{k} = 'connectivity';
+  else
+    % don't worry
+  end
+
   % check if the input data is valid for this function
   varargin{k} = ft_checkdata(varargin{k}, 'datatype', {'timelock', 'freq'});
   dtype{k}    = ft_datatype(varargin{k});
@@ -88,17 +108,17 @@ for k = 1:Ndata
       % that's ok
     case {'chancmb_freq' 'chancmb_freq_time'}
       % convert into 'chan_chan_freq'
-      varargin{k} = ft_checkdata(varargin{k}, 'cmbrepresentation', 'full');
+      varargin{k} = ft_checkdata(varargin{k}, 'cmbstyle', 'full');
     otherwise
-      error('the data should have a dimord of %s or %s', 'chan_chan_freq', 'chancmb_freq');
+      ft_error('the data should have a dimord of %s or %s', 'chan_chan_freq', 'chancmb_freq');
   end
-  
-  % this is needed for correct treatment of graphcolor later on
-  if nargin>1,
+
+  % this is needed for correct treatment of linecolor later on
+  if nargin>1
     if ~isempty(inputname(k+1))
       iname{k+1} = inputname(k+1);
     else
-      iname{k+1} = ['input',num2str(k,'%02d')];
+      iname{k+1} = ['input',num2str(k, '%02d')];
     end
   else
     % not yet supported
@@ -106,14 +126,24 @@ for k = 1:Ndata
   end
 end
 
-if Ndata >1,
+if Ndata >1
   if ~all(strcmp(dtype{1}, dtype))
-    error('input data are of different type; this is not supported');
+    ft_error('input data are of different type; this is not supported');
   end
 end
 
+if ischar(cfg.linecolor)
+  % ensure it is a column vector of the right length
+  cfg.linecolor = repmat(cfg.linecolor(:), ceil(Ndata/length(cfg.linecolor)), 1);
+  cfg.linecolor = cfg.linecolor(1:Ndata);
+elseif isnumeric(cfg.linecolor)
+  % ensure it is a Nx3 matrix of the right length
+  cfg.linecolor = repmat(cfg.linecolor, ceil(Ndata/length(cfg.linecolor)), 1);
+  cfg.linecolor = cfg.linecolor(1:Ndata,:);
+end
+
 % ensure that the data in all inputs has the same channels, time-axis, etc.
-tmpcfg = keepfields(cfg, {'channel', 'showcallinfo'});
+tmpcfg = keepfields(cfg, {'channel', 'showcallinfo', 'trackcallinfo', 'trackusage', 'trackdatainfo', 'trackmeminfo', 'tracktimeinfo', 'checksize'});
 [varargin{:}] = ft_selectdata(tmpcfg, varargin{:});
 % restore the provenance information
 [cfg, varargin{:}] = rollback_provenance(cfg, varargin{:});
@@ -121,9 +151,9 @@ tmpcfg = keepfields(cfg, {'channel', 'showcallinfo'});
 % check presence of time / freq axes
 hasfreq = isfield(varargin{1}, 'freq');
 hastime = isfield(varargin{1}, 'time');
-if hasfreq && hastime,
-  if Ndata>1,
-    error('when the input data contains time-frequency representations, only a single data argument is allowed');
+if hasfreq && hastime
+  if Ndata>1
+    ft_error('when the input data contains time-frequency representations, only a single data argument is allowed');
   end
   xparam = 'time';
   yparam = 'freq';
@@ -135,53 +165,86 @@ elseif hastime
   yparam = '';
 end
 
-
-
-% Get physical min/max range of x:
-if ischar(cfg.xlim) && strcmp(cfg.xlim,'maxmin')
-  xmin = inf;
+% Get physical min/max range of x, i.e. time
+if ~isnumeric(cfg.xlim)
+  % Find maxmin throughout all varargins
+  xmin = +inf;
   xmax = -inf;
-  for k = 1:Ndata
-    xmin = min(xmin,varargin{k}.(xparam)(1));
-    xmax = max(xmax,varargin{k}.(xparam)(end));
+  for i=1:Ndata
+    xmin = nanmin([xmin varargin{i}.(xparam)]);
+    xmax = nanmax([xmax varargin{i}.(xparam)]);
   end
+  switch cfg.xlim
+    case 'maxmin'
+      % keep them as they are
+    case 'maxabs'
+      xmax = max(abs(xmax), abs(xmin));
+      xmin = -xmax;
+    case 'zeromax'
+      xmin = 0;
+    case 'minzero'
+      xmax = 0;
+    otherwise
+      ft_error('invalid specification of cfg.xlim');
+  end % switch
 else
   xmin = cfg.xlim(1);
   xmax = cfg.xlim(2);
 end
 cfg.xlim = [xmin xmax];
 
-% Get physical min/max range of y:
-if ischar(cfg.ylim) && strcmp(cfg.ylim, 'maxmin') && ~isempty(yparam)
-  ymin = inf;
-  ymax = -inf;
-  for k = 1:Ndata
-    ymin = min(ymin,varargin{k}.(yparam)(1));
-    ymax = max(ymax,varargin{k}.(yparam)(end));
-  end
-elseif ~isempty(yparam)
-  ymin = cfg.ylim(1);
-  ymax = cfg.ylim(2);
-elseif isempty(yparam)
+% Get physical min/max range of y, i.e. freq
+if isempty(yparam)
   ymin = [];
   ymax = [];
+elseif ~isnumeric(cfg.ylim)
+  % Find maxmin throughout all varargins
+  ymin = +inf;
+  ymax = -inf;
+  for i=1:Ndata
+    ymin = nanmin([ymin varargin{i}.(yparam)]);
+    ymax = nanmax([ymax varargin{i}.(yparam)]);
+  end
+  switch cfg.ylim
+    case 'maxmin'
+      % keep them as they are
+    case 'maxabs'
+      ymax = max(abs(ymax), abs(ymin));
+      ymin = -ymax;
+    case 'zeromax'
+      ymin = 0;
+    case 'minzero'
+      ymax = 0;
+    otherwise
+      ft_error('invalid specification of cfg.ylim');
+  end % switch
+else
+  ymin = cfg.ylim(1);
+  ymax = cfg.ylim(2);
 end
 cfg.ylim = [ymin ymax];
 
 % Get physical min/max range of z, which is the functional data:
-if ischar(cfg.zlim) && strcmp(cfg.zlim,'maxmin')
-  zmin = inf;
+if ~isnumeric(cfg.zlim)
+  zmin = +inf;
   zmax = -inf;
   for k = 1:Ndata
-    zmin = min(zmin,min(varargin{k}.(cfg.parameter)(:)));
-    zmax = max(zmax,max(varargin{k}.(cfg.parameter)(:)));
+    zmin = nanmin([zmin min(varargin{k}.(cfg.parameter{k})(:))]);
+    zmax = nanmax([zmax max(varargin{k}.(cfg.parameter{k})(:))]);
   end
-elseif ischar(cfg.zlim) && strcmp(cfg.zlim,'maxabs')
-  zmax = -inf;
-  for k = 1:Ndata
-    zmax = max(zmax,max(abs(varargin{k}.(parameter)(:))));
-  end
-  zmin = -zmax;
+  switch cfg.zlim
+    case 'maxmin'
+      % keep them as they are
+    case 'maxabs'
+      zmax = max(abs(zmax), abs(zmin));
+      zmin = -zmax;
+    case 'zeromax'
+      zmin = 0;
+    case 'minzero'
+      zmax = 0;
+    otherwise
+      ft_error('invalid specification of cfg.ylim');
+  end % switch
 else
   zmin = cfg.zlim(1);
   zmax = cfg.zlim(2);
@@ -199,16 +262,16 @@ if Ndata>1
   end
   ft_connectivityplot(tmpcfg, data);
   tmpcfg = cfg;
-   
-  if ischar(cfg.graphcolor),        colorLabels = [iname{2} '=' tmpcfg.graphcolor(1) '\n'];
-  elseif isnumeric(cfg.graphcolor), colorLabels = [iname{2} '=' num2str(tmpcfg.graphcolor(1, :)) '\n'];
+
+  if ischar(cfg.linecolor),        colorLabels = [iname{2} '='         tmpcfg.linecolor(1)     '\n'];
+  elseif isnumeric(cfg.linecolor), colorLabels = [iname{2} '=' num2str(tmpcfg.linecolor(1, :)) '\n'];
   end
-    
+
   for k = 2:Ndata
-    if ischar(cfg.graphcolor),     tmpcfg.graphcolor = tmpcfg.graphcolor(2:end);
-    else isnumeric(cfg.graphcolor),tmpcfg.graphcolor = tmpcfg.graphcolor(2:end,:);
+    if ischar(cfg.linecolor),     tmpcfg.linecolor = tmpcfg.linecolor(2:end);
+    else isnumeric(cfg.linecolor),tmpcfg.linecolor = tmpcfg.linecolor(2:end,:);
     end
-    
+
     tmpcfg.holdfig = 1;
     if ischar(cfg.parameter)
       % do nothing
@@ -216,12 +279,12 @@ if Ndata>1
       tmpcfg.parameter = cfg.parameter{k};
     end
     ft_connectivityplot(tmpcfg, varargin{k});
-    
-    if ischar(cfg.graphcolor);        colorLabels = [colorLabels iname{k+1} '=' tmpcfg.graphcolor(1) '\n'];
-    elseif isnumeric(cfg.graphcolor); colorLabels = [colorLabels iname{k+1} '=' num2str(tmpcfg.graphcolor(1, :)) '\n'];
+
+    if ischar(cfg.linecolor);        colorLabels = [colorLabels iname{k+1} '='         tmpcfg.linecolor(1)     '\n'];
+    elseif isnumeric(cfg.linecolor); colorLabels = [colorLabels iname{k+1} '=' num2str(tmpcfg.linecolor(1, :)) '\n'];
     end
   end
-  
+
   ft_plot_text(0.5, (numel(varargin{k}.label)+1).*1.2-0.5, sprintf(colorLabels), 'horizontalalignment', 'right');
 
   return;
@@ -229,8 +292,8 @@ else
   data = varargin{1};
 end
 
-if ~isfield(data, cfg.parameter)
-  error('the data does not contain the requested parameter %s', cfg.parameter);
+if ~isfield(data, cfg.parameter{1})
+  ft_error('the data does not contain the requested parameter %s', cfg.parameter{1});
 end
 
 % get the selection of the data
@@ -240,14 +303,14 @@ if hasfreq && hastime
   tmpcfg.frequency = cfg.ylim;
 elseif hasfreq
   tmpcfg.frequency = cfg.xlim;
-elseif hastime 
+elseif hastime
   tmpcfg.latency   = cfg.xlim;
 end
 data             = ft_selectdata(tmpcfg, data);
 % restore the provenance information
 [cfg, data] = rollback_provenance(cfg, data);
 
-dat   = data.(cfg.parameter);
+dat   = data.(cfg.parameter{k});
 nchan = numel(data.label);
 if hasfreq, nfreq = numel(data.freq); end
 if hastime, ntime = numel(data.time); end
@@ -263,18 +326,18 @@ for k = 1:nchan
       ix  = k;
       iy  = nchan - m + 1;
       % use the convention of the row-channel causing the column-channel
-      if hastime && hasfreq
+      if hastime && hasfreq && ntime>1
         tmp = reshape(dat(m,k,:,:), [nfreq ntime]);
         ft_plot_matrix(tmp, 'width', 1, 'height', 1, 'hpos', ix.*1.2, 'vpos', iy.*1.2, 'clim', cfg.zlim, 'box', 'yes');
       elseif hasfreq
         tmp = reshape(dat(m,k,:), [nfreq 1]);
-        ft_plot_vector(tmp, 'width', 1, 'height', 1, 'hpos', ix.*1.2, 'vpos', iy.*1.2, 'vlim', cfg.zlim, 'box', 'yes', 'color', cfg.graphcolor(1));
+        ft_plot_vector(tmp, 'width', 1, 'height', 1, 'hpos', ix.*1.2, 'vpos', iy.*1.2, 'vlim', cfg.zlim, 'box', 'yes', 'color', cfg.linecolor(1,:), 'linewidth', cfg.linewidth, 'style', cfg.linestyle);
       elseif hastime
-        error('plotting data with only a time axis is not supported yet');
+        ft_error('plotting data with only a time axis is not supported yet');
       end
       if k==1
         % first column, plot scale on y axis
-        if hastime && hasfreq
+        if hastime && hasfreq && ntime>1
           val1 = cfg.ylim(1);
           val2 = cfg.ylim(2);
         elseif hasfreq
@@ -303,16 +366,43 @@ for k = 1:nchan
 end
 
 % add 'from' and 'to' labels
-ft_plot_text(-0.5,            (nchan + 1)/1.7,     'interpreter', 'tex', '\it{from}', 'rotation', 90);
-ft_plot_text((nchan + 1)/1.7, (nchan + 1)*1.2+0.4, 'interpreter', 'tex', '\it{to}');
+ft_plot_text(-0.5,            (nchan + 1)/1.7,     '\it{from}', 'interpreter', 'tex', 'rotation', 90);
+ft_plot_text((nchan + 1)/1.7, (nchan + 1)*1.2+0.4, '\it{to}', 'interpreter', 'tex');
 
 axis([-0.2 (nchan+1).*1.2+0.2 0 (nchan+1).*1.2+0.2]);
 axis off;
 
 set(gcf, 'color', [1 1 1]);
 
+% this is needed for the figure title
+if isfield(cfg, 'dataname') && ~isempty(cfg.dataname)
+  dataname = cfg.dataname;
+elseif isfield(cfg, 'inputfile') && ~isempty(cfg.inputfile)
+  dataname = cfg.inputfile;
+elseif nargin>1
+  dataname = arrayfun(@inputname, 2:nargin, 'UniformOutput', false);
+else
+  dataname = {};
+end
+
+% set the figure window title
+if ~isempty(dataname)
+  set(gcf, 'Name', sprintf('%d: %s: %s', double(gcf), mfilename, join_str(', ', dataname)));
+else
+  set(gcf, 'Name', sprintf('%d: %s', double(gcf), mfilename));
+end
+set(gcf, 'NumberTitle', 'off');
+
 % do the general cleanup and bookkeeping at the end of the function
 ft_postamble debug
-ft_postamble trackconfig
 ft_postamble previous varargin
 ft_postamble provenance
+ft_postamble savefig
+
+% add a menu to the figure, but only if the current figure does not have subplots
+menu_fieldtrip(gcf, cfg, false);
+
+if ~ft_nargout
+  % don't return anything
+  clear cfg
+end

@@ -1,9 +1,9 @@
 function test_ft_volumerealign
 
-% MEM 2500mb
+% MEM 2gb
 % WALLTIME 00:10:00
-
-% TEST ft_read_mri ft_volumerealign ft_volumereslice
+% DEPENDENCY ft_read_mri ft_volumerealign ft_volumereslice
+% DATA private
 
 % to test:
 % between modalities
@@ -25,8 +25,11 @@ function test_ft_volumerealign
 
 % path to data
 
-subjectT1  = dccnpath('/home/common/matlab/fieldtrip/data/test/bug1826/T1.nii.gz');
-subjectT2  = dccnpath('/home/common/matlab/fieldtrip/data/test/bug1826/T2.nii.gz');
+[ftver, ftpath] = ft_version;
+templatedir  = fullfile(ftpath, 'template');
+
+subjectT1  = dccnpath('/project/3031000.02/test/bug1826/T1.nii.gz');
+subjectT2  = dccnpath('/project/3031000.02/test/bug1826/T2.nii.gz');
 
 % load in the data
 
@@ -75,7 +78,7 @@ figure; ft_plot_ortho(T2rot.anatomy); title('T2rot before aligning')
 clear rotatm;
 clear transmat;
 
-%% alignement %
+%% alignment %
 
 %% interpolation method: trilinear
 
@@ -119,7 +122,7 @@ cfg.funparameter = 'anatomyT2';
 cfg.maskparameter = 'anatomyT2';
 
 ft_sourceplot(cfg,T1);
-title('T2 (rotated) before alignement.');
+title('T2 (rotated) before alignment.');
 
 for m = 1:numel(costfuns)
   T1.anatomyT2 = T2_aligned{m}.anatomy;
@@ -129,11 +132,11 @@ for m = 1:numel(costfuns)
   cfg.maskparameter = 'anatomyT2';
   figure;
   ft_sourceplot(cfg,T1);
-  title(sprintf('T2 (non-rotated) after trilinear alignement with costfunction %s.', costfuns{m}));
+  title(sprintf('T2 (non-rotated) after trilinear alignment with costfunction %s.', costfuns{m}));
   T1.anatomyT2 = T2rot_aligned{m}.anatomy;
   figure;
   ft_sourceplot(cfg,T1);
-  title(sprintf('T2 (rotated) after trilinear alignement with costfunction %s.', costfuns{m}));
+  title(sprintf('T2 (rotated) after trilinear alignment with costfunction %s.', costfuns{m}));
   
 end
 
@@ -173,7 +176,7 @@ cfg.funparameter = 'anatomyT2';
 cfg.maskparameter = 'anatomyT2';
 
 ft_sourceplot(cfg,T1);
-title('T2 (rotated) before alignement.');
+title('T2 (rotated) before alignment.');
 
 for m = 1:numel(costfuns)
   T1.anatomyT2 = T2_aligned{m}.anatomy;
@@ -183,11 +186,11 @@ for m = 1:numel(costfuns)
   cfg.maskparameter = 'anatomyT2';
   figure;
   ft_sourceplot(cfg,T1);
-  title(sprintf('T2 (non-rotated) after sinc alignement with costfunction %s.', costfuns{m}));
+  title(sprintf('T2 (non-rotated) after sinc alignment with costfunction %s.', costfuns{m}));
   T1.anatomyT2 = T2rot_aligned{m}.anatomy;
   figure;
   ft_sourceplot(cfg,T1);
-  title(sprintf('T2 (rotated) after sinc alignement with costfunction %s.', costfuns{m}));
+  title(sprintf('T2 (rotated) after sinc alignment with costfunction %s.', costfuns{m}));
   
 end
 
@@ -231,7 +234,7 @@ cfg.funparameter = 'anatomyT2';
 cfg.maskparameter = 'anatomyT2';
 
 ft_sourceplot(cfg,T1);
-title('T2 (rotated) before alignement.');
+title('T2 (rotated) before alignment.');
 
 for m = 1:numel(costfuns)
   T1.anatomyT2 = T2_aligned{m}.anatomy;
@@ -241,11 +244,11 @@ for m = 1:numel(costfuns)
   cfg.maskparameter = 'anatomyT2';
   figure;
   ft_sourceplot(cfg,T1);
-  title(sprintf('T2 (non-rotated) after nearestneighbour alignement with costfunction %s.', costfuns{m}));
+  title(sprintf('T2 (non-rotated) after nearestneighbour alignment with costfunction %s.', costfuns{m}));
   T1.anatomyT2 = T2rot_aligned{m}.anatomy;
   figure;
   ft_sourceplot(cfg,T1);
-  title(sprintf('T2 (rotated) after nearestneighbour alignement with costfunction %s.', costfuns{m}));
+  title(sprintf('T2 (rotated) after nearestneighbour alignment with costfunction %s.', costfuns{m}));
   
 end
 
@@ -302,7 +305,7 @@ cfg.funparameter = 'anatomyT2';
 cfg.maskparameter = 'anatomyT2';
 figure;
 ft_sourceplot(cfg,T1);
-title(sprintf('T2 (rotated) after alignement'));
+title(sprintf('T2 (rotated) after alignment'));
 
 %FIXME: T2 does not seem to be aligned to T1 after reslice
 
@@ -325,8 +328,8 @@ clear all;
 
 % path to data
 
-subjectT1  = dccnpath('/home/common/matlab/fieldtrip/data/test/bug1826/T1.nii.gz');
-subjectDTI = dccnpath('/home/common/matlab/fieldtrip/data/test/bug1826/DTI.nii');
+subjectT1  = dccnpath('/project/3031000.02/test/bug1826/T1.nii.gz');
+subjectDTI = dccnpath('/project/3031000.02/test/bug1826/DTI.nii');
 
 % load in the data
 
@@ -442,11 +445,11 @@ clear all;
 
 % template T1 (fuzzy)
 
-T1temp = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/external/spm8/templates/T1.nii'));
+T1temp = ft_read_mri(fullfile(ftpath, 'external', 'spm8', 'templates', 'T1.nii'));
 
 % other subject's T1
 
-T1other = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/mri/nifti/single_subj_T1.nii'));
+T1other = ft_read_mri(dccnpath('/project/3031000.02/test/latest/mri/nifti/single_subj_T1.nii'));
 
 cfg=[];
 % cfg.nonlinear = 'no';  option in volumenormalise
@@ -475,11 +478,11 @@ clear all;
 
 % template T1 (fuzzy)
 
-T1temp = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/external/spm8/templates/T1.nii'));
+T1temp = ft_read_mri(fullfile(ftpath, 'external', 'spm8', 'templates', 'T1.nii'));
 
 % other subject's T1
 
-T1other = ft_read_mri(dccnpath('/home/common/matlab/fieldtrip/data/test/latest/mri/nifti/single_subj_T1.nii'));
+T1other = ft_read_mri(dccnpath('/project/3031000.02/test/latest/mri/nifti/single_subj_T1.nii'));
 
 
 cfg=[];

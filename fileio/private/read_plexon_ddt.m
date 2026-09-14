@@ -51,7 +51,7 @@ function [dat] = read_plexon_ddt(filename, begsample, endsample)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 dat = [];
-fid = fopen(filename, 'rb', 'ieee-le');
+fid = fopen_or_error(filename, 'rb', 'ieee-le');
 
 Version    = fread(fid, 1, 'int'    ); 
 dat.Version    = Version;
@@ -92,7 +92,7 @@ elseif Version==103
   dat.MaxMagnitudeMV = fread(fid,   1, 'short');
   dat.Padding        = fread(fid, 189, 'char');
 else
-  error('unsupported version of ddt file');
+  ft_error('unsupported version of ddt file');
 end
 
 % determine the number of samples by looking at the length of the datafile
@@ -130,7 +130,7 @@ elseif Version==102
   end
 elseif Version==103
   % I am not sure whether the calibration like this is correct, since the
-  % Plexon documentation does not explicitely specify how to do it for the
+  % Plexon documentation does not explicitly specify how to do it for the
   % 104 file format. I presume that it is identical to the 103 format.
   for i=1:dat.NChannels
     dat.data(i,:) = dat.data(i,:) * 5000 ./ (0.5 * (2^dat.BitsPerSample) * dat.ChannelGain(i));

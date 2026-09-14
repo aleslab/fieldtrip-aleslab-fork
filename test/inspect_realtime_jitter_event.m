@@ -1,5 +1,10 @@
 function inspect_realtime_jitter_event
 
+% WALLTIME 00:10:00
+% MEM 1gb
+% DEPENDENCY
+% DATA no
+
 filename = 'buffer://localhost:1972';
 
 %% write events to the buffer, you should have recording and sine2ft running

@@ -1,11 +1,11 @@
 function test_bug1984_2187
 
-% MEM 1500mb
+% MEM 1gb
 % WALLTIME 00:10:00
+% DEPENDENCY ft_appendfreq ft_freqgrandaverage ft_freqstatistics ft_prepare_neighbours
+% DATA private
 
-% TEST ft_appendfreq ft_freqgrandaverage ft_freqstatistics ft_prepare_neighbours
-
-load(dccnpath('/home/common/matlab/fieldtrip/data/test/bug1984_2187.mat'));
+load(dccnpath('/project/3031000.02/test/bug1984_2187.mat'));
 
 %% first: test rpt concatenation
 cfg = [];

@@ -29,17 +29,13 @@ function [mri, hdr] = read_ctf_mri(filename)
 % $Id$
 
 % Some versions require specifying latin1 (ISO-8859-1) character encoding.
-fid = fopen(filename, 'rb', 'ieee-be', 'ISO-8859-1');
-
-if fid<=0
-  error(sprintf('could not open MRI file: %s\n', filename));
-end
+fid = fopen_or_error(filename, 'rb', 'ieee-be', 'ISO-8859-1');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % READ THE IMAGE HEADER
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-ws = warning('off');
+ws = ft_warning('off');
 
 % general header information
 hdr.identifierString = fread(fid,[1 32],'uint8=>char'); % CTF_MRI_FORMAT VER 2.2
@@ -107,11 +103,11 @@ hdr.transformMatrix = fread(fid,[4 4],'float')'; % transformation matrix head->M
 % the header (position 1028), but it seems some versions of Matlab (or
 % perhaps only on some systems) doesn't read 2 bytes somewhere and end up
 % in position 1026...  In any case, it caused an error with some files so
-% we must explicitely seek to position 1028.
+% we must explicitly seek to position 1028.
 fseek(fid, 1028, 'bof');
 
 % turn all warnings back on
-warning(ws);
+ft_warning(ws);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % READ THE IMAGE DATA
@@ -128,7 +124,7 @@ elseif hdr.dataSize == 2
     precision = '*uint16';
   end
 else
-  error('unknown datasize (%d) in CTF mri file.', hdr.dataSize);
+  ft_error('unknown datasize (%d) in CTF mri file.', hdr.dataSize);
 end
 mri = fread(fid, hdr.imageSize.^3, precision);
 mri = reshape(mri, [hdr.imageSize hdr.imageSize hdr.imageSize]);

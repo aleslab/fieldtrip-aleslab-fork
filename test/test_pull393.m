@@ -1,9 +1,12 @@
 function test_pull393
 
 % WALLTIME 00:10:00
-% MEM 2gb
+% MEM 1gb
+% DEPENDENCY ft_appenddata ft_appendtimelock ft_appendsens ft_appendsens
+% DATA no
 
 %% construct some data
+
 % data_eeg
 data_eeg.label = {'eeg 1';'eeg 2';'eeg 3'};
 data_eeg.trial{1,1} = randn(3,10);
@@ -12,6 +15,11 @@ data_eeg.elec.label = data_eeg.label;
 data_eeg.elec.elecpos = [1 1 1; 2 2 2; 3 3 3];
 data_eeg.elec.chanpos = [1 1 1; 2 2 2; 3 3 3];
 data_eeg.elec.tra = eye(3);
+
+% data_eeg2 (a different EEG recording: same labels but different elecpos: this should break)
+data_eeg2 = data_eeg;
+data_eeg2.elec.elecpos = data_eeg.elec.elecpos+randn(1); % note the random offset
+data_eeg2.elec.chanpos = data_eeg2.elec.elecpos;
 
 % data_meg
 data_meg.label = {'meg 1';'meg 2';'meg 3'};
@@ -99,6 +107,13 @@ freq_ieegb = ft_freqanalysis(cfg, data_ieegb);
 %% append raw data
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% % eeg and eeg2: this should break because of inconsistent label and chanpos
+% cfg = [];
+% cfg.appendsens = 'yes';
+% append0 = ft_appenddata(cfg, data_eeg, data_eeg2);
+% assert(isequal(numel(append0.label),3)) % 3 labels (concat across rpt dim)
+% assert(isequal(numel(append0.elec.label),3)) % 3 elec labels
+
 % eeg and meg
 cfg = [];
 cfg.appendsens = 'yes';
@@ -106,6 +121,8 @@ append1 = ft_appenddata(cfg, data_eeg, data_meg);
 assert(isequal(numel(append1.label),6)) % 6 labels
 assert(isequal(numel(append1.elec.label),3)) % 3 elec labels
 assert(isequal(numel(append1.grad.label),3)) % 3 grad labels
+assert(isequal(size(append1.elec.tra,1),3)) % 3 tra rows
+assert(isequal(size(append1.grad.tra,1),3)) % 3 tra rows
 
 % eeg and nirs
 cfg = [];
@@ -114,6 +131,8 @@ append2 = ft_appenddata(cfg, data_eeg, data_nirs);
 assert(isequal(numel(append2.label),6)) % 6 labels
 assert(isequal(numel(append2.elec.label),3)) % 3 elec labels
 assert(isequal(numel(append2.opto.label),3)) % 3 opto labels
+assert(isequal(size(append2.elec.tra,1),3)) % 3 tra rows
+assert(isequal(size(append2.opto.tra,1),3)) % 3 tra rows
 
 % monopolar and bipolar
 cfg = [];
@@ -121,7 +140,8 @@ cfg.appendsens = 'yes';
 append3 = ft_appenddata(cfg, data_ieeg, data_ieegb);
 assert(isequal(numel(append3.label),5)) % 5 ieeg labels
 assert(isequal(numel(append3.elec.label),5)) % 5 ieeg labels
-assert(isequal(numel(append3.elec.labelold),6)) % 6 ieeg labelolds
+assert(isequal(size(append3.elec.elecpos,1),3)) % 3 original elecpos
+assert(isequal(size(append3.elec.tra,1),5)) % 5 tra rows
 
 % do not append (discard inconsistent sens information)
 append4 = ft_appenddata([], data_eeg, data_meg);
@@ -157,6 +177,8 @@ append1 = ft_appendtimelock(cfg, timelock_eeg, timelock_meg);
 assert(isequal(numel(append1.label),6)) % 6 labels
 assert(isequal(numel(append1.elec.label),3)) % 3 elec labels
 assert(isequal(numel(append1.grad.label),3)) % 3 grad labels
+assert(isequal(size(append1.elec.tra,1),3)) % 3 tra rows
+assert(isequal(size(append1.grad.tra,1),3)) % 3 tra rows
 
 % eeg and nirs
 cfg = [];
@@ -165,6 +187,8 @@ append2 = ft_appendtimelock(cfg, timelock_eeg, timelock_nirs);
 assert(isequal(numel(append2.label),6)) % 6 labels
 assert(isequal(numel(append2.elec.label),3)) % 3 elec labels
 assert(isequal(numel(append2.opto.label),3)) % 3 opto labels
+assert(isequal(size(append2.elec.tra,1),3)) % 3 tra rows
+assert(isequal(size(append2.opto.tra,1),3)) % 3 tra rows
 
 % monopolar and bipolar
 cfg = [];
@@ -172,7 +196,8 @@ cfg.appendsens = 'yes';
 append3 = ft_appendtimelock(cfg, timelock_ieeg, timelock_ieegb);
 assert(isequal(numel(append3.label),5)) % 5 ieeg labels
 assert(isequal(numel(append3.elec.label),5)) % 5 ieeg labels
-assert(isequal(numel(append3.elec.labelold),6)) % 6 ieeg labelolds
+assert(isequal(size(append3.elec.elecpos,1),3)) % 3 original elecpos
+assert(isequal(size(append3.elec.tra),[5 3]))
 
 % do not append (discard inconsistent sens information)
 append4 = ft_appendtimelock([], timelock_eeg, timelock_meg);
@@ -208,6 +233,8 @@ append1 = ft_appendfreq(cfg, freq_eeg, freq_meg);
 assert(isequal(numel(append1.label),6)) % 6 labels
 assert(isequal(numel(append1.elec.label),3)) % 3 elec labels
 assert(isequal(numel(append1.grad.label),3)) % 3 grad labels
+assert(isequal(size(append1.elec.tra,1),3)) % 3 tra rows
+assert(isequal(size(append1.grad.tra,1),3)) % 3 tra rows
 
 % eeg and nirs
 cfg = [];
@@ -216,6 +243,8 @@ append2 = ft_appendfreq(cfg, freq_eeg, freq_nirs);
 assert(isequal(numel(append2.label),6)) % 6 labels
 assert(isequal(numel(append2.elec.label),3)) % 3 elec labels
 assert(isequal(numel(append2.opto.label),3)) % 3 opto labels
+assert(isequal(size(append2.elec.tra,1),3)) % 3 tra rows
+assert(isequal(size(append2.opto.tra,1),3)) % 3 tra rows
 
 % monopolar and bipolar
 cfg = [];
@@ -223,7 +252,8 @@ cfg.appendsens = 'yes';
 append3 = ft_appendfreq(cfg, freq_ieeg, freq_ieegb);
 assert(isequal(numel(append3.label),5)) % 5 ieeg labels
 assert(isequal(numel(append3.elec.label),5)) % 5 ieeg labels
-assert(isequal(numel(append3.elec.labelold),6)) % 6 ieeg labelolds
+assert(isequal(size(append3.elec.elecpos,1),3)) % 3 original elecpos
+assert(isequal(size(append3.elec.tra,1),5)) % 5 tra rows
 
 % do not append (discard inconsistent sens information)
 append4 = ft_appendfreq([], freq_eeg, freq_meg);
